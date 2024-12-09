@@ -1,0 +1,3 @@
+Supremely old code. Couldn't spend too much time looking through this to polish it up. A compilation of Minecraft Macro Mod scripts and library functions that were written for Hypixel SkyBlock circa 2020 or so. Ultimately culminated in the products [seen here](https://youtu.be/3J6r3ZlLIu8), as well as dozens of other custom / private scripts that I either didn't finish, or didn't release.
+
+It's likely that for any of the stuff in this repository to be useful to you, you'll need some custom Macro Mod plugins. As mentioned, I didn't have a whole lot of time to polish up this repo, so those aren't included. If anyone actually finds this useful and wants to poke around with it a little, leave an issue on the repository and I might update this when I have some time.
