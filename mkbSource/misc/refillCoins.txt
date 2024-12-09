@@ -1,0 +1,138 @@
+// misc/refillCoins.txt
+	// Attempts to refill the specified amount of Coins by whatever means necessary (will try:
+	// bank accounts, bazaar orders, and uncollected auction sales in that order).
+		// Params:
+			// {string} [&amount=-1]     	The amount of Coins to refill. If set to -1, will refill the Maximum
+			//                           	amount of Coins available. Can pass any type of Number so long as it is parseable by
+			//                           	`number()`.
+			// {number} [#timeout_sec=30]	Max seconds Function can run for before timing out. Set to <= 0 to disable timeouts.
+			// {number} [#tick_wait=20]  	Ticks to wait between repeating certain actions.
+			// {boolean} [solo_bank=true]	Whether or not to try to refill the Coins from the Solo Bank Account.
+			// {boolean} [coop_bank=true]	Whether or not to try to refill the Coins from the Coop Bank Account, if it is available.
+			// {boolean} [bazaar=true]   	Whether or not to try to refill the Coins from uncollected Bazaar Sell Orders, if any are
+			//                           	available.
+			// {boolean} [auctions=true] 	Whether or not to try to refill the Coins from uncollected Auction Sales, if any are available.
+		// Returns a Boolean indicating whether or not the specified amount of Coins was able to be refilled.
+		// Example:
+			//	coins_refilled = refillCoins("100k");
+	function refillCoins(&amount=-1,#timeout_sec=30,#tick_wait=20,solo_bank=true,coop_bank=true,bazaar=true,auctions=true);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&a$&6refillCoins&a$";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			&refill_amount     = number(%&amount%,"F:I","R:T");
+			refill_maximum     = %&refill_amount% == "-1";
+			
+			// Sanity Check -- At least one Refill Method must be enabled.
+			if((!%solo_bank%) && (!%coop_bank%) && (!%bazaar%) && (!%auctions%));
+				debug_error(%debug%,%&script_debug_name%,"At least one Refill Method must be enabled! (solo_bank, coop_bank, bazaar, and auctions are all disabled)");
+				return(False);
+			endif;
+		endif;
+		
+		// Function Logic
+		if(true);
+			&balance_before = getPurse();
+			
+			// Try the Bank Account(s) if we are trying Bank.
+			if((%solo_bank%) || (%coop_bank%));
+				check_coins = bankingWithdraw(%&refill_amount%,%solo_bank%,%coop_bank%,true,%#timeout_sec%,%#tick_wait%);
+				if((!%refill_maximum%) && (%check_coins%));
+					&balance_current    = getPurse();
+					&balance_difference = xEval("%&balance_current% - %&balance_before%");
+					balance_diff_gte    = _gte(%&balance_difference%,%&refill_amount%);
+					if(%balance_diff_gte%);
+						debug_log(%debug%,%&script_debug_name%,"Successfully refilled &6%&refill_amount%&7 coins from the Bank Account(s).");
+						return(True);
+					endif;
+				endif;
+			endif;
+			
+			// Try the Bazaar if we are trying Bazaar.
+			if(%bazaar%);
+				#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+				&bazaar_orders[]   = bazaarIndexOrders(true,%#tick_wait%,%#recursive_timeout%);
+				foreach(&bazaar_orders[],&bazaar_order,#boi);
+					&order_data[]      = split("|",%&bazaar_order%);
+					&order_sbid        = %&order_data[0]%;
+					&order_type        = %&order_data[1]%;
+					&price_per_unit    = %&order_data[2]%;
+					#items_filled     := %&order_data[3]%;
+					#items_total      := %&order_data[4]%;
+					#amount_claimable := %&order_data[5]%;
+					order_expired     := %&order_data[6]%;
+					
+					if((%#amount_claimable% > 0) && (%&order_type% == "SELL"));
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						order_collected    = bazaarCollectOrder(%&bazaar_order%,true,%#tick_wait%,%#recursive_timeout%);
+						if((%order_collected%) && (!%refill_maximum%));
+							&balance_current    = getPurse();
+							&balance_difference = xEval("%&balance_current% - %&balance_before%");
+							balance_diff_gte    = _gte(%&balance_difference%,%&refill_amount%);
+							if(%balance_diff_gte%);
+								debug_log(%debug%,%&script_debug_name%,"Successfully refilled &6%&refill_amount%&7 coins from the Bank Account(s).");
+								return_boolean = true;
+								break;
+							endif;
+						endif;
+					endif;
+				next;
+				if(%return_boolean%);
+					return(%return_boolean%);
+				endif;
+			endif;
+			
+			// Try the Auction House if we are trying Auction House.
+			if(%auctions%);
+				&available_auctions[] = auctionsIndexCoinsAvailable();
+				foreach(&available_auctions[],&available_auction,#aa);
+					&listing_info[]    = split("|",%&available_auction%);
+					listing_hit       := %&listing_info[0]%;
+					&listing_id        = %&listing_info[1]%;
+					&listing_type      = %&listing_info[2]%;
+					#listing_price    := %&listing_info[3]%;
+					#listing_bids     := %&listing_info[4]%;
+					listing_ended     := %&listing_info[5]%;
+					listing_claimed   := %&listing_info[6]%;
+					&listing_owner     = %&listing_info[7]%;
+					&listing_profile   = %&listing_info[8]%;
+					&listing_sbid      = %&listing_info[9]%;
+					&listing_name      = %&listing_info[10]%;
+					&listing_mcid      = %&listing_info[11]%;
+					#listing_data     := %&listing_info[12]%;
+					#listing_stack    := %&listing_info[13]%;
+					&listing_buyers    = %&listing_info[14]%;
+					#listing_end_time := %&listing_info[15]%;
+					
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&collected_listing = auctionsCollectListing(%#tick_wait%,%#recursive_timeout%,"ID: %&listing_id%");
+					if(%&collected_listing% == "ERROR_UNAVAILABLE");
+						break;
+					elseif((%&collected_listing% == "SUCCESS") && ((!%refill_maximum%) && (%check_coins%)));
+						&balance_current    = getPurse();
+						&balance_difference = xEval("%&balance_current% - %&balance_before%");
+						balance_diff_gte    = _gte(%&balance_difference%,%&refill_amount%);
+						if(%balance_diff_gte%);
+							debug_log(%debug%,%&script_debug_name%,"Successfully refilled &6%&refill_amount%&7 coins from the Bank Account(s).");
+							return_boolean = True;
+							break;
+						endif;
+					endif;
+				next;
+				if(%return_boolean%);
+					return(True);
+				endif;
+			endif;
+		endif;
+		
+		&balance_current    = getPurse();
+		&balance_difference = xEval("%&balance_current% - %&balance_before%");
+		balance_diff_gte    = _gte(%&balance_difference%,%&refill_amount%);
+		if(%balance_diff_gte%);
+			debug_log(%debug%,%&script_debug_name%,"Successfully refilled &6%&refill_amount%&7 coins from the Bank Account(s).");
+			return(True);
+		endif;
+		return(False);
+	endfunction;

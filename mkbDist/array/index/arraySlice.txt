@@ -1,0 +1,47 @@
+//! @mkb-import-begin
+    // array/index/arraySlice
+        // Returns an Array of the Elements who's index were >= [#start] and < [#end].
+            // Params:
+            //        {array}  <&array[]>    The Array to copy elements from
+            //        {number} [#start=0]    Index to start copying elements at
+            //        {number} [#end]        Index to stop copying elements at. Can be a negative value
+            //                               to indicate an offset from the end of the Original Array.
+            //
+            // Behaves identically to JavaScript's Array.slice() method:
+            //        https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice
+            //
+            // Returns a slice of the input Array who's Elements were those from the Original Array
+            // that had an Index >= [#start] and < [#end].
+        function arraySlice(&array[],&start="",&end="");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:24
+            #array_size   = arraysize(&array[]);
+            #array_length = %#array_size% - 1;
+            #int_start   := %&start%;
+            #int_end     := %&end%;
+            
+            if(%#int_start% < 0);
+                // Start < 0, return Array of last |#start| elements.
+                #int_start = #array_length + #int_start;
+                push(&return_array[],&array[%#int_start%:%#array_size%])
+                return(&return_array[]);
+            elseif(%#int_start% > %#array_length%);
+                // Start > size of Array, return empty Array.
+                return(&return_array[]);
+            else;
+                // Start <= size of array, return entries >= start && < end in Array.
+                if(%#int_end% < 0);
+                    // Offset end, negative value passed.
+                    #int_end = #array_length + #int_end;
+                elseif(%#int_end% == 0);
+                    // End was not passed, return entries start:end
+                    push(&return_array[],&array[%#int_start%:%#array_size%]);
+                    return(&return_array[]);
+                endif;
+                
+                for(#index,%#int_start%,%#int_end%);
+                    &return_array[] = %&array[%#index%]%;
+                next;
+                return(&return_array[]);
+            endif;
+        endfunction;
+//! @mkb-import-end

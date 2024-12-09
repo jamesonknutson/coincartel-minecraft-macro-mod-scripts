@@ -1,0 +1,42 @@
+//! @mkb-import-begin
+    // bazaar/index/getCurrentBazaarSubcategoryPath
+        // Finds the Currently Selected Bazaar Subcategory's Path.
+            // Params: None
+            // Returns the JSON dot-separated path of the Subcategory that is currently selected, or "NONE" if not found.
+        function getCurrentBazaarSubcategoryPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:478
+            &return_string = "NONE";
+            ifmatches(%CONTAINERNAME%,"(Farming|Mining|Combat|Woods & Fishes|Oddities) \u279c",&category_name,1);
+                // Find the Index of this Category.
+                if(true);
+                    #category_index = -1;
+                    for(#i,0,4);
+                        &button_name = jsonget("holds.%#i%.button.name",%@&mkb_baz_json%);
+                        if(%&button_name% == %&category_name%);
+                            #category_index = %#i%;
+                            break;
+                        endif;
+                    next;
+                    
+                    if(%#category_index% == -1);
+                        return("NONE");
+                    endif;
+                endif;
+                
+                // Find the Subcategory within the Parent Category who's exp_container value matches whatever ours is.
+                if(true);
+                    for(#i,0,99);
+                        &subentry_expr = jsonget("holds.%#category_index%.holds.%#i%.button.exp_container",%@&mkb_baz_json%);
+                        ifmatches(%CONTAINERNAME%,%&subentry_expr%);
+                            &return_string = "holds.%#category_index%.holds.%#i%";
+                            break;
+                        elseifmatches(%&subentry_expr%,"^ERROR_");
+                            break;
+                        endif;
+                    next;
+                endif;
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

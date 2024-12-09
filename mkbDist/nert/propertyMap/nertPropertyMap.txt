@@ -1,0 +1,65 @@
+//! @mkb-import-begin
+    // misc/index/miscValidate
+        // Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+        // found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+            // Params:
+            //      {array} <&elements[]>       The Array to search for <&search_term> in.
+            //      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+            //      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+            //                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+            //                                  value should be used.
+            //
+            // Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+            // is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+        function miscValidate(&search_term,#default_idx=0,...&elements[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:12
+            #term_index = indexof(&elements[],,%&search_term%);
+            if(%#term_index% != -1);
+                &return_string = %&elements[%#term_index%]%;
+            elseif(%#default_idx% != -1);
+                &return_string = %&elements[%#default_idx%]%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // nert/propertyMap/nertPropertyMap
+        // Returns an Array of JSON Object Property Key Names that map out to certain Variables in a given Instruction Type.
+            // Params:
+                // {string} <&instruction_type>    String ENUM of: REGRESSION, MARKETMANIPULATION, AH2BIN, BIN2BIN.
+                //
+            // Returns an Array:
+            //
+        function nertPropertyMap(&instruction_type);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/nert/propertyMap.txt:6
+            &instruction_type = miscValidate(%&instruction_type%,-1,"REGRESSION","MARKETMANIPULATION","AH2BIN","BIN2BIN");
+            if(%&instruction_type% != "");
+                &key_name       = "name";
+                &key_time_added = "timeAdded";
+                &key_type       = "type";
+                if(%&instruction_type% == "REGRESSION");
+                    &key_uuid   = "uuid";
+                    &key_cost   = "lowestPrice";
+                    &key_profit = "predictedProfit";
+                    &key_price  = "targetPrice";
+                    
+                elseif(%&instruction_type% == "MARKETMANIPULATION");
+                    &key_uuid   = "uuidList";
+                    &key_cost   = "combinedCost";
+                    &key_profit = "combinedProfit";
+                    &key_price  = "lowestPrice";
+                    
+                elseif(%&instruction_type% == "AH2BIN");
+                    &key_uuid   = "uuid";
+                    &key_cost   = "currentPrice";
+                    &key_profit = "predictedProfit";
+                    &key_price  = "lowestPrice";
+                    
+                elseif(%&instruction_type% == "BIN2BIN");
+                    &key_uuid   = "uuid";
+                    &key_cost   = "";
+                    &key_profit = "";
+                    &key_price  = "";
+                    
+                endif;
+            endif;
+        endfunction;
+//! @mkb-import-end

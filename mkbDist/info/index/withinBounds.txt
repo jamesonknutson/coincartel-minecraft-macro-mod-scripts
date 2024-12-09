@@ -1,0 +1,15 @@
+//! @mkb-import-begin
+    // info/index/withinBounds
+        // Checks if a number is <= min && >= max.
+            // Params:
+            //      {number} <#number>  The number to check if is between min && max.
+            //      {number} <#min>     The minimum value for <#number>
+            //      {number} <#max>     The maximum value for <#number>
+            //
+            // Returns a boolean indicating whether or not the number is between the specified values.
+        function withinBounds(#number,#min,#max);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:23
+            return_boolean = ((#number >= #min) && (#number <= #max));
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

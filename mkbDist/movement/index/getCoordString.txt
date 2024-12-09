@@ -1,0 +1,15 @@
+//! @mkb-import-begin
+    // movement/index/getCoordString
+        // Generates a coordinate string from the input numbers
+            // Params:
+            //      {number} [#x=%XPOS%]    The X Position
+            //      {number} [#x=%YPOS%]    The Y Position
+            //      {number} [#x=%ZPOS%]    The Z Position
+            //
+            // Returns the coordinate string.
+        function getCoordString(#x=%XPOS%,#y=%YPOS%,#z=%ZPOS%);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:22
+            &coord_string = "%XPOS%|%YPOS%|%ZPOS%";
+            return(%&coord_string%);
+        endfunction;
+//! @mkb-import-end

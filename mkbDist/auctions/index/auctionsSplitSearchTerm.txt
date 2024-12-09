@@ -1,0 +1,77 @@
+//! @mkb-import-begin
+    // auctions/index/auctionsSplitSearchTerm
+        // Given a Search Term, splits it up into an Array of maximum length 2, where each entry has a maximum length of 15
+        // characters. Used to convert a string search term to the most efficient possible input for the Auction House GUI.
+            // Params:
+                // {string} <&search_term>    The Search Term to convert into an Array of Search Strings.
+                //
+            // Returns an Array of 1 to 2 strings of maximum length 15 characters.
+        function auctionsSplitSearchTerm(&search_term);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/auctions/index.txt:474
+            &search_chars[] = split("",%&search_term%);
+            #search_chars   = arraysize(&search_chars[]);
+            if(%#search_chars% > 15);
+                // If there are more than 15 characters in the Search Term, split it up into words (by spaces).
+                // For each word, check if there is room enough in the "last word" to join it together into the last
+                // word with a space delimiting the two. If there is not enough room to do so, move this word onto the
+                // next line, so long as there is another line to move them to.
+                &search_words[] = split(" ",%&search_term%);
+                #search_words   = arraysize(&search_words[]);
+                if(%#search_words% > 1);
+                    foreach(&search_words[],&search_word,#swi);
+                        #return_array_len = arraysize(&return_array[]);
+                        if(%#return_array_len% != 0);
+                            #last_word_index  = %#return_array_len% - 1;
+                            &last_word_string = %&return_array[%#last_word_index%]%;
+                            #last_word_length = strlen(%&last_word_string%);
+                            &next_word_string = "%&last_word_string% %&search_word%";
+                            #next_word_length = strlen(%&next_word_string%);
+                            if(%#next_word_length% <= 15);
+                                &return_array[%#last_word_index%] = %&next_word_string%;
+                            elseif(%#return_array_len% < 2);
+                                &return_array[] = %&search_word%;
+                            elseif(%#last_word_length% < 14); // 14 instead of 15 here to account for the space appended to the last word before new text
+                                &next_word_string    = "%&last_word_string% ";
+                                &search_word_chars[] = split("",%&search_word%);
+                                foreach(&search_word_chars[],&search_word_char,#swci);
+                                    #next_word_length = strlen(%&next_word_string%);
+                                    if(%#next_word_length% < 15);
+                                        &next_word_string = "%&next_word_string%%&search_word_char%";
+                                    else;
+                                        broke_early = true;
+                                        break;
+                                    endif;
+                                next;
+                                &return_array[%#last_word_index%] = %&next_word_string%;
+                                if(%broke_early%);
+                                    break;
+                                endif;
+                            else;
+                                break;
+                            endif;
+                        else;
+                            #word_length = strlen(%&search_word%);
+                            if(%#word_length% <= 15);
+                                &return_array[] = %&search_word%;
+                            else;
+                                &word_chars[] = split("",%&search_word%);
+                                for(#i,0,14);
+                                    &return_chars[] = %&word_chars[%#i%]%;
+                                next;
+                                &return_array[] = join("",&return_chars[]);
+                                break;
+                            endif;
+                        endif;
+                    next;
+                else;
+                    for(#i,0,14);
+                        &return_chars[] = %&search_chars[%#i%]%;
+                    next;
+                    &return_array[] = join("",&return_chars[]);
+                endif;
+            else;
+                &return_array[] = %&search_term%;
+            endif;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

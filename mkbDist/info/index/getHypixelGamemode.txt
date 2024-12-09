@@ -1,0 +1,292 @@
+//! @mkb-import-begin
+    // info/index/isInLimbo
+        // Checks if the Player is in Limbo by reading the Dimension, as well as checking to see if there are any signs at the sign positions
+        // where they normally are in Limbo.
+            // Params:
+            //      None
+            //
+            // Returns a boolean indicating whether or not the Player is in Limbo.
+        function isInLimbo();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:475
+            if((%YPOS% > 35) || (%DIMENSION% != "END"));
+                return(False);
+            endif;
+            
+            #limbo_x = -20;
+            #limbo_y = 32;
+            #limbo_z = 21;
+            
+            if((%XPOS% == #limbo_x) && (%YPOS% == #limbo_y) && (%ZPOS% == #limbo_z));
+                return(True);
+            endif;
+            
+            &armor_vars[] = split(", ","ITEM, BOOTSID, LEGGINGSID, CHESTPLATEID, HELMID");
+            all_air       = true;
+            foreach(&armor_vars[],&armor_var);
+                &armor_val = "%%&armor_var%%";
+                if(%&armor_val% != "air");
+                    all_air = false;
+                    break;
+                endif;
+            next;
+            if((%SLOTSFULL% == 0) && (%all_air%));
+                return(True);
+            endif;
+            
+            #sign_x   = -21;
+            #sign_y[] = split(", ","31, 32, 33");
+            #sign_z[] = split(", ","20, 21, 22");
+            foreach(#sign_y[],#sign_y);
+                foreach(#sign_z[],#sign_z);
+                    &block_id = getid(%#sign_x%,%#sign_y%,%#sign_z%);
+                    if(&block_id == "wall_sign");
+                        in_limbo = true;
+                        break;
+                    endif;
+                next;
+            next;
+        endfunction;
+    // info/index/getHypixelGamemodeFromScoreboard
+        // Attempts to read the Scoreboard (foreach("teams") ... prefix + suffix ... next) to find the Player's location on Hypixel
+            // Params:
+            //      None
+            //
+            // Returns one of the following strings: 'LOBBY', 'SKYBLOCK', or 'OTHER'. 'OTHER' indicates that the function
+            // was not able to determine which area the Player is located in.
+        function getHypixelGamemodeFromScoreboard();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:382
+            &return_string = "OTHER";
+            
+            // Setup indicator strings
+            if(true);
+                &match_expr[] = "Games in this lobby are"; // Only shown in Prototype Lobby Servers
+                &match_area[] = "LOBBY";
+                
+                &match_expr[] = "^Achievements: .+$"; // Only shown in Hypixel Main Lobby Servers
+                &match_area[] = "LOBBY";
+                
+                &match_expr[] = "^Purse: [0-9,.]+"; // Only shown in SkyBlock Servers
+                &match_area[] = "SKYBLOCK";
+                
+                &match_expr[] = "^Bits: [0-9,.]+"; // Only shown in SkyBlock Servers
+                &match_area[] = "SKYBLOCK";
+            endif;
+            
+            foreach("teams");
+                &joint_team = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                &joint_team = trim(%&joint_team%);
+                &joint_team = regexreplace(&joint_team,"^\s*","");
+                foreach(&match_expr[],&match_expr,#mei);
+                    ifmatches(%&joint_team%,%&match_expr%);
+                        &return_string = %&match_area[%#mei%]%;
+                        break;
+                    endif;
+                next;
+            next;
+            
+            return(%&return_string%);
+        endfunction;
+    // info/index/getSkyBlockPlayerListInfo
+        // Returns an Array of information extracted from the Hypixel SkyBlock PlayerList.
+            // Params:
+            //      {string} [...&extract_vars[]]   The variables to extract from the Player List. Valid values are:
+            //                                      'AREA', 'SERVER', 'PROFILE', 'BANK', 'SKILLS', 'SPEED', 'STRENGTH',
+            //                                      'CRIT_CHANCE', 'CRIT_DAMAGE', 'ATTACK_SPEED'. If no values are provided,
+            //                                      will return variables 'AREA', and 'PROFILE' by default.
+            //
+            // Returns an Array of the extracted variables indexed in the order they were passed to the Function,
+            // or if no variables were able to be extracted, the first element of this Array will be -1.
+        function getSkyBlockPlayerListInfo(...&extract_vars[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:258
+            // Setup valid variables
+            if(true);
+                &valid_vars[]  = split(", ","AREA, SERVER, PROFILE, BANK, SKILLS, SPEED, STRENGTH, CRIT_CHANCE, CRIT_DAMAGE, ATTACK_SPEED");
+                #extract_len   = arraysize(&extract_vars[]);
+                assign_default = #extract_len == 0;
+                if(!%assign_default%);
+                    foreach(&valid_vars[],&valid_var);
+                        #extract_idx = indexof(&extract_vars[],,%&valid_var%);
+                        if(#extract_idx != -1);
+                            &use_out_vars[] = %&valid_var%;
+                            #use_out_idxs[] = %#extract_idx%;
+                            matched[]       = false;
+                        endif;
+                    next;
+                    #use_out_len   = arraysize(&use_out_vars[]);
+                    assign_default = #use_out_len == 0;
+                endif;
+                
+                if(!%assign_default%);
+                    sort("ASC",#use_out_idxs[],&use_out_vars[]);
+                else;
+                    &use_out_vars[] = split(", ","AREA, PROFILE");
+                    matched[]       = split(", ","false, false");
+                endif;
+            endif;
+            
+            // Compile matches
+            if(true);
+                #return_index = indexof(&use_out_vars[],,"AREA");
+                if(#index_area != -1);
+                    &match_names[] = "!C-b";
+                    &match_exprs[] = "Area: (.+)"; // Area: Private Island
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SERVER");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!C-c";
+                    &match_exprs[%#return_index%] = "Server: (.+)"; // Server: mini787Q
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"PROFILE");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-b";
+                    &match_exprs[%#return_index%] = "Profile: (.+)"; // Profile: Pineapple
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"BANK");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-d";
+                    &match_exprs[%#return_index%] = "Bank: (.+)"; // Bank: 50/50
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SKILLS");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-g";
+                    &match_exprs[%#return_index%] = "Skills: (.+)"; // Skills: Foraging 17: 24.1%
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10022");
+                    &match_names[%#return_index%] = "!D-h";
+                    &match_exprs[%#return_index%] = "Speed: %&tmp_expr_char%(.+)"; // Speed: ✦220
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"STRENGTH");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10049");
+                    &match_names[%#return_index%] = "!D-i";
+                    &match_exprs[%#return_index%] = "Strength: %&tmp_expr_char%(.+)"; // Strength: ❁149
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"CRIT_CHANCE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9763");
+                    &match_names[%#return_index%] = "!D-j";
+                    &match_exprs[%#return_index%] = "Crit Chance: %&tmp_expr_char%(.+)"; // Crit Chance: ☣64
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"CRIT_DAMAGE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9760");
+                    &match_names[%#return_index%] = "!D-k";
+                    &match_exprs[%#return_index%] = "Crit Damage: %&tmp_expr_char%(.+)"; // Crit Damage: ☠130
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"ATTACK_SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9876");
+                    &match_names[%#return_index%] = "!D-l";
+                    &match_exprs[%#return_index%] = "Attack Speed: %&tmp_expr_char%(.+)"; // Attack Speed: ⚔0
+                endif;
+            endif;
+            
+            foreach("players");
+                #line_index = indexof(&match_names[],,%PLAYERNAME%);
+                if(#line_index != -1);
+                    matched[%#line_index%] = true;
+                    &line_text             = strip(%PLAYERDISPLAYNAME%);
+                    &line_text             = trim(%&line_text%);
+                    ifmatches(%&line_text%,%&match_exprs[%#line_index%]%,&capture_group,1);
+                        &return_array[%#line_index%] = %&capture_group%;
+                        #non_matched_var_index       = indexof(matched[],,false);
+                        if(#non_matched_var_index == -1);
+                            break;
+                        endif;
+                    endif;
+                endif;
+            next;
+            
+            #return_len = arraysize(&return_array[]);
+            if(#return_len == 0);
+                &return_array[] = -1;
+            endif;
+            return(&return_array[]);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // info/index/getHypixelGamemode
+        // Gets the current Gamemode / Gametype that the Player is in by reading the Scoreboard, etc.
+        // Params:
+        //      None
+        //
+        // Returns one of: 'LOBBY', 'LIMBO', 'SKYBLOCK', or 'OTHER'.
+        function getHypixelGamemode();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:520
+            if(true);
+                do(3);
+                    // Check to see if we can read the Gamemode from the 9th Hotbar Slot.
+                    if(true);
+                        #static_hb_end = 44;
+                        &found_item    = getslotiteminv(%#static_hb_end%,,#found_stack,#found_data,&found_nbt);
+                        &found_nbt     = strip(%&found_nbt%);
+                        &found_name    = getItemName(%&found_nbt%,%&found_item%);
+                        
+                        &known_names[] = split(", ","Lobby Selector (Right Click), SkyBlock Menu (Right Click)");
+                        &known_areas[] = split(", ","LOBBY, SKYBLOCK");
+                        #known_index   = indexof(&known_names[],,%&found_name%);
+                        if(%#known_index% != -1);
+                            &return_string = %&known_areas[%#known_index%]%;
+                            break;
+                        endif;
+                    endif;
+                    
+                    // Cant find the Gamemode from the 9th Hotbar Slot, have to read additional Data. Check to see if we can find any Data from the Playerlist.
+                    &skyblock_area = getSkyBlockPlayerListInfo("AREA");
+                    if(%&skyblock_area% != "-1");
+                        &return_string = "SKYBLOCK";
+                        break;
+                    endif;
+                    
+                    // Try to read the location from the Scoreboard.
+                    &scoreboard_location = getHypixelGamemodeFromScoreboard();
+                    if(%&scoreboard_location% != "OTHER");
+                        &return_string = %&scoreboard_location%;
+                        break;
+                    endif;
+                    
+                    // Check if we are in Limbo as a last resort
+                    in_limbo = isInLimbo();
+                    if(%in_limbo%);
+                        &return_string = "LIMBO";
+                        break;
+                    endif;
+                    
+                    wait("1000ms");
+                loop;
+            endif;
+            
+            if(%&return_string% != "");
+                return(%&return_string%);
+            endif;
+            return("OTHER");
+        endfunction;
+//! @mkb-import-end

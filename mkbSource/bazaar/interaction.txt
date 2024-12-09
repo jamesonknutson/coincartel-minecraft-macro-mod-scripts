@@ -1,0 +1,651 @@
+	// Handles a Bazaar Product Interaction.
+		// Params:
+			// {string} <&search_term>          	The SBID, Default Display Name, Path, or Index of the Item we are Interacting with.
+			// {string} <&action>               	String ENUM of: BUY_ORDER, BUY_INSTANT, SELL_ORDER, SELL_INSTANT.
+			// {number} [#quantity=1]           	Amount of the Item we wish to Interact with. Defines how much we are buying or selling.
+			// {string} [&price=MATCH_TOP_ORDER]	The Price we wish to execute this Interaction with. Can be any valid Number/Float Number (up to 1 digit of precision),
+			//                                  	or if <&action> is BUY_ORDER or SELL_ORDER, can be an ENUM of: MATCH_TOP_ORDER, BEAT_TOP_ORDER. If <&action>
+			//                                  	is BUY_INSTANT or SELL_INSTANT, this Parameter is ignored.
+			// {boolean} [allow_command=true]   	Whether or not we want to allow the usage of the /bz command.
+			// {number} [#tick_wait=20]         	Amount of Ticks to wait in between Actions (clicks).
+			// {number} [#timeout_sec=30]       	Amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns a String ENUM:
+			// SUCCESS          	The <&action> was successful and executed as expected.
+			// ERROR_NOT_FOUND  	The <&search_term> could not be resolved to a valid Bazaar Product.
+			// ERROR_ACTION     	The <&action> could not be resolved to a valid Action.
+			// ERROR_PRICE      	The [&price] parameter could not be resolved to a valid Price.
+			// ERROR_COINS      	The sum cost of the Order was too much to afford.
+			// ERROR_QUANTITY   	The [#quantity] parameter could not be resolved to a valid Quantity.
+			// ERROR_UNAVAILABLE	The Bazaar was not available (skills not met, or closed).
+			// ERROR_UNKNOWN    	An unknown Error occurred
+			// ERROR_TIMEOUT    	The Function Timed out.
+			// ERROR_COOLDOWN   	We are currently on Cooldown from creating more orders.
+			// ERROR_ORDER_LIMIT	We hit the Order limit.
+		// Example
+			//	&bazaar_action = bazaarProductAction(%&search_term%,%&action%,%#quantity%,%&price%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+			//	if(%&bazaar_action% != "SUCCESS");
+			//		if(%&bazaar_action% == "ERROR_NOT_FOUND");
+			//		elseif(%&bazaar_action% == "ERROR_ACTION");
+			//		elseif(%&bazaar_action% == "ERROR_PRICE");
+			//		elseif(%&bazaar_action% == "ERROR_COINS");
+			//		elseif(%&bazaar_action% == "ERROR_QUANTITY");
+			//		elseif(%&bazaar_action% == "ERROR_UNAVAILABLE");
+			//		elseif(%&bazaar_action% == "ERROR_UNKNOWN");
+			//		elseif(%&bazaar_action% == "ERROR_TIMEOUT");
+			//		elseif(%&bazaar_action% == "ERROR_COOLDOWN");
+			//		elseif(%&bazaar_action% == "ERROR_ORDER_LIMIT");
+			//		endif;
+			//	endif;
+	function bazaarProductAction(&search_term,&action,#quantity=1,&price="MATCH_TOP_ORDER",refill_coins=true,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			&script_debug_name      = "&6bazaarAction[&9%&action%&6]";
+			debug                   = true;
+			&enum_success           = "SUCCESS";
+			&enum_error_not_found   = "ERROR_NOT_FOUND";
+			&enum_error_action      = "ERROR_ACTION";
+			&enum_error_price       = "ERROR_PRICE";
+			&enum_error_coins       = "ERROR_COINS";
+			&enum_error_quantity    = "ERROR_QUANTITY";
+			&enum_error_unavailable = "ERROR_UNAVAILABLE";
+			&enum_error_unknown     = "ERROR_UNKNOWN";
+			&enum_error_timeout     = "ERROR_TIMEOUT";
+			&enum_error_cooldown    = "ERROR_COOLDOWN";
+			&enum_error_order_limit = "ERROR_ORDER_LIMIT";
+			do_timeout              = %#timeout_sec% > 0;
+			#start_time             = %TIMESTAMP%;
+			
+			// Validate Parameters
+			if(true);
+				// Check if the Search Term is valid
+				if(true);
+					#search_index = getBazaarIndex(%&search_term%);
+					if(%#search_index% == -1);
+						debug_error(%debug%,%&script_debug_name%,"Could not find search term &4%&search_term%&7.");
+						return(%&enum_error_not_found%);
+					endif;
+					
+					&master_sbid = %@&mkb_baz_sbids[%#search_index%]%;
+					&master_name = %@&mkb_baz_names[%#search_index%]%;
+					&master_path = %@&mkb_baz_paths[%#search_index%]%;
+					&master_mcid = jsonget("%&master_path%.holds.mcid",%@&mkb_baz_json%);
+					debug_log(%debug%,%&script_debug_name%,"Buy order being issued for %&master_name% [&d%&master_sbid%]");
+				endif;
+				
+				// Check if the Action Term is valid
+				if(true);
+					&final_action = miscValidate(%&action%,-1,"BUY_ORDER","BUY_INSTANT","SELL_ORDER","SELL_INSTANT");
+					if(%&final_action% == "");
+						debug_error(%debug%,%&script_debug_name%,"Invalid action (&4%&action%&c) passed.");
+						return(%&enum_error_action%);
+					endif;
+					&action = %&final_action%;
+					
+					buy_action     = ((%&action% == "BUY_ORDER") || (%&action% == "BUY_INSTANT"));
+					sell_action    = ((%&action% == "SELL_ORDER") || (%&action% == "SELL_INSTANT"));
+					order_action   = ((%&action% == "BUY_ORDER") || (%&action% == "SELL_ORDER"));
+					instant_action = ((%&action% == "BUY_INSTANT") || (%&action% == "SELL_INSTANT"));
+				endif;
+				
+				// Check if the Quantity Term is valid
+				if(true);
+					if(%#quantity% <= 0);
+						debug_error(%debug%,%&script_debug_name%,"Quantity (&4%#quantity%&c) was less than or equal to zero");
+						return(%&enum_error_quantity%);
+					endif;
+					
+					if(%sell_action%);
+						// Count the total amount of this Item in our Inventory.
+						if(true);
+							#r_start  = 9;
+							#r_end    = 43;
+							for(#r_slot,%#r_start%,%#r_end%);
+								#f_slot = %#r_slot%;
+								getslotinv(%&master_mcid%,#f_slot,%#r_offset%);
+								
+								if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+									#r_offset = %#f_slot% + 1;
+									&f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+									&f_nbt    = strip(%&f_nbt%);
+									&f_sbid   = getItemSBID(%&f_nbt%);
+									if(%&f_sbid% == %&master_sbid%);
+										#quantity_inventory = %#quantity_inventory% + %#f_stack%;
+									endif;
+								else;
+									break;
+								endif;
+							next;
+						endif;
+						
+						if(%#quantity% > %#quantity_inventory%);
+							debug_error(%debug%,%&script_debug_name%,"Quantity (&4%#quantity%&c) exceeds the amount of &e%&master_sbid%&c in the Inventory (&d%#quantity_inventory%&c).");
+							return(%&enum_error_quantity%);
+						endif;
+					elseif(%buy_action%);
+						#max_quantity = 71680;
+						if(%instant_action%);
+							// Count the total room present for this Item in our Inventory.
+							#max_quantity = getStackRoomInventory(%&master_sbid%);
+						endif;
+						
+						if(%#quantity% > %#max_quantity%);
+							debug_error(%debug%,%&script_debug_name%,"Quantity (&4%#quantity%&c) exceeds the maximum amount of &e%&master_sbid%&c we can purchase via &d%&action%&c at once (&e%#max_quantity%&c).");
+							return(%&enum_error_quantity%);
+						endif;
+					endif;
+				endif;
+				
+				// Check if the Price Term is valid
+				if(true);
+					if(%order_action%);
+						&enum_price = miscValidate(%&price%,-1,"MATCH_TOP_ORDER","BEAT_TOP_ORDER");
+						if((%&enum_price% == "MATCH_TOP_ORDER") || (%&enum_price% == "BEAT_TOP_ORDER"));
+							if(%buy_action%);
+								&unit_price = getInstantPrice(%&master_sbid%,"SELL");
+							elseif(%sell_action%);
+								&unit_price = getInstantPrice(%&master_sbid%,"BUY");
+							endif;
+							
+							if(%&enum_price% == "BEAT_TOP_ORDER");
+								if(%buy_action%);
+									&unit_price = eval("%&unit_price% + 0.1");
+								elseif(%sell_action%);
+									&unit_price = eval("%&unit_price% - 0.1");
+								endif;
+							endif;
+						else;
+							is_number = isStringNumber(%&price%);
+							if(%is_number%);
+								&unit_price = stringToNumber(%&price%,1);
+							else;
+								debug_error(%debug%,%&script_debug_name%,"Invalid Price Term (&4%&price%&c) passed.");
+								return(%&enum_error_price%);
+							endif;
+						endif;
+					elseif(%instant_action%);
+						if(%buy_action%);
+							&unit_price = getInstantPrice(%&master_sbid%,"BUY");
+						elseif(%sell_action%);
+							&unit_price = getInstantPrice(%&master_sbid%,"SELL");
+						endif;
+					endif;
+					
+					&unit_price = normalizeNumber(%&unit_price%,1);
+				endif;
+				
+				// Sum up the Total Cost or Profit of the Order
+				if(true);
+					&total_coins = eval("%&unit_price% * %#quantity%");
+					&total_coins = eNotationToFloat(%&total_coins%);
+					
+					// If we are Paying the cost of the Total Coins (buying), check if we have enough Coins to afford it.
+					if(%buy_action%);
+						#purse_coins = getPurseCoins();
+						eval(#ceil_total_coins,"ceil(%&total_coins%)");
+						if(%#purse_coins% < %#ceil_total_coins%);
+							debug_error(%debug%,%&script_debug_name%,"Don't currently have enough Coins to afford the entire Cost of the Order (&6%#ceil_total_coins% coins&7).");
+							if(%refill_coins%);
+								#refill_coins = %#ceil_total_coins% - %#purse_coins%;
+								debug_log(%debug%,%&script_debug_name%,"Attempting to refill the difference (&6%#refill_coins% coins&7).");
+								coins_refilled = refillCoins(%#refill_coins%);
+								if(%coins_refilled%);
+									debug_log(%debug%,%&script_debug_name%,"Successfully refilled enough Coins to handle the Order.");
+								endif;
+							endif;
+							
+							if(!%coins_refilled%);
+								debug_error(%debug%,%&script_debug_name%,"Cannot afford Order (total cost: &6%#ceil_total_coins% coins&7).");
+								return(%&enum_error_coins%);
+							endif;
+						endif;
+					endif;
+				endif;
+				
+				// Setup Chat Filter Variables
+				if(true);
+					&disable_init[]        = split(", ","@cannot_use_bazaar, @bazaar_error, @bazaar_cannot_afford, @baz_failure, @baz_confirm, @&bazaar_misc_exception");
+					&enable_init[]         = split(", ","@bazaar_chatfilter");
+					&error_pointers[]      = split(", ","@cannot_use_bazaar, @bazaar_error, @bazaar_cannot_afford, @baz_failure, @&bazaar_misc_exception");
+					&error_pointer_enums[] = split(", ","%&enum_error_unavailable%, %&enum_error_unknown%, %&enum_error_coins%, %&enum_error_unknown%, %&enum_error_unknown%");
+					&success_pointers[]    = split(", ","@baz_confirm");
+					
+					foreach(&disable_init[],&disable_init);
+						unset(%&disable_init%);
+					next;
+					foreach(&enable_init[],&enable_init);
+						set(%&enable_init%);
+					next;
+				endif;
+			endif;
+			
+			// Setup Action Term specific Variables
+			if(true);
+				if(%&action% != "SELL_INSTANT");
+					&number_regex = "[0-9,.-]+";
+					&string_regex = "(.+?)\"";
+					&ppu_prefix   = "Price per unit";
+					if((%buy_action%) && (%instant_action%));
+						&order_prefix = "Amount";
+						&total_prefix = "Price";
+						if(%#quantity% > 1);
+							&ppu_prefix = "Per Unit";
+						else;
+							&ppu_prefix = "Price";
+						endif;
+					elseif((%buy_action%) && (%order_action%));
+						&order_prefix = "Order";
+						&total_prefix = "Total price";
+					elseif((%sell_action%) && (%order_action%));
+						&order_prefix = "Selling";
+						&total_prefix = "You earn";
+					endif;
+					
+					&price_per_unit_regex   = "%&ppu_prefix%: (%&number_regex%) coins";
+					&order_quantity_regex   = "%&order_prefix%: (%&number_regex%)x";
+					&total_price_regex      = "%&total_prefix%: (%&number_regex%) coins";
+					&baz_confirm_regex[]    = split(", ","%&price_per_unit_regex%, %&order_quantity_regex%, %&total_price_regex%");
+					&baz_confirm_compare[]  = split(", ","%&unit_price%, %#quantity%, %&total_coins%");
+					baz_confirm_use_range[] = split(", ","true, false, true");
+				endif;
+				
+				// Setup Items to Search for in each Bazaar GUI ENUM for each Action Type
+				if(true);
+					&baz_fixup_filter[] = split(", ","MCID: arrow, NAME: Go Back");
+					if((%buy_action%) && (%order_action%));
+						&baz_final_enum     = "BUY_ORDER_CONFIRM";
+						&baz_action_enums[] = split(", ","PRODUCT, BUY_ORDER_QTY, BUY_ORDER_PRICE, BUY_ORDER_CONFIRM");
+						&baz_action_mcids[] = split(", ","filled_map, redstone_block|sign, redstone_block|sign, %&master_mcid%");
+						&baz_action_names[] = split(", ","Create Buy Order, Custom Amount, Custom Price, Buy Order");
+						&baz_action_error[] = split(", ","NULL, Error! Invalid amount!, Error! Invalid price!, Invalid price per unit!");
+						&baz_action_fixup[] = split(", ","NULL, CLICK, CLICK, BACK");
+						&baz_type_enums[]   = split(", ","BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE_SIGN");
+						&baz_type_texts[]   = split(", ","%#quantity%, %&unit_price%");
+					elseif((%buy_action%) && (%instant_action%));
+						&baz_final_enum     = "BUY_INSTANT_CONFIRM";
+						&baz_action_enums[] = split(", ","PRODUCT, BUY_INSTANT_QTY, BUY_INSTANT_CONFIRM");
+						&baz_action_mcids[] = split(", ","golden_horse_armor, redstone_block|sign, %&master_mcid%|chest");
+						&baz_action_names[] = split(", ","Buy Instantly, Custom Amount, Custom Amount");
+						&baz_action_error[] = split(", ","NULL, Error! Invalid amount!, Error! Invalid price!");
+						&baz_action_fixup[] = split(", ","NULL, CLICK, CLICK");
+						&baz_type_enums[]   = split(", ","BUY_INSTANT_QTY_SIGN");
+						&baz_type_texts[]   = split(", ","%#quantity%");
+					elseif((%sell_action%) && (%order_action%));
+						&baz_final_enum     = "SELL_ORDER_CONFIRM";
+						&baz_action_enums[] = split(", ","PRODUCT, SELL_ORDER_QTY, SELL_ORDER_PRICE, SELL_ORDER_CONFIRM");
+						&baz_action_mcids[] = split(", ","map, redstone_block|sign, redstone_block|sign, %&master_mcid%");
+						&baz_action_names[] = split(", ","Create Sell Offer, Custom Amount, Custom Price, Sell Offer");
+						&baz_action_error[] = split(", ","NULL, Error! Invalid amount!, Error! Invalid price!, Invalid price per unit!");
+						&baz_action_fixup[] = split(", ","NULL, CLICK, CLICK, BACK");
+						&baz_type_enums[]   = split(", ","SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE_SIGN");
+						&baz_type_texts[]   = split(", ","%#quantity%, %&unit_price%");
+					elseif((%sell_action%) && (%instant_action%));
+						&baz_action_enums[] = split(", ","PRODUCT, SELL_INSTANT_QTY");
+						&baz_action_mcids[] = split(", ","stained_hardened_clay|hopper, SELL_INSTANT_QTY");
+						&baz_action_names[] = split(", ","Items sold!|Sell Instantly, ");
+						&baz_action_error[] = split(", ","NULL");
+						&baz_action_fixup[] = split(", ","NULL");
+					endif;
+				endif;
+			endif;
+			
+			&update_max_order_enums[]   = split(", ","PRODUCT, SELL_ORDER_CONFIRM");
+			&update_max_order_mcids[]   = split(", ","hopper, %&master_mcid%");
+			&update_max_order_names[]   = split(", ","Sell Instantly, Sell Offer");
+			&update_max_order_regex     = "Current tax: ([0-9,.]+)\%";
+			&update_max_order_tax_map[] = split(", ","1.2, 1.1, 1.0");
+			#update_max_order_qty_map[] = split(", ","14, 21, 28");
+			
+			&find_curr_order_enums[] = split(", ","CATEGORY, SUBCATEGORY, PRODUCT");
+			&find_curr_order_mcid    = "book";
+			&find_curr_order_name    = "Manage Orders";
+			&find_curr_order_regex   = "You have (\d+) other orders";
+		endif;
+		
+		// Execute the Action Loop until an unfixable Error is detected, or the Action completes successfully.
+		if(true);
+			debug_log(%debug%,%&script_debug_name%,"Starting action loop for &d%&action%&7, quantity &6%#quantity%&7, item &d%&master_sbid%&7.");
+			do;
+				// 1. Check if the Function has timed out
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					&return_string = %&enum_error_timeout%;
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+				
+				// 2. If we have already clicked the Button, check our Pointer Arrays to see if we have succeeded yet.
+				if(true);
+					if(%wait_for_pointers%);
+						all_errors_inactive  = checkPointerArray(&error_pointers[],"==","false");
+						all_success_inactive = checkPointerArray(&success_pointers[],"==","false");
+						if(!%all_success_inactive%);
+							debug_log(%debug%,%&script_debug_name%,"successfully placed Bazaar Order!");
+							&return_string = %&enum_success%;
+						elseif(!%all_errors_inactive%);
+							debug_error(%debug%,%&script_debug_name%,"Detected a Chat Error!");
+							foreach(&error_pointers[],&fail_pointer,#fpi);
+								&fail_value = "%%&fail_pointer%%";
+								fail_value  = stringToBoolean(%&fail_value%);
+								if(%fail_value%);
+									if((%&fail_pointer% == "@&bazaar_misc_exception") && (%&fail_value% == "ERROR_COOLDOWN"));
+										&return_string = %&enum_error_cooldown%;
+									else;
+										&return_string = %&error_pointer_enums[%#fpi%]%;
+									endif;
+									debug_error(%debug%,%&script_debug_name%,"Pointer &d%&fail_pointer%&7 was set, indicating an Error of Type: &4%&return_string%&7.");
+									break;
+								endif;
+							next;
+						else;
+							#elapsed_sec = %TIMESTAMP% - %#time_wait_pointers%;
+							if(%#elapsed_sec% >= 5);
+								debug_log(%debug%,%&script_debug_name%,"Have been waiting more than 5 seconds for a Global Pointer to be set, toggling actions back on.");
+								wait_for_pointers = false;
+							endif;
+						endif;
+					else;
+						// 2a. Check what GUI we are in, if any.
+						if(true);
+							&bazaar_gui[] = getBazaarGUIType();
+							&bazaar_enum  = %&bazaar_gui[0]%;
+							&bazaar_path  = %&bazaar_gui[1]%;
+							#action_index = indexof(&baz_action_enums[],,%&bazaar_enum%);
+							#type_index   = indexof(&baz_type_enums[],,%&bazaar_enum%);
+							bazaar_valid  = ((%#action_index% != -1) || (%#type_index% != -1));
+							if(%bazaar_valid%);
+								debug_log(%debug%,%&script_debug_name%,"Current Bazaar GUI ENUM &d%&bazaar_enum%&7 is valid, checking if the Path of this ENUM is as expected.");
+								bazaar_valid = ((%&bazaar_path% == %&master_path%) || (%#type_index% != -1));
+								if(%bazaar_valid%);
+									debug_log(%debug%,%&script_debug_name%,"Path of this ENUM is as expected. Will continue as planned.");
+								else;
+									debug_error(%debug%,%&script_debug_name%,"Path of this ENUM is not as expected (expected: &d%&master_path%&7, found: &4%&bazaar_path%&7), will have to re-navigate to the Product.");
+								endif;
+							else;
+								debug_error(%debug%,%&script_debug_name%,"Current Bazaar GUI ENUM &4%&bazaar_enum%&7 is invalid, will have to exit GUI and re-enter into Bazaar.");
+							endif;
+						endif;
+						
+						// 2b. If we find ourselves in a GUI where we can update our Max Orders, do so.
+						if(true);
+							#update_order_index = indexof(&update_max_order_enums[],,%&bazaar_enum%);
+							if(%#update_order_index% != -1);
+								&update_mcid = "MCID: %&update_max_order_mcids[%#update_order_index%]%";
+								&update_name = "NAME: %&update_max_order_names[%#update_order_index%]%";
+								#update_slot = findItemContainer(false,%&update_mcid%,%&update_name%);
+								if(%#update_slot% != -1);
+									&update_item = getslotitemnbt(%#update_slot%,,#update_stack,#update_data,&update_nbt);
+									&update_nbt  = strip(%&update_nbt%);
+									ifmatches(%&update_nbt%,%&update_max_order_regex%,&tax_rate,1);
+										#tax_index = indexof(&update_max_order_tax_map[],,%&tax_rate%);
+										if(%#tax_index% != -1);
+											#uuid_index = indexof(@&mkb_baz_max_order_uuids[],,%UUID%);
+											if(%#uuid_index% == -1);
+												@&mkb_baz_max_order_uuids[] = %UUID%;
+												@#mkb_baz_max_order_count[] = %#update_max_order_qty_map[%#tax_index%]%;
+											else;
+												@#mkb_baz_max_order_count[%#uuid_index%] = %#update_max_order_qty_map[%#tax_index%]%;
+											endif;
+										endif;
+									endif;
+								endif;
+							endif;
+						endif;
+						
+						// 2c. If we are doing an Order type Action, and we are in a GUI with the Manage Orders Book, check if we have Room to place the Order.
+						if((%order_action%) && (!%order_amount_checked%));
+							#find_curr_order_enum_index = indexof(&find_curr_order_enums[],,%&bazaar_enum%);
+							if(%#find_curr_order_enum_index% != -1);
+								&curr_order_mcid = "MCID: %&find_curr_order_mcid%";
+								&curr_order_name = "NAME: %&find_curr_order_name%";
+								#curr_order_slot = findItemContainer(false,%&curr_order_mcid%,%&curr_order_name%);
+								if(%#curr_order_slot% != -1);
+									order_amount_checked = true;
+									&curr_order_item     = getslotitemnbt(%#curr_order_slot%,,#curr_order_stack,#curr_order_data,&curr_order_nbt);
+									&curr_order_nbt      = strip(%&curr_order_nbt%);
+									#min_max_orders      = 14;
+									match(%&curr_order_nbt%,%&find_curr_order_regex%,#curr_order_amount,1,0);
+									
+									if(%#curr_order_amount% > 21);
+										#min_max_orders = 28;
+									elseif(%#curr_order_amount% > 14);
+										#min_max_orders = 21;
+									endif;
+									
+									// Find the Max Orders for this Account.
+									#uuid_index = indexof(@&mkb_baz_max_order_uuids[],,%UUID%);
+									if(%#uuid_index% == -1);
+										@&mkb_baz_max_order_uuids[] = %UUID%;
+										@#mkb_baz_max_order_count[] = %#min_max_orders%;
+									elseif(%@#mkb_baz_max_order_count[%#uuid_index%]% < %#min_max_orders%);
+										@#mkb_baz_max_order_count[%#uuid_index%] = %#min_max_orders%;
+									else;
+										#min_max_orders = %@#mkb_baz_max_order_count[%#uuid_index%]%;
+									endif;
+									
+									// If we have too many orders, we can detect that now, and throw an Error.
+									if(%#curr_order_amount% >= %#min_max_orders%);
+										debug_error(%debug%,%&script_debug_name%,"We have too many Orders to place another one.");
+										&return_string = %&enum_error_order_limit%;
+										break;
+									endif;
+								endif;
+							endif;
+						endif;
+						
+						// 2d. Execute whatever Action(s) we need to take based on what GUI we find ourselves in.
+						if(true);
+							if(%bazaar_valid%);
+								unset(#action_ticks);
+								action_error = false;
+								if(%#action_index% != -1);
+									&action_mcids[] = split("|",%&baz_action_mcids[%#action_index%]%);
+									&action_names[] = split("|",%&baz_action_names[%#action_index%]%);
+									&action_error[] = split("|",%&baz_action_error[%#action_index%]%);
+									&action_fixup[] = split("|",%&baz_action_fixup[%#action_index%]%);
+									&action_click   = "right";
+									&baz_action     = "SEARCH";
+								elseif(%#type_index% != -1);
+									&action_text    = %&baz_type_texts[%#type_index%]%;
+									&baz_action     = "TYPE";
+								endif;
+								
+								if(%&baz_action% == "SEARCH");
+									// Find the Item we are clicking on in the Container using findItemContainer
+									if(true);
+										// Setup Item Filter Parameters for the Item we are searching for to pass to findItemContainer
+										if(true);
+											&filter_arrays[] = split(", ","mcids, names");
+											&filter_prefix[] = split(", ","MCID, NAME");
+											unset(&filter_params[]);
+											foreach(&filter_arrays[],&filter_array_pointer,#fapi);
+												&filter_array_string = "&action_%&filter_array_pointer%[]";
+												&filter_array_prefix = %&filter_prefix[%#fapi%]%;
+												foreach(%&filter_array_string%,&filter_content);
+													&filter_params[] = "%&filter_array_prefix%: %&filter_content%";
+												next;
+											next;
+										endif;
+										
+										#found_slot = findItemContainer(false,...&filter_params[]);
+									endif;
+									
+									// If we found a Slot to click on, continue on with our click logic as planned.
+									if(%#found_slot% != -1);
+										&found_item = getslotitemnbt(%#found_slot%,,#found_stack,#found_data,&found_nbt);
+										&found_nbt  = strip(%&found_nbt%);
+										foreach(&action_error[],&error_string,#esi);
+											if(%&error_string% != "NULL");
+												ifcontains(%&found_nbt%,%&error_string%);
+													&action_fixup = %&action_fixup[%#esi%]%;
+													action_error  = true;
+													break;
+												endif;
+											endif;
+										next;
+										
+										if((!%action_error%) && (%&bazaar_enum% == %&baz_final_enum%));
+											baz_confirmed = true;
+											foreach(&baz_confirm_regex[],&baz_confirm_regex,#bcri);
+												&baz_confirm_compare  = %&baz_confirm_compare[%#bcri%]%;
+												baz_confirm_use_range = %baz_confirm_use_range[%#bcri%]%;
+												baz_confirm_confirmed = false;
+												ifmatches(%&found_nbt%,%&baz_confirm_regex%,&capture_group,1);
+													is_number = isStringNumber(%&capture_group%);
+													if((%baz_confirm_use_range%) || (%is_number%));
+														&capture_group       = normalizeNumber(%&capture_group%,1);
+														&baz_confirm_compare = normalizeNumber(%&baz_confirm_compare%,1);
+													endif;
+													
+													if(%baz_confirm_use_range%);
+														baz_confirm_confirmed = withinDeviation(%&capture_group%,%&baz_confirm_compare%);
+														debug_conditional(%debug%,%&script_debug_name%,%baz_confirm_confirmed%,"Capture group &a%&capture_group%&7 is within 5 percent of it's comparison group: &6%&baz_confirm_compare%&7.","&cCapture group &4%&capture_group%&c is not within 5 percent of it's comparison group: &6%&baz_confirm_compare%&7.");
+													elseif(%&capture_group% == %&baz_confirm_compare%);
+														baz_confirm_confirmed = true;
+														debug_log(%debug%,%&script_debug_name%,"Capture group &a%&capture_group%&7 exactly matches it's comparison group: &6%&baz_confirm_compare%&7.");
+													else;
+														debug_error(%debug%,%&script_debug_name%,"Capture group &c%&capture_group%&7 does not exactly match it's comparison group: &6%&baz_confirm_compare%&7.");
+													endif;
+												else;
+													debug_breakpoint(%debug%,%&script_debug_name%,"No match found in NBT for expression &4%&baz_confirm_regex%&7!");
+												endif;
+												
+												if(!%baz_confirm_confirmed%);
+													baz_confirmed = false;
+													debug_breakpoint(%debug%,%&script_debug_name%,"Debug breakpoint hit, baz_confirm_confirmed was not able to be confirmed (index: %#bcri%, expr: %&baz_confirm_regex%, comparison group: %&baz_confirm_compare%).");
+												endif;
+											next;
+											
+											if(!%baz_confirmed%);
+												action_error  = true;
+												&action_fixup = "BACK";
+											endif;
+										endif;
+										
+										if(%action_error%);
+											debug_error(%debug%,%&script_debug_name%,"Error detected at GUI stage &4%&bazaar_enum%&c. Error correcting by executing action: &a%&action_fixup%&c.");
+											if(%&action_fixup% == "BACK");
+												#found_slot = findItemContainer(false,...&baz_fixup_filter[]);
+											endif;
+										endif;
+									endif;
+									
+									if(%#found_slot% != -1);
+										debug_log(%debug%,%&script_debug_name%,"Will click slot &d%#found_slot%&7 until GUI updates...");
+										&init_gui   = getContainerString(true);
+										gui_updated = false;
+										allow_click = false;
+										final_gui   = %&bazaar_enum% == %&baz_final_enum%;
+										do;
+											gui_updated = enteredNewGUI(%&init_gui%,true);
+											if(%gui_updated%);
+												debug_log(%debug%,%&script_debug_name%,"GUI updated, breaking");
+												break;
+											endif;
+											
+											func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+											if(%func_timeout%);
+												&return_string = %&enum_error_timeout%;
+												debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+												break;
+											endif;
+											
+											can_click   = canDoInteraction(%#action_ticks%,%#tick_wait%);
+											if((%allow_click%) || (%can_click%));
+												&mouse_item = getMouseItem();
+												if(%&mouse_item% == "air");
+													slotclick(%#found_slot%,%&action_click%);
+													allow_click = false;
+												else;
+													allow_click = true;
+												endif;
+											endif;
+											
+											if(%final_gui%);
+												all_errors_inactive  = checkPointerArray(&error_pointers[],"==","false");
+												all_success_inactive = checkPointerArray(&success_pointers[],"==","false");
+												if(!%all_success_inactive%);
+													debug_log(%debug%,%&script_debug_name%,"successfully placed Bazaar Order!");
+													&return_string = %&enum_success%;
+												elseif(!%all_errors_inactive%);
+													debug_error(%debug%,%&script_debug_name%,"Detected a Chat Error!");
+													foreach(&error_pointers[],&fail_pointer,#fpi);
+														&fail_value = "%%&fail_pointer%%";
+														fail_value  = stringToBoolean(%&fail_value%);
+														if(%fail_value%);
+															if((%&fail_pointer% == "@&bazaar_misc_exception") && (%&fail_value% == "ERROR_COOLDOWN"));
+																&return_string = %&enum_error_cooldown%;
+															else;
+																&return_string = %&error_pointer_enums[%#fpi%]%;
+															endif;
+															debug_error(%debug%,%&script_debug_name%,"Pointer &d%&fail_pointer%&7 was set, indicating an Error of Type: &4%&return_string%&7.");
+															break;
+														endif;
+													next;
+												endif;
+											endif;
+											
+											wait("1t");
+											inc(#action_ticks);
+										until((%&return_string% != "") || (%gui_updated%));
+										
+										if((%gui_updated%) && (!%action_error%) && (%&bazaar_enum% == %&baz_final_enum%));
+											wait_for_pointers   = true;
+											#time_wait_pointers = %TIMESTAMP%;
+										endif;
+									endif;
+								elseif(%&baz_action% == "TYPE");
+									&type_chars[] = split("",%&action_text%);
+									foreach(&type_chars[],&type_char);
+										wait("1t");
+										type(%&type_char%);
+									next;
+									
+									do;
+										if(%GUI% == "GUIEDITSIGN");
+											can_escape = canDoInteraction(%#action_ticks%,%#tick_wait%);
+											if(%can_escape%);
+												press("escape");
+											endif;
+										elseif(%GUI% == "GUICHEST");
+											break;
+										endif;
+										
+										func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+										if(%func_timeout%);
+											&return_string = %&enum_error_timeout%;
+											debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+											break;
+										endif;
+										
+										wait("1t");
+										inc(#action_ticks);
+									until((%GUI% == "GUICHEST") || (%&return_string% != ""));
+								endif;
+							else;
+								if((%GUI% != "NONE") && (%&bazaar_enum% == "NONE"));
+									localGUI("NONE");
+								endif;
+								debug_log(%debug%,%&script_debug_name%,"Calling openBazaarTo to get us into the Product GUI for Product &d%&master_sbid%&7. Passing recursive timeout: &d%#recurse_timeout%&7.");
+								#recurse_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								bazaar_opened    = openBazaarTo(%&search_term%,%allow_command%,%#tick_wait%,%#recurse_timeout%);
+								if(!%bazaar_opened%);
+									debug_error(%debug%,%&script_debug_name%,"Could not open the Bazaar!");
+									&return_string = %&enum_error_unavailable%;
+									break;
+								else;
+									debug_log(%debug%,%&script_debug_name%,"&aSuccessfully entered the Bazaar.");
+								endif;
+							endif;
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		foreach(&enable_init[],&enable_init);
+			unset(%&enable_init%);
+		next;
+		return(%&return_string%);
+	endfunction;

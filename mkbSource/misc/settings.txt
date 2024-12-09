@@ -1,0 +1,1346 @@
+// misc/settings
+	// Given a Setting Key and the Value to set it to, sets the Value for that Setting as specified.
+		// Params:
+			// {string} <&setting_key>   	The Key of the Setting to Edit. Must be a valid String ENUM, valid
+			//                           	Elements are listed below.
+			// {string} <&setting_value> 	The Value to set the Key to.
+			// {number} [#timeout_sec=30]	Max amount of Seconds Function can run for before timing out.
+			// {number} [#tick_wait=20]  	Tick delay to wait for before repeating the same Action.
+		// Returns a Boolean indicating whether or not we were able to get the Setting to the specified Value.
+		// Example:
+			//	setting_changed = hypixelChangeSetting("PLAYER_TRADING","false");
+			//	log("setting_changed: %setting_changed%"); // 'setting_changed: <boolean>'
+	function _hypixelUpdateSettingPairs(&setting_key,&setting_value,#timeout_sec=30,#tick_wait=20);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5hypixelChangeSetting&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			// Setup Key ENUMs
+			if(true);
+				// SB_SETTINGS
+				if(true);
+					&valid_keys[] = "DOUBLE_TAP_TO_DROP";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS";
+					
+					&valid_keys[] = "PROFILE_VIEWER";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS";
+				endif;
+				
+				// SB_SETTINGS_PERSONAL
+				if(true);
+					&valid_keys[] = "PLAYER_TRADING";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "SKILL_NUMERALS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "PLAY_MUSIC";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "RARE_DROP_SOUND";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "INVENTORY_FULL_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "PICKUP_ARROWS_WITH_FULL_QUIVER";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "FEROCITY_SFX";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+					
+					&valid_keys[] = "PLAYER_LIST_INFO";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL";
+				endif;
+				
+				// SB_SETTINGS_PERSONAL_CHAT_FEEDBACK
+				if(true);
+					&valid_keys[] = "ABILITY_CHAT";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL_CHAT_FEEDBACK";
+					
+					&valid_keys[] = "PRISTINE_CHAT";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL_CHAT_FEEDBACK";
+					
+					&valid_keys[] = "COMPACT_CHAT";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_PERSONAL_CHAT_FEEDBACK";
+				endif;
+				
+				// SB_SETTINGS_COMMS
+				if(true);
+					&valid_keys[] = "DEATH_MESSAGES";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "GUESTING_INVITES";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "COOP_INVITES";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "BID_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "OUTBID_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "FILL_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "GUESTING_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+					
+					&valid_keys[] = "COOP_TRAVEL_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_COMMS";
+				endif;
+				
+				// SB_SETTINGS_IS
+				if(true);
+					&valid_keys[] = "VISITS_ANYONE";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_IS";
+					
+					&valid_keys[] = "VISITS_FRIENDS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_IS";
+					
+					&valid_keys[] = "VISITS_GUILD";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_IS";
+					
+					&valid_keys[] = "BANKING_API";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_IS";
+				endif;
+				
+				// SB_SETTINGS_API
+				if(true);
+					&valid_keys[] = "API_SKILLS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_API";
+					
+					&valid_keys[] = "API_COLLECTIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_API";
+					
+					&valid_keys[] = "API_INVENTORY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_API";
+					
+					&valid_keys[] = "API_PERSONAL_BANK_VAULT";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "SB_SETTINGS_API";
+				endif;
+				
+				// HY_SETTINGS_GAME
+				if(true);
+					&valid_keys[] = "AUTO_QUEUE";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "PARTICLE_QUALITY";
+					&valid_vals[] = "STRING[OFF, LOW, MEDIUM, HIGH, EXTREME]";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "OFFER_MAP_FEEDBACK";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "AUTO_TIP";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "BLOOD_AND_GORE";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "LOBBY_PROTECTION";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+					
+					&valid_keys[] = "INGAME_MAP_SELECTOR";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GAME";
+				endif;
+				
+				// HY_SETTINGS_CHAT
+				if(true);
+					&valid_keys[] = "CHAT_VISIBILITY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "GUILD_CHAT_VISIBILITY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "PUBLIC_PROFANITY_LEVEL";
+					&valid_vals[] = "STRING[STRONG FILTER, WEAK FILTER]";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "PARTY_PROFANITY_LEVEL";
+					&valid_vals[] = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "GUILD_PROFANITY_LEVEL";
+					&valid_vals[] = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "PM_PROFANITY_LEVEL";
+					&valid_vals[] = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "LOBBY_JOIN_MESSAGE";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "PARTY_MESSAGE_SOUNDS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "GUILD_MESSAGE_SOUNDS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "PRIVATE_MESSAGE_SOUNDS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+					
+					&valid_keys[] = "CHAT_ALERTS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_CHAT";
+				endif;
+				
+				// HY_SETTINGS_SOCIAL
+				if(true);
+					&valid_keys[] = "ONLINE_STATUS";
+					&valid_vals[] = "STRING[ONLINE, AWAY, BUSY, APPEAR OFFLINE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "PRIVATE_MESSAGE_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, MEDIUM, LOW, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "FRIEND_REQUEST_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "DUEL_INVITE_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "PARTY_INVITE_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "GUILD_INVITE_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+					
+					&valid_keys[] = "SMP_INVITE_PRIVACY";
+					&valid_vals[] = "STRING[MAX, HIGH, NONE]";
+					&valid_guis[] = "HY_SETTINGS_SOCIAL";
+				endif;
+				
+				// HY_SETTINGS_LOBBY
+				if(true);
+					&valid_keys[] = "PLAYER_VISIBILITY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_LOBBY";
+					
+					&valid_keys[] = "PET_VISIBILITY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_LOBBY";
+					
+					&valid_keys[] = "AUTO_SPAWN_PET";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_LOBBY";
+					
+					&valid_keys[] = "LOBBY_DARK_MODE";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_LOBBY";
+					
+					&valid_keys[] = "AUTO_DENY_GIFTS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_LOBBY";
+				endif;
+				
+				// HY_SETTINGS_API
+				if(true);
+					&valid_keys[] = "ONLINE_STATUS_API";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_API";
+					
+					&valid_keys[] = "RECENT_GAMES_API";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_API";
+					
+					&valid_keys[] = "WINSTREAKS_API";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_API";
+				endif;
+				
+				// HY_SETTINGS_GUILD
+				if(true);
+					&valid_keys[] = "GUILD_CHAT_VISIBILITY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GUILD";
+					
+					&valid_keys[] = "GUILD_NOTIFICATIONS";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GUILD";
+					
+					&valid_keys[] = "GUILD_ONLINE_ONLY";
+					&valid_vals[] = "BOOLEAN";
+					&valid_guis[] = "HY_SETTINGS_GUILD";
+				endif;
+			endif;
+			
+			// &valid_keys[] - The KEY to be passed in <&setting_key> to this Function to change the corresponding Setting.
+			// &valid_vals[] - The type of Value to be passed in <&setting_value> to this Function to change the corresponding Setting.
+			// &valid_guis[] - The String passed along to `remoteGUI` to open up the Settings GUI to change this Setting.
+		endif;
+		
+		#wait_ticks   = 20;
+		#timeout_sec  = 30;
+		&last_gui_key = "";
+		#total        = arraysize(&valid_keys[]);
+		#sec_timer    = countup();
+		foreach(&valid_keys[],&valid_key,#vk);
+			&timer      = counter(%#sec_timer%);
+			&valid_val  = %&valid_vals[%#vk%]%;
+			&valid_gui  = %&valid_guis[%#vk%]%;
+			#vk_num     = %#vk% + 1;
+			key_guessed = false;
+			debug_log(%debug%,%&script_debug_name%," ");
+			debug_log(%debug%,%&script_debug_name%,"[%&timer%]: [%#vk_num%/%#total%] > looking for match for &&valid_key='&e%&valid_key%&7', &&valid_val='&e%&valid_val%&7', &&valid_gui='&e%&valid_gui%&7'...");
+			&curr_container_string = getContainerString(true);
+			if((%&curr_container_string% == %&valid_container_string%) && (%&valid_gui% == %&last_gui_key%));
+				in_valid_gui = true;
+			else;
+				in_valid_gui = remoteGUI(%&valid_gui%,%#wait_ticks%,%#timeout_sec%);
+				if(%in_valid_gui%);
+					&valid_container_string = getContainerString(true);
+				endif;
+			endif;
+			
+			if(%in_valid_gui%);
+				// Index the Container's Items
+				if((%&curr_container_string% != %&valid_container_string%) || (&valid_gui% != %&last_gui_key%));
+					debug_log(%debug%,%&script_debug_name%,"updating container items...");
+					unset(#gui_slots[]);
+					unset(&gui_items[]);
+					unset(#gui_datas[]);
+					unset(#gui_stacks[]);
+					unset(&gui_names[]);
+					unset(&gui_nbts[]);
+					unset(&corrected_names[]);
+					unset(#gui_taken_index[]);
+					
+					// Iterate over Dynamic Container Slots
+					if(true);
+						ifmatches(%&valid_key%,"^HY_SETTINGS");
+							#r_start = 18;
+						else;
+							#r_start = 0;
+						endif;
+						#r_end = %CONTAINERSLOTS% - 37;
+						
+						for(#r_slot,%#r_start%,%#r_end%);
+							&f_item = getslotitemnbt(%#r_slot%,,#f_stack,#f_data,&f_nbt);
+							&f_nbt  = strip(%&f_nbt%);
+							if((%&f_item% != "air") && (%&f_item% != "stained_glass_pane"));
+								&f_name               = getItemName(%&f_nbt%,%&f_item%);
+								#identical_name_index = indexof(&gui_names[],,%&f_name%);
+								#gui_slots_size       = arraysize(#gui_slots[]);
+								#gui_slots[]          = %#r_slot%;
+								&gui_items[]          = %&f_item%;
+								#gui_datas[]          = %#f_data%;
+								#gui_stacks[]         = %#f_stack%;
+								&gui_names[]          = %&f_name%;
+								&gui_nbts[]           = %&f_nbt%;
+								
+								if(%#identical_name_index% != -1);
+									#gui_identical_to[%#identical_name_index%] = %#gui_slots_size%;
+									#gui_identical_to[%#gui_slots_size%]       = %#identical_name_index%;
+									debug_log(%debug%,%&script_debug_name%,"#r_slot=&e%#r_slot%&7 has identical item name to #other_slot=&e%#gui_slots[%#identical_name_index%]%&7 (&&f_name='&e%&f_name%&7').");
+								endif;
+								
+								// Setup 'Corrected Name' for this Slot
+								if(true);
+									&corrected_name    = ucase(%&f_name%);
+									&corrected_name    = replace(&corrected_name,":")
+									&corrected_name    = replace(&corrected_name,"&","AND");
+									&corrected_name    = regexreplace(&corrected_name,"\s+","_");
+									&corrected_name    = regexreplace(&corrected_name,"\W");
+									&corrected_names[] = %&corrected_name%;
+									&vars[]            = split(" ","#r_slot &f_item #f_data #f_stack &f_name &corrected_name");
+									foreach(&vars[],&var,#v);
+										&val	= "%%&var%%";
+										&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+										&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+										debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+									next;
+									if(%debug%); log(" "); endif;
+								endif;
+							endif;
+						next;
+						debug_log(%debug%,%&script_debug_name%,"done updating container items!");
+					endif;
+				endif;
+				
+				// Find the Item(s) in this GUI that are most likely to be the one for this Key.
+				if(true);
+					// Iterate over all the Names in &corrected_names[] to check if there are any exact matches for this Key.
+					if(true);
+						unset(#exact_name_index[]);
+						foreach(&corrected_names[],&corrected_name,#cn);
+							if(%&corrected_name% == %&valid_key%);
+								#taken_index = indexof(#gui_taken_index[],,%#cn%);
+								if(%#taken_index% == -1);
+									#exact_name_index[] = %#cn%;
+								endif;
+							endif;
+						next;
+						
+						#exact_name_index_sz = arraysize(#exact_name_index[]);
+						if(%#exact_name_index_sz% <= 0);
+							unset(&attempted_names[]);
+							unset(#attempted_index[]);
+							unset(#attempted_dists[]);
+							foreach(&corrected_names[],&corrected_name,#cn);
+								#valid_index = indexof(&valid_guis[],,%&corrected_name%);
+								#taken_index = indexof(#gui_taken_index[],,%#cn%);
+								if((%#valid_index% == -1) && (%#taken_index% == -1));
+									&attempted_names[] = %&corrected_name%;
+									#attempted_dists[] = calcLevenDist(%&valid_key%,%&corrected_name%);
+									#attempted_index[] = %#cn%;
+								endif;
+							next;
+							
+							#attempted_index_sz = arraysize(#attempted_index[]);
+							if(%#attempted_index_sz% >= 1);
+								key_guessed = true;
+								sort("ASC",#attempted_dists[],#attempted_index[],&attempted_names[]);
+							endif;
+							
+							#identical_index[] = split(", ","0")
+							foreach(#attempted_dists[],#attempted_dist,#ad);
+								if((%#ad% > 0) && (%#attempted_dist% <= %#attempted_dists[0]%));
+									#identical_index[] = %#attempted_index[%#ad%]%;
+								elseif(%#ad% > 0);
+									break;
+								endif;
+							next;
+						else;
+							unset(#identical_index[]);
+							push(#identical_index[],#exact_name_index[*]);
+						endif;
+					endif;
+					
+					#identical_index_sz = arraysize(#identical_index[]);
+					if(%#identical_index_sz% >= 1);
+						unset(&use_valid_slots[]);
+						unset(&use_valid_items[]);
+						unset(&use_valid_names[]);
+						unset(&use_corrected_names[]);
+						foreach(#identical_index[],#identical_index,#ii);
+							&use_valid_slots[]     = %#gui_slots[%#identical_index%]%;
+							&use_valid_items[]     = %&gui_items[%#identical_index%]%;
+							&use_valid_names[]     = %&gui_names[%#identical_index%]%;
+							&use_corrected_names[] = %&corrected_names[%#identical_index%]%;
+							#gui_taken_index[]     = %#identical_index%;
+						next;
+					
+						&use_valid_slots     = join("|",&use_valid_slots[]);
+						&use_valid_items     = join("|",&use_valid_items[]);
+						&use_valid_names     = join("|",&use_valid_names[]);
+						&use_corrected_names = join("|",&use_corrected_names[]);
+						
+						if(%&last_gui_key% != %&valid_gui%);
+							&write_lines[] = "// %&valid_gui%";
+							&write_lines[] = "if(true);";
+						endif;
+						
+						if(%key_guessed%);
+							&write_lines[] = "    //! GUESSED KEY!";
+							#an_sz         = arraysize(&attempted_names[]);
+							foreach(&attempted_names[],&attempted_name,#an);
+								#anum          = %#an% + 1;
+								&write_lines[] = "    //! %#anum%/%#an_sz% (%#attempted_dists[%#an%]%): %&attempted_name% to %&valid_key%";
+							next;
+						endif;
+						
+						&write_lines[]       = "    &valid_keys[%#vk%]      = \"%&valid_key%\";";
+						&write_lines[]       = "    &valid_vals[%#vk%]      = \"%&valid_val%\";";
+						&write_lines[]       = "    &valid_guis[%#vk%]      = \"%&valid_gui%\";";
+						&write_lines[]       = "    &valid_slots[%#vk%]     = \"%&use_valid_slots%\";";
+						&write_lines[]       = "    &valid_items[%#vk%]     = \"%&use_valid_items%\";";
+						&write_lines[]       = "    &valid_names[%#vk%]     = \"%&use_valid_names%\";";
+						&write_lines[]       = "    &corrected_names[%#vk%] = \"%&use_corrected_names%\";";
+						
+						#next_index = %#vk% + 1;
+						if(%&valid_guis[%#next_index%]% != %&valid_gui%);
+							&write_lines[] = "endif;";
+							&write_lines[] = "    ";
+						else;
+							&write_lines[] = "    ";
+						endif;
+					else;
+						&file_path      = "~/liteconfig/common/macros/logs/%TIMESTAMP%-tmp-settings.txt";
+						&temp_file_path = writefile(%&file_path%,&write_lines[],false);
+						setclipboard(%&temp_file_path%);
+						debug_breakpoint(%debug%,%&script_debug_name%,"did not calculate distance between &&valid_key='&e%&valid_key%&7' and any other item in the container?? Logged contents of &&write_lines[] to &e%&temp_file_path%&7.");
+					endif;
+				endif;
+				
+				&last_gui_key = %&valid_gui%;
+			endif;
+		next;
+		&file_path = "~/liteconfig/common/macros/logs/%TIMESTAMP%-settings-output.txt";
+		&file_path = writefile(%&file_path%,&write_lines[],false);
+		setclipboard(%&file_path%);
+		debug_log(%debug%,%&script_debug_name%,"all done! logged &&write_lines[] to &&file_path='&e%&file_path%&7'.");
+	endfunction;
+	
+	// Given an Array of Setting Key(s) and Setting Value(s), sets each Key to the specified Value.
+		// Params:
+			// {string} <&setting_keys[]>	The Key(s) of the Setting(s) to Edit. Must be a valid String ENUM, valid
+			//                           	Elements are listed below.
+			// {string} <&setting_vals[]>	The Value(s) to set the Key(s) to.
+			// {number} [#timeout_sec=30]	Max amount of Seconds Function can run for before timing out.
+			// {number} [#tick_wait=20]  	Tick delay to wait for before repeating the same Action.
+		// Returns a Boolean Array indicating whether or not we were able to get the Setting to the Specified Value for each Key,
+		// indexed parallel to the way the Keys were passed in the <&setting_keys[]> Parameter.
+		// Example:
+			//	&setting_keys[]   = "PLAYER_DROPS";
+			//	&setting_vals[]   = "FALSE";
+			//	successful_keys[] = hypixelChangeSettingsArr(&setting_keys[],&setting_vals[]);
+		// The following String ENUMs are Valid Keys to pass to this Function:
+			// SB_SETTINGS:
+				// DOUBLE_TAP_TO_DROP	BOOLEAN
+				// PROFILE_VIEWER    	BOOLEAN
+			// SB_SETTINGS_PERSONAL:
+				// PLAYER_TRADING                	BOOLEAN
+				// SKILL_NUMERALS                	BOOLEAN
+				// PLAY_MUSIC                    	BOOLEAN
+				// RARE_DROP_SOUND               	BOOLEAN
+				// INVENTORY_FULL_NOTIFICATIONS  	BOOLEAN
+				// PICKUP_ARROWS_WITH_FULL_QUIVER	BOOLEAN
+				// FEROCITY_SFX                  	BOOLEAN
+				// PLAYER_LIST_INFO              	BOOLEAN
+			// SB_SETTINGS_COMMS:
+				// DEATH_MESSAGES           	BOOLEAN
+				// GUESTING_INVITES         	BOOLEAN
+				// COOP_INVITES             	BOOLEAN
+				// BID_NOTIFICATIONS        	BOOLEAN
+				// OUTBID_NOTIFICATIONS     	BOOLEAN
+				// FILL_NOTIFICATIONS       	BOOLEAN
+				// GUESTING_NOTIFICATIONS   	BOOLEAN
+				// COOP_TRAVEL_NOTIFICATIONS	BOOLEAN
+			// SB_SETTINGS_IS:
+				// VISITS_ANYONE 	BOOLEAN
+				// VISITS_FRIENDS	BOOLEAN
+				// VISITS_GUILD  	BOOLEAN
+				// API_BANKING   	BOOLEAN
+			// SB_SETTINGS_API:
+				// API_SKILLS             	BOOLEAN
+				// API_COLLECTIONS        	BOOLEAN
+				// API_INVENTORY          	BOOLEAN
+				// API_PERSONAL_BANK_VAULT	BOOLEAN
+			// HY_SETTINGS_GAME:
+				// AUTO_QUEUE         	BOOLEAN
+				// PARTICLE_QUALITY   	STRING [OFF, LOW, MEDIUM, HIGH, EXTREME]
+				// OFFER_MAP_FEEDBACK 	BOOLEAN
+				// AUTO_TIP           	BOOLEAN (MVP++ Required)
+				// BLOOD_AND_GORE     	BOOLEAN
+				// LOBBY_PROTECTION   	BOOLEAN
+				// INGAME_MAP_SELECTOR	BOOLEAN
+			// HY_SETTINGS_CHAT:
+				// CHAT_VISIBILITY       	BOOLEAN
+				// GUILD_CHAT_VISIBILITY 	BOOLEAN
+				// PUBLIC_PROFANITY_LEVEL	STRING [STRONG FILTER, WEAK FILTER]
+				// PARTY_PROFANITY_LEVEL 	STRING [STRONG FILTER, WEAK FILTER, OFF]
+				// GUILD_PROFANITY_LEVEL 	STRING [STRONG FILTER, WEAK FILTER, OFF]
+				// PM_PROFANITY_LEVEL    	STRING [STRONG FILTER, WEAK FILTER, OFF]
+				// LOBBY_JOIN_MESSAGE    	BOOLEAN (MVP+ Required)
+				// PARTY_MESSAGE_SOUNDS  	BOOLEAN
+				// GUILD_MESSAGE_SOUNDS  	BOOLEAN
+				// PRIVATE_MESSAGE_SOUNDS	BOOLEAN
+				// CHAT_ALERTS           	BOOLEAN
+			// HY_SETTINGS_SOCIAL:
+				// ONLINE_STATUS          	STRING [ONLINE, AWAY, BUSY, APPEAR OFFLINE]
+				// PRIVATE_MESSAGE_PRIVACY	STRING [MAX, HIGH, MEDIUM, LOW, NONE]
+				// FRIEND_REQUEST_PRIVACY 	STRING [MAX, HIGH, MEDIUM, NONE]
+				// DUEL_INVITE_PRIVACY    	STRING [MAX, HIGH, MEDIUM, NONE]
+				// PARTY_INVITE_PRIVACY   	STRING [MAX, HIGH, MEDIUM, NONE]
+				// GUILD_INVITE_PRIVACY   	STRING [MAX, HIGH, MEDIUM, NONE]
+				// SMP_INVITE_PRIVACY     	STRING [MAX, HIGH, NONE]
+			// HY_SETTINGS_LOBBY:
+				// PLAYER_VISIBILITY	BOOLEAN
+				// PET_VISIBILITY   	BOOLEAN
+				// AUTO_SPAWN_PET   	BOOLEAN
+				// LOBBY_DARK_MODE  	BOOLEAN
+				// AUTO_DENY_GIFTS  	BOOLEAN
+			// HY_SETTINGS_API:
+				// API_ONLINE_STATUS	BOOLEAN
+				// API_RECENT_GAMES 	BOOLEAN
+				// API_WINSTREAKS   	BOOLEAN
+			// HY_SETTINGS_GUILD:
+				// GUILD_CHAT_VISIBILITY	BOOLEAN
+				// GUILD_NOTIFICATIONS  	BOOLEAN
+				// GUILD_ONLINE_ONLY    	BOOLEAN
+	function hypixelChangeSettingsArr(&setting_keys[],&setting_vals[],#timeout_sec=30,#tick_wait=20);
+		// Wrap Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6hypixelChangeSettings&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			// Wrap Key Arrays
+			if(true);
+				// SB_SETTINGS
+				if(true);
+					&valid_keys[0]      = "DOUBLE_TAP_TO_DROP";
+					&valid_vals[0]      = "BOOLEAN";
+					&valid_guis[0]      = "SB_SETTINGS";
+					&valid_slots[0]     = "29|38";
+					&valid_items[0]     = "diamond_sword|dye";
+					&valid_names[0]     = "Double Tap to Drop|Double Tap to Drop";
+					
+					&valid_keys[1]      = "PROFILE_VIEWER";
+					&valid_vals[1]      = "BOOLEAN";
+					&valid_guis[1]      = "SB_SETTINGS";
+					&valid_slots[1]     = "31|40";
+					&valid_items[1]     = "skull|dye";
+					&valid_names[1]     = "Profile Viewer|Profile Viewer";
+				endif;
+					
+				// SB_SETTINGS_PERSONAL
+				if(true);
+					&valid_keys[2]      = "PLAYER_TRADING";
+					&valid_vals[2]      = "BOOLEAN";
+					&valid_guis[2]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[2]     = "12|21";
+					&valid_items[2]     = "gold_ingot|dye";
+					&valid_names[2]     = "Player Trading|Player Trading";
+					
+					&valid_keys[3]      = "SKILL_NUMERALS";
+					&valid_vals[3]      = "BOOLEAN";
+					&valid_guis[3]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[3]     = "14|23";
+					&valid_items[3]     = "map|dye";
+					&valid_names[3]     = "Skill Numerals|Skill Numerals";
+					
+					&valid_keys[4]      = "PLAY_MUSIC";
+					&valid_vals[4]      = "BOOLEAN";
+					&valid_guis[4]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[4]     = "16|25";
+					&valid_items[4]     = "jukebox|dye";
+					&valid_names[4]     = "Play Music|Play Music";
+					
+					&valid_keys[5]      = "RARE_DROP_SOUND";
+					&valid_vals[5]      = "BOOLEAN";
+					&valid_guis[5]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[5]     = "27|36";
+					&valid_items[5]     = "noteblock|dye";
+					&valid_names[5]     = "Rare Drop Sound|Rare Drop Sound";
+					
+					&valid_keys[6]      = "INVENTORY_FULL_NOTIFICATIONS";
+					&valid_vals[6]      = "BOOLEAN";
+					&valid_guis[6]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[6]     = "29|38";
+					&valid_items[6]     = "chest|dye";
+					&valid_names[6]     = "Inventory Full Notifications|Inventory Full Notifications";
+					
+					&valid_keys[7]      = "PICKUP_ARROWS_WITH_FULL_QUIVER";
+					&valid_vals[7]      = "BOOLEAN";
+					&valid_guis[7]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[7]     = "31|40";
+					&valid_items[7]     = "arrow|dye";
+					&valid_names[7]     = "Pickup Arrows with Full Quiver|Pickup Arrows with Full Quiver";
+					
+					&valid_keys[8]      = "FEROCITY_SFX";
+					&valid_vals[8]      = "BOOLEAN";
+					&valid_guis[8]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[8]     = "33|42";
+					&valid_items[8]     = "dye|dye";
+					&valid_names[8]     = "Ferocity SFX|Ferocity SFX";
+					
+					&valid_keys[9]      = "PLAYER_LIST_INFO";
+					&valid_vals[9]      = "BOOLEAN";
+					&valid_guis[9]      = "SB_SETTINGS_PERSONAL";
+					&valid_slots[9]     = "35|44";
+					&valid_items[9]     = "filled_map|dye";
+					&valid_names[9]     = "Player List Info|Player List Info";
+				endif;
+					
+				// SB_SETTINGS_COMMS
+				if(true);
+					&valid_keys[13]      = "DEATH_MESSAGES";
+					&valid_vals[13]      = "BOOLEAN";
+					&valid_guis[13]      = "SB_SETTINGS_COMMS";
+					&valid_slots[13]     = "11|20";
+					&valid_items[13]     = "sign|dye";
+					&valid_names[13]     = "Death Messages|Death Messages";
+					
+					&valid_keys[14]      = "GUESTING_INVITES";
+					&valid_vals[14]      = "BOOLEAN";
+					&valid_guis[14]      = "SB_SETTINGS_COMMS";
+					&valid_slots[14]     = "14|23";
+					&valid_items[14]     = "emerald|dye";
+					&valid_names[14]     = "Guesting Invites|Guesting Invites";
+					
+					&valid_keys[15]      = "COOP_INVITES";
+					&valid_vals[15]      = "BOOLEAN";
+					&valid_guis[15]      = "SB_SETTINGS_COMMS";
+					&valid_slots[15]     = "16|25";
+					&valid_items[15]     = "diamond|dye";
+					&valid_names[15]     = "Co-op Invites|Co-op Invites";
+					
+					&valid_keys[16]      = "BID_NOTIFICATIONS";
+					&valid_vals[16]      = "BOOLEAN";
+					&valid_guis[16]      = "SB_SETTINGS_COMMS";
+					&valid_slots[16]     = "28|37";
+					&valid_items[16]     = "golden_horse_armor|dye";
+					&valid_names[16]     = "Bid Notifications|Bid Notifications";
+					
+					&valid_keys[17]      = "OUTBID_NOTIFICATIONS";
+					&valid_vals[17]      = "BOOLEAN";
+					&valid_guis[17]      = "SB_SETTINGS_COMMS";
+					&valid_slots[17]     = "29|38";
+					&valid_items[17]     = "gold_ingot|dye";
+					&valid_names[17]     = "Outbid Notifications|Outbid Notifications";
+					
+					&valid_keys[18]      = "FILL_NOTIFICATIONS";
+					&valid_vals[18]      = "BOOLEAN";
+					&valid_guis[18]      = "SB_SETTINGS_COMMS";
+					&valid_slots[18]     = "30|39";
+					&valid_items[18]     = "hopper|dye";
+					&valid_names[18]     = "Fill Notifications|Fill Notifications";
+					
+					&valid_keys[19]      = "GUESTING_NOTIFICATIONS";
+					&valid_vals[19]      = "BOOLEAN";
+					&valid_guis[19]      = "SB_SETTINGS_COMMS";
+					&valid_slots[19]     = "32|41";
+					&valid_items[19]     = "paper|dye";
+					&valid_names[19]     = "Guesting Notifications|Guesting Notifications";
+					
+					&valid_keys[20]      = "COOP_TRAVEL_NOTIFICATIONS";
+					&valid_vals[20]      = "BOOLEAN";
+					&valid_guis[20]      = "SB_SETTINGS_COMMS";
+					&valid_slots[20]     = "34|43";
+					&valid_items[20]     = "paper|dye";
+					&valid_names[20]     = "Co-op Travel Notifications|Co-op Travel Notifications";
+				endif;
+					
+				// SB_SETTINGS_IS
+				if(true);
+					&valid_keys[21]      = "VISITS_ANYONE";
+					&valid_vals[21]      = "BOOLEAN";
+					&valid_guis[21]      = "SB_SETTINGS_IS";
+					&valid_slots[21]     = "11|20";
+					&valid_items[21]     = "saddle|dye";
+					&valid_names[21]     = "Visits: Anyone|Visits: Anyone";
+					
+					&valid_keys[22]      = "VISITS_FRIENDS";
+					&valid_vals[22]      = "BOOLEAN";
+					&valid_guis[22]      = "SB_SETTINGS_IS";
+					&valid_slots[22]     = "13|22";
+					&valid_items[22]     = "stained_hardened_clay|dye";
+					&valid_names[22]     = "Visits: Friends|Visits: Friends";
+					
+					&valid_keys[23]      = "VISITS_GUILD";
+					&valid_vals[23]      = "BOOLEAN";
+					&valid_guis[23]      = "SB_SETTINGS_IS";
+					&valid_slots[23]     = "15|24";
+					&valid_items[23]     = "stained_hardened_clay|dye";
+					&valid_names[23]     = "Visits: Guild|Visits: Guild";
+					
+					&valid_keys[24]      = "API_BANKING";
+					&valid_vals[24]      = "BOOLEAN";
+					&valid_guis[24]      = "SB_SETTINGS_IS";
+					&valid_slots[24]     = "31|40";
+					&valid_items[24]     = "gold_ingot|dye";
+					&valid_names[24]     = "Banking API|Banking API";
+				endif;
+					
+				// SB_SETTINGS_API
+				if(true);
+					&valid_keys[25]      = "API_SKILLS";
+					&valid_vals[25]      = "BOOLEAN";
+					&valid_guis[25]      = "SB_SETTINGS_API";
+					&valid_slots[25]     = "10|19";
+					&valid_items[25]     = "diamond_sword|dye";
+					&valid_names[25]     = "API: Skills|API: Skills";
+					
+					&valid_keys[26]      = "API_COLLECTIONS";
+					&valid_vals[26]      = "BOOLEAN";
+					&valid_guis[26]      = "SB_SETTINGS_API";
+					&valid_slots[26]     = "12|21";
+					&valid_items[26]     = "painting|dye";
+					&valid_names[26]     = "API: Collections|API: Collections";
+					
+					&valid_keys[27]      = "API_INVENTORY";
+					&valid_vals[27]      = "BOOLEAN";
+					&valid_guis[27]      = "SB_SETTINGS_API";
+					&valid_slots[27]     = "14|23";
+					&valid_items[27]     = "chest|dye";
+					&valid_names[27]     = "API: Inventory|API: Inventory";
+					
+					&valid_keys[28]      = "API_PERSONAL_BANK_VAULT";
+					&valid_vals[28]      = "BOOLEAN";
+					&valid_guis[28]      = "SB_SETTINGS_API";
+					&valid_slots[28]     = "16|25";
+					&valid_items[28]     = "ender_chest|dye";
+					&valid_names[28]     = "API: Personal Bank Vault|API: Personal Bank Vault";
+				endif;
+					
+				// HY_SETTINGS_GAME
+				if(true);
+					&valid_keys[29]      = "AUTO_QUEUE";
+					&valid_vals[29]      = "BOOLEAN";
+					&valid_guis[29]      = "HY_SETTINGS_GAME";
+					&valid_slots[29]     = "28|37";
+					&valid_items[29]     = "bed|dye";
+					&valid_names[29]     = "Auto Queue|Auto Queue";
+					
+					&valid_keys[30]      = "PARTICLE_QUALITY";
+					&valid_vals[30]      = "STRING[OFF, LOW, MEDIUM, HIGH, EXTREME]";
+					&valid_guis[30]      = "HY_SETTINGS_GAME";
+					&valid_slots[30]     = "29|38";
+					&valid_items[30]     = "red_flower|dye";
+					&valid_names[30]     = "Particle Quality|Particle Quality";
+					
+					&valid_keys[31]      = "OFFER_MAP_FEEDBACK";
+					&valid_vals[31]      = "BOOLEAN";
+					&valid_guis[31]      = "HY_SETTINGS_GAME";
+					&valid_slots[31]     = "30|39";
+					&valid_items[31]     = "writable_book|dye";
+					&valid_names[31]     = "Offer Map Feedback|Offer Map Feedback";
+					
+					&valid_keys[32]      = "AUTO_TIP";
+					&valid_vals[32]      = "BOOLEAN";
+					&valid_guis[32]      = "HY_SETTINGS_GAME";
+					&valid_slots[32]     = "31|40";
+					&valid_items[32]     = "gold_nugget|dye";
+					&valid_names[32]     = "Auto-Tip|Auto-Tip";
+					
+					&valid_keys[33]      = "BLOOD_AND_GORE";
+					&valid_vals[33]      = "BOOLEAN";
+					&valid_guis[33]      = "HY_SETTINGS_GAME";
+					&valid_slots[33]     = "32|41";
+					&valid_items[33]     = "redstone|dye";
+					&valid_names[33]     = "Blood & Gore|Blood & Gore";
+					
+					&valid_keys[34]      = "LOBBY_PROTECTION";
+					&valid_vals[34]      = "BOOLEAN";
+					&valid_guis[34]      = "HY_SETTINGS_GAME";
+					&valid_slots[34]     = "33|42";
+					&valid_items[34]     = "command_block|dye";
+					&valid_names[34]     = "/lobby Protection|/lobby Protection";
+					
+					&valid_keys[35]      = "INGAME_MAP_SELECTOR";
+					&valid_vals[35]      = "BOOLEAN";
+					&valid_guis[35]      = "HY_SETTINGS_GAME";
+					&valid_slots[35]     = "34|43";
+					&valid_items[35]     = "map|dye";
+					&valid_names[35]     = "In-Game Map Selector|In-Game Map Selector";
+				endif;
+					
+				// HY_SETTINGS_CHAT
+				if(true);
+					&valid_keys[36]      = "CHAT_VISIBILITY";
+					&valid_vals[36]      = "BOOLEAN";
+					&valid_guis[36]      = "HY_SETTINGS_CHAT";
+					&valid_slots[36]     = "19|28";
+					&valid_items[36]     = "paper|dye";
+					&valid_names[36]     = "Chat Visibility|Chat Visibility";
+					
+					&valid_keys[37]      = "GUILD_CHAT_VISIBILITY";
+					&valid_vals[37]      = "BOOLEAN";
+					&valid_guis[37]      = "HY_SETTINGS_CHAT";
+					&valid_slots[37]     = "20|29";
+					&valid_items[37]     = "paper|dye";
+					&valid_names[37]     = "Guild Chat Visibility|Guild Chat Visibility";
+					
+					&valid_keys[38]      = "PUBLIC_PROFANITY_LEVEL";
+					&valid_vals[38]      = "STRING[STRONG FILTER, WEAK FILTER]";
+					&valid_guis[38]      = "HY_SETTINGS_CHAT";
+					&valid_slots[38]     = "22|31";
+					&valid_items[38]     = "anvil|dye";
+					&valid_names[38]     = "Public Profanity Level|Public Profanity Level";
+					
+					&valid_keys[39]      = "PARTY_PROFANITY_LEVEL";
+					&valid_vals[39]      = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[39]      = "HY_SETTINGS_CHAT";
+					&valid_slots[39]     = "23|32";
+					&valid_items[39]     = "anvil|dye";
+					&valid_names[39]     = "Party Profanity Level|Party Profanity Level";
+					
+					&valid_keys[40]      = "GUILD_PROFANITY_LEVEL";
+					&valid_vals[40]      = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[40]      = "HY_SETTINGS_CHAT";
+					&valid_slots[40]     = "24|33";
+					&valid_items[40]     = "anvil|dye";
+					&valid_names[40]     = "Guild Profanity Level|Guild Profanity Level";
+					
+					&valid_keys[41]      = "PM_PROFANITY_LEVEL";
+					&valid_vals[41]      = "STRING[STRONG FILTER, WEAK FILTER, OFF]";
+					&valid_guis[41]      = "HY_SETTINGS_CHAT";
+					&valid_slots[41]     = "25|34";
+					&valid_items[41]     = "anvil|dye";
+					&valid_names[41]     = "PM Profanity Level|PM Profanity Level";
+					
+					&valid_keys[42]      = "LOBBY_JOIN_MESSAGE";
+					&valid_vals[42]      = "BOOLEAN";
+					&valid_guis[42]      = "HY_SETTINGS_CHAT";
+					&valid_slots[42]     = "38|47";
+					&valid_items[42]     = "paper|dye";
+					&valid_names[42]     = "Lobby Join Message (Self)|Lobby Join Message (Self)";
+					
+					&valid_keys[43]      = "PARTY_MESSAGE_SOUNDS";
+					&valid_vals[43]      = "BOOLEAN";
+					&valid_guis[43]      = "HY_SETTINGS_CHAT";
+					&valid_slots[43]     = "40|49";
+					&valid_items[43]     = "noteblock|dye";
+					&valid_names[43]     = "Party Message Sounds|Party Message Sounds";
+					
+					&valid_keys[44]      = "GUILD_MESSAGE_SOUNDS";
+					&valid_vals[44]      = "BOOLEAN";
+					&valid_guis[44]      = "HY_SETTINGS_CHAT";
+					&valid_slots[44]     = "41|50";
+					&valid_items[44]     = "noteblock|dye";
+					&valid_names[44]     = "Guild Message Sounds|Guild Message Sounds";
+					
+					&valid_keys[45]      = "PRIVATE_MESSAGE_SOUNDS";
+					&valid_vals[45]      = "BOOLEAN";
+					&valid_guis[45]      = "HY_SETTINGS_CHAT";
+					&valid_slots[45]     = "42|51";
+					&valid_items[45]     = "noteblock|dye";
+					&valid_names[45]     = "Private Message Sounds|Private Message Sounds";
+					
+					&valid_keys[46]      = "CHAT_ALERTS";
+					&valid_vals[46]      = "BOOLEAN";
+					&valid_guis[46]      = "HY_SETTINGS_CHAT";
+					&valid_slots[46]     = "43|52";
+					&valid_items[46]     = "jukebox|dye";
+					&valid_names[46]     = "Chat Alerts|Chat Alerts";
+				endif;
+					
+				// HY_SETTINGS_SOCIAL
+				if(true);
+					&valid_keys[47]      = "ONLINE_STATUS";
+					&valid_vals[47]      = "STRING[ONLINE, AWAY, BUSY, APPEAR OFFLINE]";
+					&valid_guis[47]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[47]     = "22|31";
+					&valid_items[47]     = "ender_eye|dye";
+					&valid_names[47]     = "Online Status|Online Status";
+					
+					&valid_keys[48]      = "PRIVATE_MESSAGE_PRIVACY";
+					&valid_vals[48]      = "STRING[MAX, HIGH, MEDIUM, LOW, NONE]";
+					&valid_guis[48]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[48]     = "37|46";
+					&valid_items[48]     = "sign|dye";
+					&valid_names[48]     = "Private Message Privacy|Private Message Privacy";
+					
+					&valid_keys[49]      = "FRIEND_REQUEST_PRIVACY";
+					&valid_vals[49]      = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[49]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[49]     = "38|47";
+					&valid_items[49]     = "skull|dye";
+					&valid_names[49]     = "Friend Request Privacy|Friend Request Privacy";
+					
+					&valid_keys[50]      = "DUEL_INVITE_PRIVACY";
+					&valid_vals[50]      = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[50]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[50]     = "39|48";
+					&valid_items[50]     = "iron_sword|dye";
+					&valid_names[50]     = "Duel Invite Privacy|Duel Invite Privacy";
+					
+					&valid_keys[51]      = "PARTY_INVITE_PRIVACY";
+					&valid_vals[51]      = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[51]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[51]     = "41|50";
+					&valid_items[51]     = "book|dye";
+					&valid_names[51]     = "Party Invite Privacy|Party Invite Privacy";
+					
+					&valid_keys[52]      = "GUILD_INVITE_PRIVACY";
+					&valid_vals[52]      = "STRING[MAX, HIGH, MEDIUM, NONE]";
+					&valid_guis[52]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[52]     = "42|51";
+					&valid_items[52]     = "painting|dye";
+					&valid_names[52]     = "Guild Invite Privacy|Guild Invite Privacy";
+					
+					&valid_keys[53]      = "SMP_INVITE_PRIVACY";
+					&valid_vals[53]      = "STRING[MAX, HIGH, NONE]";
+					&valid_guis[53]      = "HY_SETTINGS_SOCIAL";
+					&valid_slots[53]     = "43|52";
+					&valid_items[53]     = "grass|dye";
+					&valid_names[53]     = "SMP Invite Privacy|SMP Invite Privacy";
+				endif;
+					
+				// HY_SETTINGS_LOBBY
+				if(true);
+					&valid_keys[54]      = "PLAYER_VISIBILITY";
+					&valid_vals[54]      = "BOOLEAN";
+					&valid_guis[54]      = "HY_SETTINGS_LOBBY";
+					&valid_slots[54]     = "29|38";
+					&valid_items[54]     = "clock|dye";
+					&valid_names[54]     = "Player Visibility|Player Visibility";
+					
+					&valid_keys[55]      = "PET_VISIBILITY";
+					&valid_vals[55]      = "BOOLEAN";
+					&valid_guis[55]      = "HY_SETTINGS_LOBBY";
+					&valid_slots[55]     = "30|39";
+					&valid_items[55]     = "bone|dye";
+					&valid_names[55]     = "Pet Visibility|Pet Visibility";
+					
+					&valid_keys[56]      = "AUTO_SPAWN_PET";
+					&valid_vals[56]      = "BOOLEAN";
+					&valid_guis[56]      = "HY_SETTINGS_LOBBY";
+					&valid_slots[56]     = "31|40";
+					&valid_items[56]     = "spawn_egg|dye";
+					&valid_names[56]     = "Auto Spawn Pet|Auto Spawn Pet";
+					
+					&valid_keys[57]      = "LOBBY_DARK_MODE";
+					&valid_vals[57]      = "BOOLEAN";
+					&valid_guis[57]      = "HY_SETTINGS_LOBBY";
+					&valid_slots[57]     = "32|41";
+					&valid_items[57]     = "netherbrick|dye";
+					&valid_names[57]     = "Lobby Dark Mode|Lobby Dark Mode";
+					
+					&valid_keys[58]      = "AUTO_DENY_GIFTS";
+					&valid_vals[58]      = "BOOLEAN";
+					&valid_guis[58]      = "HY_SETTINGS_LOBBY";
+					&valid_slots[58]     = "33|42";
+					&valid_items[58]     = "beacon|dye";
+					&valid_names[58]     = "Auto Deny Gifts|Auto Deny Gifts";
+				endif;
+					
+				// HY_SETTINGS_API
+				if(true);
+					&valid_keys[59]      = "API_ONLINE_STATUS";
+					&valid_vals[59]      = "BOOLEAN";
+					&valid_guis[59]      = "HY_SETTINGS_API";
+					&valid_slots[59]     = "29|38";
+					&valid_items[59]     = "gold_ingot|dye";
+					&valid_names[59]     = "Online Status|Online Status";
+					
+					&valid_keys[60]      = "API_RECENT_GAMES";
+					&valid_vals[60]      = "BOOLEAN";
+					&valid_guis[60]      = "HY_SETTINGS_API";
+					&valid_slots[60]     = "31|40";
+					&valid_items[60]     = "book|dye";
+					&valid_names[60]     = "Recent Games|Recent Games";
+					
+					&valid_keys[61]      = "API_WINSTREAKS";
+					&valid_vals[61]      = "BOOLEAN";
+					&valid_guis[61]      = "HY_SETTINGS_API";
+					&valid_slots[61]     = "33|42";
+					&valid_items[61]     = "writable_book|dye";
+					&valid_names[61]     = "Winstreaks|Winstreaks";
+				endif;
+					
+				// HY_SETTINGS_GUILD
+				if(true);
+					&valid_keys[62]      = "GUILD_CHAT_VISIBILITY";
+					&valid_vals[62]      = "BOOLEAN";
+					&valid_guis[62]      = "HY_SETTINGS_GUILD";
+					&valid_slots[62]     = "30|39";
+					&valid_items[62]     = "paper|dye";
+					&valid_names[62]     = "Guild Chat Visibility|Guild Chat Visibility";
+					
+					&valid_keys[63]      = "GUILD_NOTIFICATIONS";
+					&valid_vals[63]      = "BOOLEAN";
+					&valid_guis[63]      = "HY_SETTINGS_GUILD";
+					&valid_slots[63]     = "31|40";
+					&valid_items[63]     = "wooden_door|dye";
+					&valid_names[63]     = "Guild Notifications|Guild Notifications";
+					
+					&valid_keys[64]      = "GUILD_ONLINE_ONLY";
+					&valid_vals[64]      = "BOOLEAN";
+					&valid_guis[64]      = "HY_SETTINGS_GUILD";
+					&valid_slots[64]     = "32|41";
+					&valid_items[64]     = "clock|dye";
+					&valid_names[64]     = "Guild Online Only|Guild Online Only";
+				endif;
+			endif;
+		endif;
+		
+		// Iterate over each of the Keys in the &setting_keys[] Array and change all of them.
+		if(true);
+			#total_keys   = arraysize(&setting_keys[]);
+			&string_arrow = char("10144");
+			foreach(&setting_keys[],&setting_key,#sk);
+				#key_index = indexof(&valid_keys[],,%&setting_key%);
+				if(%#key_index% != -1);
+					&setting_val    = %&setting_vals[%#sk%]%;
+					&valid_val      = %&valid_vals[%#key_index%]%;
+					boolean_setting = %&valid_val% == "BOOLEAN";
+					string_setting  = !%boolean_setting%;
+					valid_setting   = %boolean_setting%;
+					if(%&valid_val% == "BOOLEAN");
+						desired_state  = lcase(%&setting_val%);
+						&desired_state = %desired_state%;
+						&update_type   = "BOOLEAN";
+					elseifmatches(%&valid_val%,"^STRING\[(.+)\]$",&valid_string_vals,1);
+						string_setting           = true;
+						&valid_string_vals[]     = split(", ",%&valid_string_vals%);
+						#valid_string_vals_index = indexof(&valid_string_vals[],,%&setting_val%);
+						if(%#valid_string_vals_index% != -1);
+							valid_setting  = true;
+							&desired_state = %&valid_string_vals[%#valid_string_vals_index%]%;
+							&update_type   = "STRING";
+						endif;
+					endif;
+					
+					if(%valid_setting%);
+						#exist_index = indexof(&update_keys[],,%&setting_key%);
+						if(%#exist_index% == -1);
+							&update_guis[]           = %&valid_guis[%#key_index%]%;
+							&update_keys[]           = %&setting_key%;
+							&update_vals[]           = %&desired_state%;
+							&update_type[]           = %&update_type%;
+							#update_index[]          = %#key_index%;
+							#update_original_index[] = %#sk%;
+						else;
+							debug_error(%debug%,%&script_debug_name%,"&&setting_key='&e%&setting_key%&7' has been referenced multiple times, making it invalid!");
+						endif;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"&&setting_key='&e%&setting_key%&7' only accepts values &&valid_string_vals='&e%&valid_string_vals%&7', making &&setting_val='&e%&setting_val%&7' invalid.");
+					endif;
+				else;
+					debug_error(%debug%,%&script_debug_name%,"&&setting_key='&e%&setting_key%&7' is an unknown setting key");
+				endif;
+				return_array[%#sk%] = false;
+			next;
+			
+			#update_guis = arraysize(&update_guis[]);
+			if(%#update_guis% >= 1);
+				sort("ASC",&update_guis[],&update_keys[],&update_vals[],&update_type[],#update_index[],#update_original_index[]);
+				foreach(&update_guis[],&update_gui,#ug);
+					&setting_key      = %&update_keys[%#ug%]%;
+					&desired_state    = %&update_vals[%#ug%]%;
+					&update_type      = %&update_type[%#ug%]%;
+					#key_index        = %#update_index[%#ug%]%;
+					#sk               = %#update_original_index[%#ug%]%;
+					setting_validated = false;
+					
+					&vars[] = split(" ","#ug &update_gui &setting_key &desired_state &update_type #key_index #sk");
+					foreach(&vars[],&var,#v);
+						&val	= "%%&var%%";
+						&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+						&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+						debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+					next;
+					if(%debug%); log(" "); endif;
+					
+					
+					if(%&update_type% == "BOOLEAN");
+						desired_state := %&desired_state%;
+					endif;
+					
+					// Update and/or verify the State of this Setting.
+					if(true);
+						error_encountered = false;
+						#setting_slots[]  = split("|",%&valid_slots[%#key_index%]%);
+						&setting_items[]  = split("|",%&valid_items[%#key_index%]%);
+						&setting_names[]  = split("|",%&valid_names[%#key_index%]%);
+						#setting_slots_sz = arraysize(#setting_slots[]);
+						#dye_index        = indexof(&setting_items[],,"dye");
+						debug_log(%debug%,%&script_debug_name%,"attempting to update &&setting_key='&e%&setting_key%&7' to state &&desired_state='&e%&desired_state%&7'...");
+						do;
+							#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							in_valid_gui       = remoteGUI(%&update_gui%,%#tick_wait%,%#recursive_timeout%);
+							if(%in_valid_gui%);
+								
+								// If we are editing a BOOLEAN Setting, and there is a 'dye' in the &setting_items[] Array, we can grab that
+								// Item's Data Value in the Container to determine whether the current State of this Setting matches the desired
+								// state.
+								//
+								// If we are not editing a BOOLEAN Setting, then we should find what matches /<string_arrow>\s*?(.*?)\"/ expression
+								// against the NBT of the Dye Item.
+								
+								if(%#dye_index% != -1);
+									do_click   = false;
+									#dye_slot  = %#setting_slots[%#dye_index%]%;
+									if(%#dye_index% == 0);
+										#click_slot = %#setting_slots[1]%;
+									else;
+										#click_slot = %#setting_slots[0]%;
+									endif;
+									&dye_item          = getslotitemnbt(%#dye_slot%,,#dye_stack,#dye_data,&dye_nbt);
+									&click_item        = getslotitemnbt(%#click_slot%,,#click_stack,#click_data,&click_nbt);
+									&encoded_click_nbt = encode(%&click_nbt%);
+									
+									if(%&dye_item% == "dye");
+										if(%boolean_setting%);
+											current_state     = %#dye_data% == 10; // lime dye = 'enabled', grey dye = 'disabled'.
+											do_click          = %current_state% != %desired_state%;
+											setting_validated = %current_state% == %desired_state%;
+										elseif(%string_setting%);
+											&dye_nbt = strip(%&dye_nbt%);
+											ifmatches(%&dye_nbt%,"%&string_arrow%\s*?\b(.*?)\"");
+												match(%&dye_nbt%,"%&string_arrow%\s*?\b(.*?)\"",{&found_state});
+												&found_state = ucase(%&found_state%);
+												if(%&found_state% == %&desired_state%);
+													setting_validated = true;
+												else;
+													do_click = true;
+												endif;
+											endif;
+										else;
+											&failure_reason   = "somehow setting was not a boolean_setting='&e%boolean_setting%&7' and also not a string_setting='&e%string_setting%&7'."
+											error_encountered = true;
+										endif;
+										
+										if(%do_click%);
+											item_is_item_again = false;
+											item_clicked       = false;
+											new_gui            = false;
+											&init_container    = getContainerString();
+											do;
+												// 1. Check if we have exited the GUI.
+												new_gui = enteredNewGUI(%&init_container%,false);
+												if((%new_gui%) || (%GUI% != "GUICHEST"));
+													error_encountered = true;
+													&failure_reason   = "Function changed GUIs while attempting to update the Setting"
+													debug_error(%debug%,%&script_debug_name%,"GUI Updated!");
+													break;
+												endif;
+												
+												// 2. Click the Item, or check to see whether or not the Item is an Item again.
+												if(true);
+													&updated_item        = getslotitemnbt(%#click_slot%,,#updated_stack,#updated_data,&updated_nbt);
+													&encoded_updated_nbt = encode(%&updated_nbt%);
+													item_is_item_again   = ((%item_clicked%) && (%&click_item% == %&updated_item%) && (%&encoded_updated_nbt% != %&encoded_click_nbt%));
+													if(!%item_clicked%);
+														slotclick(%#click_slot%);
+														item_clicked = true;
+													endif;
+												endif;
+												
+												// 2. Check for Function Timeout
+												if(%do_timeout%);
+													func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+													if(%func_timeout%);
+														error_encountered = true;
+														&failure_reason   = "Function timed out while attempting to update the Setting";
+														debug_error(%debug%,%&script_debug_name%,"Function Timed Out!");
+														break;
+													endif;
+												endif;
+												
+												wait("1t");
+											until((%item_is_item_again%) || (%new_gui%) || (%func_timeout%));
+										endif;
+									else;
+										inc(#not_dye_ticks);
+										if(%#not_dye_ticks% >= 20);
+											&failure_reason   = "could not validate that the dye item at #dye_slot=&e%#dye_slot%&7 was in fact a dye item for >= 1 second";
+											error_encountered = true;
+										endif;
+									endif;
+								else;
+									&failure_reason   = "could not find a dye item in &&valid_slots[%#key_index%]='&e%&valid_slots[%#key_index%]%&7', &&valid_items[%#key_index%]='&e%&valid_items[%#key_index%]%'&7, &&valid_names[%#key_index%]='&e%&valid_names[%#key_index%]%&7'!";
+									error_encountered = true;
+								endif;
+							else;
+								&failure_reason   = "&bremoteGUI&7 failed to get us into the correct GUI to update the Setting!";
+								error_encountered = true;
+							endif;
+							
+							if((!%error_encountered%) && (!%setting_validated%));
+								if(%do_timeout%);
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										error_encountered = true;
+										&failure_reason   = "Function timed out while attempting to update the Setting";
+										debug_error(%debug%,%&script_debug_name%,"Function Timed Out!");
+										break;
+									endif;
+								endif;
+								wait("1t");
+							endif;
+						until((%error_encountered%) || (%setting_validated%));
+					endif;
+				
+					// Log Outcome of changing this Setting
+					if(true);
+						#sk_num = %#sk% + 1;
+						if(%setting_validated%);
+							debug_log(%debug%,%&script_debug_name%,"[%#sk_num%/%#total_keys%]: &&setting_key='&e%&setting_key%&7' was validated to be &&desired_state='&e%&desired_state%&7'.");
+						else;
+							debug_error(%debug%,%&script_debug_name%,"[%#sk_num%/%#total_keys%]: &&setting_key='&e%&setting_key%&7' could not be updated to &&desired_state='&e%&desired_state%&7': %&failure_reason%");
+						endif;
+					endif;
+					
+					return_array[%#sk%] = %setting_validated%;
+					if(!%func_timeout%);
+						func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+						if(%func_timeout%);
+							debug_error(%debug%,%&script_debug_name%,"Function Timed Out!");
+							break;
+						endif;
+					else;
+						break;
+					endif;
+				next;
+			endif;
+		endif;
+		
+		return(return_array[]);
+	endfunction;
+	
+	// Wrapper that calls `hypixelChangeSettingsArr()` with the <KEY>: <VALUE> pairs provided to the Function.
+		// Params:
+			// {number} [#timeout_sec=30]	Max amount of Seconds Function can run for before timing out.
+			// {number} [#tick_wait=20]  	Tick delay to wait for before repeating the same Action.
+			// {string} [...&key_pairs[]]	KEY: VALUE pairs of Settings and the Values to change them to. Valid Settings
+			//                           	can be found in the docs for `hypixelChangeSettingsArr()`.
+		// Returns Boolean(s) for each of the key pairs provided in the [...&key_pairs[]] Array. If only one Key Pair is
+		// present, a single Boolean will be returned. If many Key Pairs are present, an Array of Booleans will be returned.
+		// Example:
+			//	setting_changed = hypixelChangeSettings(%#timeout_sec%,%#tick_wait%,"PLAYER_LIST_INFO: TRUE");
+	function hypixelChangeSettings(#timeout_sec=30,#tick_wait=20,...&key_pairs[]);
+		foreach(&key_pairs[],&key_pair,#kp);
+			ifmatches(%&key_pair%,"^(.+?):\s*?(.+)$");
+				match(%&key_pair%,"^(.+?):\s*?(.+)$",{&key,&val});
+				&keys[] = %&key%;
+				&vals[] = %&val%;
+			endif;
+		next;
+		
+		#keys_sz = arraysize(&keys[]);
+		if(%#keys_sz% >= 1);
+			return_array   = %#keys_sz% > 1;
+			output_bools[] = hypixelChangeSettingsArr(&keys[],&vals[],%#timeout_sec%,%#tick_wait%);
+			if(%return_array%);
+				return(output_bools[]);
+			endif;
+		endif;
+		return(%output_bools[0]%);
+	endfunction;

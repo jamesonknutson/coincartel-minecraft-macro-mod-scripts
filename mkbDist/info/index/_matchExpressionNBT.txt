@@ -1,0 +1,17 @@
+//! @mkb-import-begin
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,118 @@
+//! @mkb-import-begin
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getBazaarIndex
+        // Given a Search Term (Display Name or SBID), searches for the specified Product in @&mkb_baz_sbids & @&mkb_baz_names. If a Product
+        // is found, it's Index is returned. If not, -1 is returned.
+            // Params:
+                // {string} <&search_term>    The Product's Display Name or SBID to search up.
+                //
+            // Returns the Index of the Search Term in the @&mkb_baz_[sbids|names|paths] Arrays, or -1 if it is not found.
+        function getBazaarIndex(&search_term);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:128
+            #sbid_index = indexof(@&mkb_baz_sbids[],,%&search_term%);
+            if(%#sbid_index% != -1);
+                return(%#sbid_index%);
+            endif;
+            
+            #name_index = indexof(@&mkb_baz_names[],,%&search_term%);
+            if(%#name_index% != -1);
+                return(%#name_index%);
+            endif;
+            
+            #path_index = indexof(@&mkb_baz_paths[],,%&search_term%);
+            return(%#path_index%);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // bazaar/index/getCurrentBazaarProductPath
+        // Finds the Currently Selected Bazaar Product's Path.
+        function getCurrentBazaarProductPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:515
+            &return_string = "NONE";
+            ifmatches(%CONTAINERNAME%,"\u279c");
+                // Check the Item Slots that we can expect to contain the Item's Name or SBID.
+                if(true);
+                    #check_slots[] = split(", ","13, 10, 11, 15, 16");
+                    &check_names[] = split(", ","NULL, Buy Instantly, Sell Instantly, Create Buy Order, Create Sell Offer");
+                    #found_index   = -1;
+                    foreach(#check_slots[],#check_slot,#csi);
+                        &check_name = %&check_names[%#csi%]%;
+                        &f_item     = getslotitemnbt(%#check_slot%,,#f_stack,#f_data,&f_nbt);
+                        &f_nbt      = strip(%&f_nbt%);
+                        &f_name     = getItemName(%&f_nbt%,%&f_item%);
+                        if((%&check_name% == "NULL") || (%&check_name% == %&f_name%));
+                            if(%&check_name% == "NULL");
+                                // Can do lookup from the Name we got.
+                                #found_index = getBazaarIndex(%&f_name%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                                
+                                // Name lookup didn't work, check if we can get anything with the SBID.
+                                &f_sbid      = getItemSBID(%&f_nbt%);
+                                #found_index = getBazaarIndex(%&f_sbid%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                            else;
+                                // Do lookup from the Lore of the Item.
+                                &name_from_lore = jsonget("display.Lore.0",%&f_nbt%);
+                                #found_index    = getBazaarIndex(%&name_from_lore%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                            endif;
+                        endif;
+                    next;
+                    if(%#found_index% != -1);
+                        &return_string = %@&mkb_baz_paths[%#found_index%]%;
+                    endif;
+                endif;
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

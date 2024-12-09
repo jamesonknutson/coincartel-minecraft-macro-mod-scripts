@@ -1,0 +1,21 @@
+//! @mkb-import-begin
+    // prompt/index/promptColorOpt
+        // Given input of a Boolean and an Option Prefix, joins the prefix together with the suffix based on the state of the Boolean.
+            // Params:
+                // {boolean} <boolean>                       The Condition to check when evaluating whether to apply the false or true suffix
+                // {string}  <&prefix>                       The Prefix String for the Option
+                // {string}  [&suffix_false="&cDisabled"]    The Suffix String to be used if the Boolean is False
+                // {string}  [&suffix_true="&aEnabled"]      The Suffix String to be used if the Boolean is True
+            // Returns a Joint String of the Prefix and the corresponding Suffix.
+            // Example:
+                // &colored_opt = promptColorOpt(%@use_two_rows%,"&7Use Two Rows:");
+        function promptColorOpt(boolean,&prefix,&suffix_true="&aEnabled",&suffix_false="&cDisabled");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/prompt/index.txt:530
+            if(%boolean%);
+                &return_string = "%&prefix% %&suffix_true%";
+            else;
+                &return_string = "%&prefix% %&suffix_false%";
+            endif;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

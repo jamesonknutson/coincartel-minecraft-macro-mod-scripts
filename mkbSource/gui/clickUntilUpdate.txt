@@ -1,0 +1,68 @@
+// gui/containerClick.txt
+	// Clicks on a Slot in a GUI until the GUI updates.
+		// Params:
+			// {number}  <#click_slot>      	The Slot to Click on.
+			// {number}  [#timeout_sec=30]  	The Maximum Amount of Seconds to try to Click for before timing out.
+			// {number}  [#tick_wait=20]    	Ticks to wait between clicks.
+			// {boolean} [check_items=false]	Whether or not to check items in the getContainerString and enteredNewGUI calls to
+			//                              	help determine whether or not our GUI has updated.
+			// {boolean} [right_click=false]	Whether or not to right click. Will left click if false.
+			// {boolean} [shift_click=false]	Whether or not to shift click.
+		// Returns a Boolean indicating whether or not we were able to get the GUI to update before timeout.
+		// Example:
+			//	updated_gui = containerClick(%#click_slot%,%#timeout_sec%,%#tick_wait%,%right_click%,%shift_click%);
+	function containerClick(#click_slot,#timeout_sec=30,#tick_wait=20,check_items=false,right_click=false,shift_click=false);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&7containerClick";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+		endif;
+		
+		// Loop until we have hit our return condition.
+		if(true);
+			if(%CONTAINERSLOTS% <= 0);
+				debug_error(%debug%,%&script_debug_name%,"Not in a clickable GUI at runtime!");
+				return(false);
+			elseif(%right_click%);
+				&click_mode = "right";
+			else;
+				&click_mode = "left";
+			endif;
+			
+			&init_gui = getContainerString(%check_items%);
+			do;
+				// Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Failed to update the GUI, function timed out.");
+						break;
+					endif;
+				endif;
+				
+				// Check if we are in a new GUI.
+				if(%clicked%);
+					gui_updated = enteredNewGUI(%&init_gui%,%check_items%);
+					if(%gui_updated%);
+						debug_log(%debug%,%&script_debug_name%,"gui has updated!");
+						break;
+					endif;
+					debug_log(%debug%,%&script_debug_name%,"gui has not yet updated");
+				endif;
+				
+				// Check if we can click the Slot again.
+				can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+				if(%can_click%);
+					slotclick(%#click_slot%,%&click_mode%,%shift_click%);
+					clicked = true;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until((%gui_updated%) || (%GUI% == "NONE") || (%func_timeout%));
+		endif;
+		
+		return(%gui_updated%);
+	endfunction;

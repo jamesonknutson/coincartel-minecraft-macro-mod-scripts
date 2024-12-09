@@ -1,0 +1,24 @@
+//! @mkb-import-begin
+    // debug/index/stringEscape
+        // Given an Input String, escapes all string variables that might be confused with formatting code
+        // instructions (i.e. '@&foo_bar' => '@&&foo_bar').
+            // Params:
+                // {string} <&input_string>    The string to escape variables in.
+                //
+            // Returns the Escaped String.
+        function stringEscape(&input_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:7
+            // We do not want to escape anything that looks like:
+            // &0 &1 &2 &3 &4 &5 &6 &7 &8 &9 &a &b &c &d &e &f &k &l &m &n &o
+            //
+            // We know that variables can only ever start with an alphabetic lowercase character
+            // (i.e. &f). We also know that variables are always all lowercase. If there are any non-
+            // word characters (non-alphanumeric, non-lowercase) in the string, we know that it is not
+            // a variable.
+            
+            &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            &replacement   = "&$1";
+            &output_string = regexreplace(&input_string,%&matcher%,%&replacement%);
+            return(%&output_string%);
+        endfunction;
+//! @mkb-import-end

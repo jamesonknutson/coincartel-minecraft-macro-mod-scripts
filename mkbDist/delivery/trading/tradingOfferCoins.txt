@@ -1,0 +1,1705 @@
+//! @mkb-import-begin
+    // string/index/convertENote
+        // Converts a Number formatted in Exponential Notation (e.g. "3.172E10") to standard string decimal form.
+            // Params:
+                // {string} <&enote_string>    The E. Notation Number string to convert.
+                //
+            // Returns the Number coerced into a valid decimal float value. If a non-e-notation string is passed,
+            // the input string is returned as-is.
+        function convertENote(&convert_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:172
+            debug              = true;
+            &script_debug_name = "&9convertENote&7";
+            &convert_string    = replace(&convert_string,",");
+            &return_string     = %&convert_string%;
+            ifmatches(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$");
+                match(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$",{&m_sign_num,&m_leading_num,&m_trailing_num,&m_sign_exponent,&m_exponent_num});
+                output_negative   = %&m_sign_num% == "-";
+                exponent_negative = %&m_sign_exponent% == "-";
+                
+                // Convert Scientific Notation to a Real Number
+                // Multiply the decimal number by 10 raised to the power indicated.
+                // 3.456 x 10^4  = 3.456 x 10,000 = 34560
+                // 3.456 x 10^-4 = 3.456 x .0001  = 0.0003456
+                //
+                
+                //    Convert Scientific Notation without a Calculator
+                //    We’ve shown you how to convert a number expressed in scientific notation to a decimal by solving,
+                //    but this would get more difficult to do manually as the exponent gets larger. There’s an alternate
+                //    way to convert to decimal without solving the equation.
+                //
+                //    If the exponent is positive, move the decimal point in the coefficient to the right one space for each
+                //    value in the exponent.
+                //
+                //    For instance, if the exponent is two, then move the decimal point to the right two spaces. If the exponent
+                //    is negative, then move the decimal point to the left.
+                //
+                //    For example, let’s convert 1.5 × 10^2 to a decimal using this method.
+                //
+                //    1.5 × 10^2 = 15.0  × 10^1
+                //    1.5 × 10^2 = 150.0 × 10^0
+                //    1.5 × 10^2 = 150.0
+                
+                //    For a Positive Exponent (moving decimal point to the right)
+                    //    1.396       x    10^6    =    13.96        x 10^5
+                    //    13.96       x    10^5    =    139.6        x 10^4
+                    //    139.6       x    10^4    =    1396.0       x 10^3
+                    //    1396.0      x    10^3    =    13960.0      x 10^2
+                    //    13960.0     x    10^2    =    139600.0     x 10^1
+                    //    139600.0    x    10^1    =    1396000.0    x 10^0
+                    //    1.396       x    10^6    =    1396000.0
+                //    For a Negative Exponent (moving decimal point to the left)
+                    //    1.396          x    10^-6    = 0.1396         x    10^-5
+                    //    0.1396         x    10^-5    = 0.01396        x    10^-4
+                    //    0.01396        x    10^-4    = 0.001396       x    10^-3
+                    //    0.001396       x    10^-3    = 0.0001396      x    10^-2
+                    //    0.0001396      x    10^-2    = 0.00001396     x    10^-1
+                    //    0.00001396     x    10^-1    = 0.000001396    x    10^ 0
+                    //    0.000001396    x    10^-6    = 0.000001396
+                
+                #m_exponent_num  := %&m_exponent_num%;
+                &m_joint_chars    = "%&m_leading_num%.%&m_trailing_num%";
+                &m_joint_chars[]  = split("",%&m_joint_chars%);
+                do(%#m_exponent_num%);
+                    #m_joint_chars_sz   = arraysize(&m_joint_chars[]);
+                    #m_joint_chars_len  = %#m_joint_chars_sz% - 1;
+                    #curr_decimal_idx   = indexof(&m_joint_chars[],,".");
+                    if(!%exponent_negative%);
+                        #next_decimal_idx = %#curr_decimal_idx% + 1;
+                        if(%#next_decimal_idx% <= %#m_joint_chars_len%);
+                            &m_joint_chars[%#curr_decimal_idx%] = %&m_joint_chars[%#next_decimal_idx%]%;
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        else;
+                            &m_joint_chars[%#curr_decimal_idx%] = "0";
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        endif;
+                    else;
+                        #next_decimal_idx = %#curr_decimal_idx% - 1;
+                        if(%#next_decimal_idx% >= 0);
+                            &m_joint_chars[%#curr_decimal_idx%] = %&m_joint_chars[%#next_decimal_idx%]%;
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        else;
+                            unset(&tmp_joint_chars[]);
+                            &m_joint_chars[%#curr_decimal_idx%] = "0";
+                            push(&tmp_joint_chars[],".",&m_joint_chars[*]);
+                            unset(&m_joint_chars[]);
+                            push(&m_joint_chars[],&tmp_joint_chars[*]);
+                        endif;
+                    endif;
+                loop;
+                &return_string = join("",&m_joint_chars[]);
+                &return_string = regexreplace(&return_string,"\.0*$");
+                &return_string = regexreplace(&return_string,"^\.","0.");
+                &return_string = "%&m_sign_num%%&return_string%";
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // string/index/xFormatNumber
+        // Identical to original `formatnumber`, but passes the input_string through `convertENote` before passing it into `formatnumber`.
+            // Params:
+                // {string} <&input_string>          The Number or String to Format into a Number. If this Number includes Commas, they will be stripped
+                //                                   from the string passed to `formatnumber`.
+                // {string} [&decimal_precision]     The desired level of precision following the decimal. If omitted or an empty string, will
+                //                                   include the amount of decimals included in the <&input_string>. If provided, should be an integer >= 0.
+                //                                   If set to 0, will not include a decimal character or trail at all. Providing a value that is incoherent
+                //                                   to the level of decimal precision present in the <&input_string> will result in the output being rounded
+                //                                   to the desired level of precision.
+                // {boolean} [strip_commas=false]    Whether or not to strip commas when formatting the Number. If set to True, and [&decimal_precision]
+                //                                   is set to "0", this Function will return a valid Integer.
+            // Returns the result of the `formatnumber` expression.
+            // Examples:
+                // Converting a formatted string Number to a valid Integer:
+                    //    &input_string      = "1009.0131";
+                    //    &decimal_precision = "0";
+                    //    strip_commas       = true;
+                    //    #output_integer    = xFormatNumber(%&input_string%,%&decimal_precision%,%strip_commas%);
+                // Converting a valid Integer to a formatted (comma split) string:
+                    //    &input_string      = "10000";
+                    //    &decimal_precision = "";
+                    //    strip_commas       = false;
+                    //    &output_string     = xFormatNumber(%&input_string%,%&decimal_precision%,%strip_commas%);
+        function xFormatNumber(&input_string,&decimal_precision,strip_commas=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:315
+            &return_string = replace(&input_string,",");
+            &return_string = convertENote(%&return_string%);
+            &return_string = formatnumber(%&return_string%,%&decimal_precision%,%strip_commas%);
+            return(%&return_string%);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // string/index/xEval
+        // Identical to original `eval`, but passes the result of the function along to `convertENote` to ensure decimal values are conserved.
+            // Params:
+                // {string} <&expression>              The arithmetic expression to evaluate with `eval`.
+                // {boolean} [coerce_integer=false]    If true, will attempt to coerce the result of the evaluation from a decimal value into an integer.
+            // Returns the result of `eval` passed through `convertENote`, and optionally coerced into an Integer if [coerce_integer] is True.
+        function xEval(&expression,coerce_integer=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:276
+            debug              = false;
+            &script_debug_name = "&9xEval&7";
+            debug_log(%debug%,%&script_debug_name%,"evaluating '%&expression%', coerce_integer: %coerce_integer%.");
+            &return_string     = eval(%&expression%);
+            debug_log(%debug%,%&script_debug_name%,"got result: '&d%&return_string%&7', passing thru convertENote");
+            &return_string     = convertENote(%&return_string%);
+            debug_log(%debug%,%&script_debug_name%,"convertENote returned: '&d%&return_string%&7'");
+            if(%coerce_integer%);
+                debug_log(%debug%,%&script_debug_name%,"coercing '&d%&return_string%&7' to a number");
+                &return_string = formatnumber(%&return_string%,0,true);
+            endif;
+            debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'");
+            return(%&return_string%);
+        endfunction;
+    // string/index/convertToMetric
+        // Takes an input of a Number String and formats it into a Metric String (K, M, B, or T as suffix).
+            // Params:
+                // {string} <&convert_string>         The Number String to convert.
+                // {number} [#decimal_precision=1]    Amount of sig. figs to round the conversion off to. If set to <= -1, will just
+                //                                    format the number as-is (it will keep as many decimal places as it had in the first place).
+            // Returns a String.
+            // Example:
+                //    &metric_string = convertToMetric("151091.501",1);
+                //    log(%&metric_string%); // 151.1 K
+        function convertToMetric(&convert_string,#decimal_precision=1);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:566
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&9convertToMetric&7";
+                debug_log(%debug%,%&script_debug_name%,"called, args are &&convert_string='&e%&convert_string%&7', #decimal_precision=&e%#decimal_precision%");
+            endif;
+            &metric_chars[] = split(", ","K, M, B, T");
+            &metric_ratio[] = split(", ","1000, 1000000, 1000000000, 1000000000000");
+            &return_string  = %&convert_string%;
+            ifmatches(%&convert_string%,"^(-|\+)?0*([1-9]\d*)(?:\.\d+$|$)",&integer_portion,2);
+                log("&7matched expression '&d^(-|\+)?0*([1-9]\d*)(?:\.\d+$|$)&7' against string ")
+                #component_a_len = strlen(%&integer_portion%);
+                debug_log(%debug%,%&script_debug_name%,"matched expression '&d^(-|\+)?0*([1-9]\d*)(?:\.\d+$|$)&7' against &&convert_string='&e%&convert_string%&7', extracted &&integer_portion='&e%&integer_portion%&7' with length=&e%#component_a_len%&7.");
+                #metric_index    = -1;
+                foreach(&metric_ratio[],&metric_ratio,#mr);
+                    #metric_ratio_len = strlen(%&metric_ratio%);
+                    if(%#component_a_len% >= %#metric_ratio_len%);
+                        debug_log(%debug%,%&script_debug_name%,"metric_ratio_len=&e%#metric_ratio_len%&7 >= #component_a_len=&e%#component_a_len%&7, setting metric_index=&e%#mr%");
+                        #metric_index = %#mr%;
+                    endif;
+                next;
+                
+                if(%#metric_index% >= 0);
+                    &metric_char   = %&metric_chars[%#metric_index%]%;
+                    &metric_ratio  = %&metric_ratio[%#metric_index%]%;
+                    &return_string = xEval("%&convert_string% / %&metric_ratio%");
+                    if(%#decimal_precision% <= -1);
+                        &return_string = xFormatNumber(%&return_string%);
+                    else;
+                        &return_string = xFormatNumber(%&return_string%,%#decimal_precision%);
+                    endif;
+                    &return_string = "%&return_string% %&metric_char%";
+                endif;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // string/index/convertMetricString
+        // Takes an input of a string with metric numbers in it (e.g. '10K, '10.5M', etc) and parses out the metric character
+        // then converts the input into a number and returns it. Supports K, M, B, T suffixes.
+            // Params:
+                // {string} <&metric_string>               The String to Parse
+                // {number} [#decimal_precision=-1]        Amount of sig. figs to round the conversion off to. If set to <= -1, will just
+                //                                         format the number as-is (it will keep as many decimal places as it had in the first place).
+                // {boolean} [format_with_commas=false]    Whether or not to format the conversion with commas every 3 characters.
+            // Returns an Empty String if no conversion were able to be done, or a (possibly formatted) Number otherwise.
+            // Example:
+                //    #converted_units = convertMetricString("10K",2,true);
+                //    log(%#converted_units%); // 10,000.00
+        function convertMetricString(&metric_string,#decimal_precision=-1,format_with_commas=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:529
+            &base_expression = "([\d,.-]+)(?:.*?\b|\B)";
+            &metric_chars[]  = split(", ","K, M, B, T");
+            &metric_ratio[]  = split(", ","1000, 1000000, 1000000000, 1000000000000");
+            &return_string   = "0";
+            match_found      = false;
+            foreach(&metric_chars[],&metric_char,#mc);
+                &metric_expr = "%&base_expression%%&metric_char%";
+                ifmatches(%&metric_string%,%&metric_expr%,&amount_units,1);
+                    match_found    = true
+                    &amount_units  = replace(&amount_units,",");
+                    &return_string = xEval("%&return_string% + (%&amount_units% * %&metric_ratio[%#mc%]%)");
+                endif;
+            next;
+            
+            if(%match_found%);
+                strip_commas = !%format_with_commas%;
+                if(%#decimal_precision% <= -1);
+                    &return_string = xFormatNumber(%&return_string%,"",%strip_commas%);
+                else;
+                    &return_string = xFormatNumber(%&return_string%,%#decimal_precision%,%strip_commas%);
+                endif;
+                return(%&return_string%);
+            else;
+                return("");
+            endif;
+        endfunction;
+    // string/index/isMetricString
+        // Checks if a String is a Metric String
+            // Params:
+                // {string} <&metric_string>    The String to check for a Metric Suffix (and/or Metric Suffixes)
+                //
+            // Returns a Boolean indicating whether or not the String is a Metric String
+            // Example:
+                //    is_metric = isMetricString(%&metric_string%);
+        function isMetricString(&metric_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:510
+            &base_expression = "([\d,.-]+)(?:.*?\b|\B)(K|M|B|T)";
+            ifmatches(%&metric_string%,%&base_expression%);
+                return_boolean = true;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+    // array/index/miscComparator
+        // Evaluates whether <&left> is <&operator> to <&right> (executes a variable comparison). Returns a boolean.
+            // Params:
+            //        {string} <&left>        The Left Hand side of the Comparison.
+            //        {string} <&operator>    The Operator to apply the Condition against each Element with. Has to be one of:
+            //                                '==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+            //                                number comparison operator is used, the values in the Array will be coerced to a
+            //                                number so long as the condition is an integer. If the condition is a float value,
+            //                                they will be evaluated using float math (eval).
+            //        {string} <&right>       The Right Hand side of the Comparison
+            //
+            // Returns a boolean indicating the outcome of the evaluation.
+        function miscComparator(&left,&operator,&right);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:88
+            &sign_operators[] = split(", ","==, !=, >=, <=, >, <");
+            #sign_op_index    = indexof(&sign_operators[],,%&operator%);
+            if(%#sign_op_index% == -1);
+                &char_operators[] =    split(", ","eq, ne, gte, lte, gt, lt");
+                #char_op_index    = indexof(&char_operators[],,%&operator%);
+                if(%#char_op_index% == -1);
+                    return(&return_array[]);
+                endif;
+                
+                &operator = %&sign_operators[%#char_op_index%]%;
+            endif;
+        
+            if(%&operator% == "==");
+                if(%&left% == %&right%);
+                    return_boolean = true;
+                endif;
+            elseif(&operator% == "!=");
+                if(%&left% != %&right%);
+                    return_boolean = true;
+                endif;
+            else;
+                ifmatches(%&right%,"^(\d+)$",#right,1);
+                    // Doing Integer Evaluation
+                    #left := %&left%;
+                    if((%&operator% == ">=") && (%#left% >= %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == ">") && (%#left% > %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == "<=") && (%#left% <= %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == "<") && (%#left% < %#right%));
+                        return_boolean = true;
+                    endif;
+                elseifmatches(%&right%,"^[0-9.-]+");
+                    // Doing Float Evaluation
+                    &float_diff = eval("%&left% - %&right%");
+                    ifmatches(%&float_diff%,"^-");
+                        // <left> - <right> = negative number, left was less than right
+                        if((%&operator% == "<=") || (%&operator% == "<"));
+                            return_boolean = true;
+                        endif;
+                    else;
+                        // <left> - <right> = positive or 0, left was greater than or equal to right
+                        ifmatches(%&float_diff%,"[0.]+");
+                            // <left> - <right> = 0, left was equal to right
+                            if((%&operator% == ">=") || (%&operator% == "<="));
+                                return_boolean = true;
+                            endif;
+                        elseif((%&operator% == ">=") || (%&operator% == ">"));
+                            // <left> - <right> = greater than 0, left was greater than right
+                            return_boolean = true;
+                        endif;
+                    endif;
+                endif;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+    // math/index/number
+        // Normalizes any type of input Number into the Type.
+            // Params:
+                // {string} <&number>             The Number to Format. Can be integer, decimal, negative, positive, metric, e-notation, whatever.
+                // {string} [...&formatting[]]    The Formatting Options to apply. Settings are provided in '<KEY>: <VALUE>' notation. Valid Options:
+                                                //    ['F'|'T'|'S'|'TYPE'|'STYLE'|'FORMAT']:
+                                                //        - ['I'|'N'|'INT'|'INTEGER'|'NUM'|'NUMBER']           : Formats the output as an Integer.
+                                                //        - ['D'|'F'|'L'|'DECIMAL'|'FLOAT'|'LONG'|'DOUBLE']    : Formats the output as a Decimal Number.
+                                                //        - ['E'|'ENOTE'|'EXP'|'EXPONENT']                     : Formats the output in Exponentional Notation.
+                                                //        - ['M'|'METRIC']                                     : Formats the output as a Metric Suffixed Number.
+                                                //    ['P'|'PLACE'|'PLACES'|'PRECISION'] (Only available if Type is Decimal or Metric or equivalent):
+                                                //        - ['S'|'SIG'|'SIGFIG'|'SIGNIFICANT']    : Applies the default amount of Decimal Places (the Sig. Figs in the converted value).
+                                                //        - <NUMBER >= 0>                         : Applies <NUMBER> amount of Decimal Places (setting this to 0 is the same as using F: INT, R: ROUND).
+                                                //    ['R'|'ROUND'|'ROUNDING'] (Only available if Precision is not 'SIG' or equivalent):
+                                                //        - ['R'|'ROUND'|'D'|'DEFAULT'|'STD'|'STANDARD'|'NEAR'|'NEAREST'|'INT'|'NUM'|'INTEGER'|'NUMBER']    : Round using 'ROUND' (towards nearest integer).
+                                                //        - ['F'|'FLOOR'|'DOWN'|'D'|'<'|'LESSER'|'LT']                                                      : Round using 'FLOOR' (towards negative infinity).
+                                                //        - ['C'|'CEIL'|'CEILING'|'UP'|'>'|'GREATER'|'GT']                                                  : Round using 'CEIL' (towards positive infinity).
+                                                //        - ['T'|'TRUNCATE'|'TRUNC']                                                                        : Rounds up or down towards 0
+                                                //        - ['N'|'NONE']                                                                                    : Does not round the output.
+                                                //    ['C'|'COMMA'|'COMMAS'|'DELIMIT'|'DELIMITER'|'SPACE'|'SPACER']:
+                                                //        - <BOOLEAN>          : Enables (or disables) formatting the output with Commas every 3 sig. figs (e.g. 100000 -> 100,000)
+                                                //        - <STRING>           : Enables formatting the output with <STRING> as the delimiter every 3 sig. figs
+                                                //        - ['N'|'NONE'|'']    : Disables formatting the output with delimiters.
+                                                //    The Default Values for each Setting are as follows:
+                                                //        FORMAT       : FLOAT
+                                                //        PRECISION    : SIGNIFICANT
+                                                //        ROUNDING     : NONE
+                                                //        DELIMITER    : FALSE
+            // Returns the Number specified formatted according to the Rules specified in [...&formatting[]].
+            // Example:
+                //    &number = number("100,000,000.192");
+                //    log("number: %&number%"); // 'number: 100000000.192' (default formatting rules were applied)
+        function number(&number="0",...&formatting[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:198
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6mathNumber&7";
+                exponent_ready     = false;
+                
+                // Parse Formatting Options
+                if(true);
+                    // Wrap Formatting Keys, Valid Values and Default Values
+                    if(true);
+                        if(true); // Wrap '&opt_format' Formatting Option
+                            &valid_formatting_vars[]        = "&opt_format";
+                            &valid_formatting_keys[]        = "F|T|S|TYPE|STYLE|FORMAT";
+                            &valid_formatting_validation[]  = "";
+                            valid_formatting_custom_input[] = false;
+                            valid_formatting_def_override[] = false;
+                            if(%exponent_ready%);
+                                &valid_formatting_vals[] = "INTEGER|I|N|INT|NUM|NUMBER~FLOAT|D|F|L|DECIMAL|LONG|DOUBLE~EXPONENT|E|ENOTE|EXP~METRIC|M";
+                                &valid_formatting_expr[] = "INTEGER|r$^[\d]+$~FLOAT|r$^[\d]*\.\d+$~EXPONENT|r$(?:e|\^)";
+                            else;
+                                &valid_formatting_vals[] = "INTEGER|I|N|INT|NUM|NUMBER~FLOAT|D|F|L|DECIMAL|LONG|DOUBLE~METRIC|M";
+                                &valid_formatting_expr[] = "INTEGER|r$^[\d]+$~FLOAT|r$^[\d]*\.\d+$";
+                            endif;
+                            &opt_format = "FLOAT";
+                        endif;
+                        
+                        if(true); // Wrap '&opt_precision' Formatting Option
+                            &valid_formatting_vars[]        = "&opt_precision";
+                            &valid_formatting_keys[]        = "P|PLACE|PLACES|PRECISION";
+                            &valid_formatting_vals[]        = "SIGNIFICANT|SIGFIG|SIG|S";
+                            &valid_formatting_expr[]        = "CUSTOM|r$^\d+$";
+                            &valid_formatting_validation[]  = ">= 0";
+                            valid_formatting_custom_input[] = false;
+                            valid_formatting_def_override[] = false;
+                            &opt_precision                  = "SIGNIFICANT";
+                        endif;
+                        
+                        if(true); // Wrap '&opt_rounding' Formatting Option
+                            &valid_formatting_vars[]        = "&opt_rounding";
+                            &valid_formatting_keys[]        = "ROUNDING|ROUND|R";
+                            &valid_formatting_vals[]        = "ROUND|INT|NUM|NUMBER|NEAREST|NEAR|STD|STANDARD|DEFAULT|D|INTEGER|R~FLOOR|F|DOWN|D|<|LESSER|LT~CEIL|CEILING|C|UP|>|GREATER|GT~NONE|N~TRUNCATE|TRUNC|T";
+                            &valid_formatting_expr[]        = "";
+                            &valid_formatting_validation[]  = "";
+                            valid_formatting_custom_input[] = false;
+                            valid_formatting_def_override[] = false;
+                            &opt_rounding                   = "NONE";
+                        endif;
+                        
+                        if(true); // Wrap '&opt_delimiter' Formatting Option
+                            &valid_formatting_vars[]        = "&opt_delimiter";
+                            &valid_formatting_keys[]        = "DELIMITER|C|COMMA|COMMAS|DELIMIT|SPACE|SPACER|SPACES|SPACERS|DELIMITERS";
+                            &valid_formatting_vals[]        = "TRUE|1~FALSE|0~NONE|N"
+                            &valid_formatting_expr[]        = "CUSTOM|r$^.+$";
+                            &valid_formatting_validation[]  = "";
+                            valid_formatting_custom_input[] = false;
+                            valid_formatting_def_override[] = false;
+                            &opt_delimiter                  = "false";
+                        endif;
+                    endif;
+                    
+                    // Parse Options
+                    if(true);
+                        #formatting_sz = arraysize(&formatting[]);
+                        if(%#formatting_sz% >= 1);
+                            foreach(&formatting[],&formatting,#f);
+                                ifmatches(%&formatting%,"^(.*?):\s*?(.*)$");
+                                    match(%&formatting%,"^(.*?):\s*?(.*)$",{&custom_key,&custom_val});
+                                    &check_key_index_for = ucase(%&custom_key%);
+                                    &check_val_index_for = ucase(%&custom_val%);
+                                    foreach(&valid_formatting_keys[],&valid_formatting_keys_str,#vfk);
+                                        if(!%valid_formatting_def_override[%#vfk%]%);
+                                            &valid_formatting_keys_arr[] = split("|",%&valid_formatting_keys_str%);
+                                            #check_key_index_for         = indexof(&valid_formatting_keys_arr[],,%&check_key_index_for%);
+                                            debug_log(%debug%,%&script_debug_name%,"checking key for '&d%&check_key_index_for%&7' index is '&e%#check_key_index_for%&7'.");
+                                            if(%#check_key_index_for% != -1);
+                                                &valid_formatting_val_types_arrs[] = split("~",%&valid_formatting_vals[%#vfk%]%);
+                                                foreach(&valid_formatting_val_types_arrs[],&valid_formatting_val_type_str,#vfvt);
+                                                    &valid_formatting_val_types_arr[] = split("|",%&valid_formatting_val_type_str%);
+                                                    #check_val_index_for              = indexof(&valid_formatting_val_types_arr[],,%&check_val_index_for%);
+                                                    debug_log(%debug%,%&script_debug_name%,"checking val index for '&d%&check_val_index_for%&7' index is '&e%#check_val_index_for%&7'.");
+                                                    if(%#check_val_index_for% != -1);
+                                                        &set_var = %&valid_formatting_vars[%#vfk%]%;
+                                                        &set_val = %&valid_formatting_val_types_arr[0]%;
+                                                        debug_log(%debug%,%&script_debug_name%,"setting value of &%&set_var%='&e%&set_val%&7'");
+                                                        set(%&set_var%,%&set_val%);
+                                                        set(valid_formatting_def_override[%#vfk%],true);
+                                                        break;
+                                                    endif;
+                                                next;
+                                                
+                                                // If we found a match for the Key, but not for the Value, check to see if this Option allows Custom Input.
+                                                // If it does, check if the provided Value passes the Regular Expression Validation, and then if this Option
+                                                // also has a further Validation Check, ensure it passes that further Validation Check as well.
+                                                if((!%valid_formatting_def_override[%#vfk%]%) && (%&valid_formatting_expr[%#vfk%]% != ""));
+                                                    &input_validation_expr_groups[]      = split("~",%&valid_formatting_expr[%#vfk%]%);
+                                                    &input_validation_expr_validations[] = split("~",%&valid_formatting_validation[%#vfk%]%);
+                                                    input_passes_validation              = false;
+                                                    foreach(&input_validation_tests[],&input_validation_test_string,#ivt);
+                                                        ifmatches(%&input_validation_test_string%,"^(.+?)\|r\$(.+)$");
+                                                            match(%&input_validation_test_string%,"^(.+?)\|r\$(.+)$",{&matched_value,&matched_expr});
+                                                            ifmatches(%&custom_val%,%&matched_expr%);
+                                                                input_passes_validation = true;
+                                                                if(%&input_validation_expr_validations[%#ivt%]% != "");
+                                                                    &validation_params[]    = split(" ",%&input_validation_expr_validations[%#ivt%]%);
+                                                                    &validation_op          = %&validation_params[0]%;
+                                                                    &validation_rhs         = %&validation_params[1]%;
+                                                                    input_passes_validation = miscComparator(%&custom_val%,%&validation_op%,%&validation_rhs%);
+                                                                endif;
+                                                                
+                                                                if(%input_passes_validation%);
+                                                                    &set_var = %&valid_formatting_vars[%#vfk%]%;
+                                                                    &set_val = ucase(%&matched_value%);
+                                                                    if(%&set_val% == "CUSTOM");
+                                                                        &set_val = %&custom_val%;
+                                                                        set(valid_formatting_custom_input[%#vfk%],true);
+                                                                    endif;
+                                                                    set(%&set_var%,%&set_val%);
+                                                                    set(valid_formatting_def_override[%#vfk%],true);
+                                                                    debug_log(%debug%,%&script_debug_name%,"set value of &%&set_var%='&e%&set_val%&7'");
+                                                                    break;
+                                                                endif;
+                                                            endif;
+                                                        endif;
+                                                    next;
+                                                endif;
+                                                
+                                                if(%valid_formatting_def_override[%#vfk%]%);
+                                                    break;
+                                                endif;
+                                            endif;
+                                        endif;
+                                    next;
+                                endif;
+                                
+                                #non_overriden_index = indexof(valid_formatting_def_override[],,false);
+                                if(%#non_overriden_index% == -1);
+                                    break;
+                                endif;
+                            next;
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            // Parse the Number into Standardized Format.
+            if(true);
+                ifnotmatches(%&number%,"\d");
+                    &number = "0";
+                endif;
+                
+                &read_number = replace(&number,",");
+                ifmatches(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$");
+                    &read_number = convertENote(%&number%);
+                else;
+                    &read_number = %&number%;
+                endif;
+                debug_log(%debug%,%&script_debug_name%,"Conversion of &&number (&5'%&number%&7') from Exp. Notation to Decimal returned &&read_number ('&d%&read_number%&7').");
+                
+                is_metric = isMetricString(%&read_number%);
+                if(%is_metric%);
+                    &before_metric = %&read_number%;
+                    &read_number   = convertMetricString(%&read_number%,"-1");
+                    ifmatches(%&read_number%,"^([\d.-]+)\.0*$",&first_portion,1);
+                        debug_log(%debug%,%&script_debug_name%,"Conversion of &&read_number ('&5%&before_metric%&7') from Metric returned insignificant digits, cutting off (setting &&read_number to: '&e%&first_portion%&7' from '&d%&read_number%&7').");
+                        &read_number = %&first_portion%;
+                    endif;
+                    debug_log(%debug%,%&script_debug_name%,"Conversion of &&read_number ('&5%&before_metric%&7') from Metric returned '&d%&read_number%&7'.");
+                elseif(%debug%);
+                    debug_log(%debug%,%&script_debug_name%,"&&read_number ('&5%&read_number%&7') was not classified as being a Metric String.");
+                endif;
+                
+                if(%debug%);
+                    debug_log(%debug%,%&script_debug_name%,"Formatting Input Number '&d%&number%&7' (standardized: '&d%&read_number%&7')...");
+                    &vars[] = split(" ","&number &read_number &opt_format &opt_precision &opt_rounding &opt_delimiter");
+                    foreach(&vars[],&var,#v);
+                        &val    = "%%&var%%";
+                        &logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+                        &logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+                        debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+                    next;
+                endif;
+                
+                // Apply the specified Rounding Option as defined in '&opt_rounding'
+                if(true);
+                    &before_round = %&read_number%;
+                    if(%&opt_rounding% == "TRUNCATE");
+                        debug_log(%debug%,%&script_debug_name%,"Truncating &&read_number ('&5%&before_round%&7') by cutting off all decimals.");
+                        ifmatches(%&read_number%,"^([\d-]+)\.",&truncated_number,1);
+                            &read_number = %&truncated_number%;
+                            debug_log(%debug%,%&script_debug_name%,"Truncated &&read_number ('&5%&before_round%&7') to: '&d%&read_number%&7'.");
+                        else;
+                            debug_log(%debug%,%&script_debug_name%,"No decimal points to truncate in &&read_number ('&5%&before_round%&7').");
+                        endif;
+                    elseif(%&opt_rounding% != "NONE");
+                        &read_number = xEval("%&opt_rounding%(%&read_number%)");
+                        debug_log(%debug%,%&script_debug_name%,"Rounding &&read_number ('&5%&before_round%&7') with Method: '&e%&opt_rounding%&7' returned: &d'%&read_number%&7'.");
+                    else;
+                        debug_log(%debug%,%&script_debug_name%,"Not rounding &&read_number ('&5%&before_round%&7') at all, Rounding Method (&&opt_rounding: '&e%&opt_rounding%&7') is set to 'NONE'.");
+                    endif;
+                endif;
+                
+                // Apply the specified Formatting Option as defined in '&opt_format'
+                if(true);
+                    &before_formatting = %&read_number%;
+                    
+                    // Figure out the Formatting Rules to pass to xFormatNumber
+                    if(true);
+                        // Figure out the Decimal Places to include in the Result (if any)
+                        if(true);
+                            &format_precision = "0";
+                            if(%&opt_format% != "INTEGER");
+                                &format_precision = "";
+                                #precision_index  = indexof(&valid_formatting_vars[],,"&opt_precision");
+                                custom_precision  = %valid_formatting_custom_input[%#precision_index%]%;
+                                if(%custom_precision%);
+                                    &format_precision = %&opt_precision%;
+                                endif;
+                            endif;
+                        endif;
+                        
+                        // Figure out the Delimiter to Use in the Result (if any)
+                        if(true);
+                            if((%&opt_format% != "EXPONENT") && (&opt_format% != "METRIC"));
+                                opt_delimiter    := %&opt_delimiter%;
+                                #delimiter_index  = indexof(&valid_formatting_vars[],,"&opt_delimiter");
+                                custom_delimiter  = %valid_formatting_custom_input[%#delimiter_index%]%;
+                                use_delimiter     = ((%custom_delimiter%) || (%opt_delimiter%));
+                            endif;
+                            exclude_commas = !%use_delimiter%;
+                        endif;
+                        
+                        // Format the Number using xFormatNumber
+                        if(true);
+                            &before_xformat      = %&read_number%;
+                            &formatted_number    = xFormatNumber(%&read_number%,%&format_precision%,false);
+                            &pure_number         = replace(&formatted_number,",");
+                            debug_log(%debug%,%&script_debug_name%,"Calling &bxFormatNumber&7 on &&read_number ('&5%&before_xformat%&7') returned '&d%&formatted_number%&7' (called &bxFormatNumber&7 with args: precision: '&e%&format_precision%&7', exclude_commas: '&cfalse&7'). Comma Stripped version is '&e%&pure_number%&7'.");
+                            if(%&opt_format% == "METRIC");
+                                &read_number = convertToMetric(%&pure_number%,-1);
+                                debug_log(%debug%,%&script_debug_name%,"Calling &bconvertToMetric&7 on &&pure_number ('&5%&pure_number%&7') returned '&d%&read_number%&7' (called &bconvertToMetric&7 with args: precision: '&e-1&7').");
+                            elseif(%use_delimiter%);
+                                &read_number = %&formatted_number%;
+                                &delim_char  = ",";
+                                if(%custom_delimiter%);
+                                    &delim_char  = %&opt_delimiter%;
+                                    &read_number = replace(&read_number,",",%&delim_char%);
+                                endif;
+                                debug_log(%debug%,%&script_debug_name%,"Set &&read_number ('&5%&pure_number%&7') to be formatted using delimiter character (&&delim_char: '&e%&delim_char%&7'): '&d%&read_number%&7'.");
+                            else;
+                                &read_number = %&pure_number%;
+                                debug_log(%debug%,%&script_debug_name%,"Set &&read_number ('&5%&read_number%&7') to be stripped of Delimiter Characters.");
+                            endif;
+                        endif;
+                        
+                        // If we are only returning sig. figs, do that.
+                        if(%&opt_precision% == "SIGNIFICANT");
+                            ifmatches(%&read_number%,"^(.*?)\.0*$",&first_portion,1);
+                                &read_number = %&first_portion%;
+                            endif;
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            debug_log(%debug%,%&script_debug_name%,"Returning '&d%&read_number%&7' from input number '&5%&number%&7' (applied opts: format='&e%&opt_format%&7', precision='&e%&opt_precision%&7', rounding='&e%&opt_rounding%&7', delimiter='&e%&opt_delimiter%&7').");
+            return(%&read_number%);
+        endfunction;
+    // math/index/_eq
+        // Wrapper that converts A and B to Numbers, then checks for equality.
+            // Params:
+                // {string} <&a>    First Number to Parse and Compare.
+                // {string} <&b>    Second Number to Parse and Compare.
+            // Returns a Boolean
+            // Example:
+                //    equal = eq("1M","1000000");
+        function _eq(&a,&b);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:545
+            &a_converted   = number(%&a%,"F:FLOAT","P:SIGNIFICANT");
+            &b_converted   = number(%&b%,"F:FLOAT","P:SIGNIFICANT");
+            return_boolean = %&a_converted% == %&b_converted%;
+            return(%return_boolean%);
+        endfunction;
+    // misc/index/canDoInteraction
+        // Checks if we can 'do' an Interaction by determining whether we have waited a whole amount of <#ticks_per_action> in <#waited_ticks>.
+        // Basically a modulo operation. If return True, execute Action. If not, skip action and keep waiting.
+            // Params:
+                // {number} [#waited_ticks=0]    Amount of Ticks that have been waited thus far
+                // {number} [#tick_wait=20]      Ticks to wait in between actions
+            // Returns a Boolean
+            // Example:
+                //    can_do_action = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+        function canDoInteraction(#waited_ticks=0,#tick_wait=20);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:43
+            #actions_done  = %#waited_ticks% / %#tick_wait%;
+            #ticks_to_next = %#waited_ticks% - (%#actions_done% * %#tick_wait%);
+            can_do_action  = %#ticks_to_next% == 0;
+            return(%can_do_action%);
+        endfunction;
+    // gui/index/decodeContainerString
+        // Decodes a Container String into an Array of it's components.
+            // Params:
+            //      {string} <&container_string>    A container string generated by getContainerString
+            //
+            // Returns an Array:
+            //  0 {string} &container_gui   The string value of "%GUI%" from the Container String
+            //  1 {string} &container_name  The string value of "%CONTAINERNAME%" from the Container String
+            //  2 {number} #container_slots The number value of "%CONTAINERSLOTS%" from the Container String
+            //
+            // If the Container String holds NBT Item Data, elements 3, ... are the ENCODED NBT strings.
+            //
+        function decodeContainerString(&container_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:358
+            &decoded_string = decode(%&container_string%);
+            &decoded_vars[] = split("$",%&decoded_string%);
+            #decoded_length = arraysize(&decoded_vars[]);
+            
+            &decoded_data[] = split("|",%&decoded_vars[0]%);
+            if(%#decoded_length% > 1);
+                &encoded_nbt[] = split("~",%&decoded_vars[1]%);
+                push(&decoded_data[],&encoded_nbt[*]);
+            endif;
+            return(&decoded_data[]);
+        endfunction;
+    // gui/index/getContainerString
+        // Encodes the current values of GUI, CONTAINERNAME, CONTAINERSLOTS, and optionally Slot Data from each slot in the Container
+        // into a string using encode(). Used to check if the GUI has updated.
+            // Params:
+            //      {boolean} [include_items=false] If true, will call indexGUI and append it's data to the Container String.
+            //
+            // Returns a string encoded with encode() in format 'GUI|CONTAINERNAME|CONTAINERSLOTS[$<slot_nbt>~<slot_nbt>~<...>]'.
+            // The [$<slot_nbt>~<slot_nbt>~<...>] portion is only included if [include_items] is true.
+        function getContainerString(include_items=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:274
+            &env_var_str = "%GUI%|%CONTAINERNAME%|%CONTAINERSLOTS%";
+            if(%include_items%);
+                if(%CONTAINERSLOTS% > 0);
+                    #container_start = 0;
+                    #container_end   = %CONTAINERSLOTS% - 37;
+                    #inventory_start = %CONTAINERSLOTS% - 36;
+                    #inventory_end   = %CONTAINERSLOTS% - 1;
+                    #range_start     = %#container_start%;
+                    #range_end       = %#inventory_end%;
+                    for(#slot,%#range_start%,%#range_end%);
+                        &f_item     = getslotitemnbt(%#slot%,,#f_stack,#f_data,&f_nbt);
+                        &f_nbt      = strip(%&f_nbt%);
+                        &f_nbt      = encode(%&f_nbt%);
+                        &out_data[] = "%&f_item%|%#f_stack%|%#f_data%|%&f_nbt%";
+                    next;
+                endif;
+                &gui_items   = join("~",&out_data[]);
+                &env_var_str = "%&env_var_str%$%&gui_items%";
+            endif;
+            &return_string = encode(%&env_var_str%);
+            return(%&return_string%);
+        endfunction;
+    // gui/index/enteredNewGUI
+        // Checks if we are in a new GUI by comparing the <&init_container_string> to the current Container String returned by getContainerString.
+            // Params:
+            //      {string} <&init_container_string>   A Container String generated when we were on the Initial GUI that we want to check for an Update from.
+            //      {boolean} [include_items=false]     Set this to true if [include_items] was used on the Initial call to getContainerString.
+            //
+            // Returns a boolean indicating whether or not the GUI has changed.
+        function enteredNewGUI(&init_container_string,include_items=false,allow_mouse_full=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:304
+            &mouse_item = getmouseitem(,#mouse_stack,#mouse_data,&mouse_nbt);
+            if((%&mouse_item% != "air") && (!%allow_mouse_full%));
+                return(False);
+            endif;
+            
+            &mouse_nbt             = strip(%&mouse_nbt%);
+            &mouse_nbt             = encode(%&mouse_nbt%);
+            &curr_container_string = getContainerString(%include_items%);
+            if(&curr_container_string != &init_container_string);
+                if(%include_items%);
+                    &init_data[] = call("decodeContainerString",%&init_container_string%);
+                    &curr_data[] = call("decodeContainerString",%&curr_container_string%);
+                    foreach(&init_data[],&init_data,#dei);
+                        &curr_data = %&curr_data[%#dei%]%;
+                        if(%&curr_data% != %&init_data%);
+                            if(%#dei% <= 2);
+                                return_boolean = True;
+                                break;
+                            else;
+                                &init_data_arr[] = split("|",%&init_data%);
+                                &init_data_item  = %&init_data_arr[0]%;
+                                &init_data_nbt   = %&init_data_arr[3]%;
+                                &curr_data_arr[] = split("|",%&curr_data%);
+                                &curr_data_item  = %&curr_data_arr[0]%;
+                                &curr_data_nbt   = %&curr_data_arr[3]%;
+                                mouse_match      = (((%&init_data_item% == "air") && (%&mouse_nbt% == %&curr_data_nbt%)) || ((%&curr_data_item% == "air") && (%&mouse_nbt% == %&init_data_nbt%)));
+                                
+                                if(!%mouse_match%);
+                                    return_boolean = True;
+                                    break;
+                                endif;
+                            endif;
+                        endif;
+                    next;
+                    return(%return_boolean%);
+                endif;
+                
+                return(True);
+            endif;
+            return(False);
+        endfunction;
+    // info/index/hasTimeExceeded
+        // Used to determine whether to timeout a function.
+            // Params:
+                // {number} <#start_time>        The start timestamp to subtract from current timestamp
+                // {number} <#timeout_sec>       The amount of seconds to check if difference between now & start is >=.
+                // {number} [do_timeout=true]    If false, will always return false (used as shorthand for functions that
+                //                               use this function to determine whether or not they have timed out).
+            // Returns a boolean indicating whether or not <#start_timestamp> was >= <#seconds> ago.
+            // Example:
+                //    func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function hasTimeExceeded(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:10
+            #elapsed_sec   = %TIMESTAMP% - #start_time;
+            return_boolean = ((%do_timeout%) && (#elapsed_sec >= #timeout_sec));
+            return(%return_boolean%);
+        endfunction;
+    // debug/index/debug_error
+        // Logs a message to chat with an error prefix.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_error(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:49
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &error_message = "&4Error > &c%&string%";
+            &error_message = regexreplace(&error_message,"&7","&c");
+            &error_message = "&7%&script_debug_name%&7: %&error_message%";
+            if(%debug_enabled%);
+                log(%&error_message%);
+            endif;
+            return(%&error_message%);
+        endfunction;
+    // gui/clickUntilUpdate/containerClick
+        // Clicks on a Slot in a GUI until the GUI updates.
+            // Params:
+                // {number}  <#click_slot>          The Slot to Click on.
+                // {number}  [#timeout_sec=30]      The Maximum Amount of Seconds to try to Click for before timing out.
+                // {number}  [#tick_wait=20]        Ticks to wait between clicks.
+                // {boolean} [check_items=false]    Whether or not to check items in the getContainerString and enteredNewGUI calls to
+                //                                  help determine whether or not our GUI has updated.
+                // {boolean} [right_click=false]    Whether or not to right click. Will left click if false.
+                // {boolean} [shift_click=false]    Whether or not to shift click.
+            // Returns a Boolean indicating whether or not we were able to get the GUI to update before timeout.
+            // Example:
+                //    updated_gui = containerClick(%#click_slot%,%#timeout_sec%,%#tick_wait%,%right_click%,%shift_click%);
+        function containerClick(#click_slot,#timeout_sec=30,#tick_wait=20,check_items=false,right_click=false,shift_click=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/clickUntilUpdate.txt:13
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&7containerClick";
+                do_timeout         = %#timeout_sec% > 0;
+                #start_time        = %TIMESTAMP%;
+            endif;
+            
+            // Loop until we have hit our return condition.
+            if(true);
+                if(%CONTAINERSLOTS% <= 0);
+                    debug_error(%debug%,%&script_debug_name%,"Not in a clickable GUI at runtime!");
+                    return(false);
+                elseif(%right_click%);
+                    &click_mode = "right";
+                else;
+                    &click_mode = "left";
+                endif;
+                
+                &init_gui = getContainerString(%check_items%);
+                do;
+                    // Check for Function Timeout
+                    if(%do_timeout%);
+                        func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+                        if(%func_timeout%);
+                            debug_error(%debug%,%&script_debug_name%,"Failed to update the GUI, function timed out.");
+                            break;
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a new GUI.
+                    if(%clicked%);
+                        gui_updated = enteredNewGUI(%&init_gui%,%check_items%);
+                        if(%gui_updated%);
+                            debug_log(%debug%,%&script_debug_name%,"gui has updated!");
+                            break;
+                        endif;
+                        debug_log(%debug%,%&script_debug_name%,"gui has not yet updated");
+                    endif;
+                    
+                    // Check if we can click the Slot again.
+                    can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+                    if(%can_click%);
+                        slotclick(%#click_slot%,%&click_mode%,%shift_click%);
+                        clicked = true;
+                    endif;
+                    
+                    wait("1t");
+                    inc(#waited_ticks);
+                until((%gui_updated%) || (%GUI% == "NONE") || (%func_timeout%));
+            endif;
+            
+            return(%gui_updated%);
+        endfunction;
+    // misc/index/getNewTimeoutSec
+        // Adjusts <#timeout_sec> to be <#timeout_sec> minus amount of seconds elapsed since <#start_time>.
+            // Params:
+                // {number} <#start_time>         Timestamp of fn start in caller script
+                // {number} <#timeout_sec>        Timeout seconds passed to caller script
+                // {boolean} [do_timeout=true]    Whether or not the timeout is active (if it is, the function will always
+                //                                return a positive number. If it is not, it will allow <= 0 numbers).
+            // Returns the new Timeout in Seconds
+            // Example:
+                //    #recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function getNewTimeoutSec(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:59
+            #recursive_timeout = %#timeout_sec%;
+            if(%do_timeout%);
+                #recursive_timeout = %#timeout_sec% - (%TIMESTAMP% - %#start_time%);
+                if(%#recursive_timeout% <= 0);
+                    #recursive_timeout = 1;
+                endif;
+            endif;
+            return(%#recursive_timeout%);
+        endfunction;
+    // info/index/getPurse
+        // Returns the amount of coins in the purse, rounded to the nearest integer.
+            // Params: None
+            // Returns: Integer amount of Coins in the purse (returns -1 if cannot find Purse Coins).
+        function getPurse();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:644
+            &return_integer = -1;
+            foreach("teams");
+                &scoreboard_line = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                ifmatches(%&scoreboard_line%,"(?:Purse|Piggy): ([0-9,]+)",&coins,1);
+                    &return_integer := regexreplace(&coins,"\D","");
+                    break;
+                endif;
+            next;
+            return(%&return_integer%);
+        endfunction;
+    // math/index/_lte
+        // Wrapper that converts A and B to Numbers, then checks for A being <= B.
+            // Params:
+                // {string} <&a>    First Number to Parse and Compare.
+                // {string} <&b>    Second Number to Parse and Compare.
+            // Returns a Boolean
+            // Example:
+                //    less_than_or_equal_to = lte("1M","1000000");
+        function _lte(&a,&b);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:615
+            &a_converted = number(%&a%,"F:FLOAT","P:SIGNIFICANT");
+            &b_converted = number(%&b%,"F:FLOAT","P:SIGNIFICANT");
+            &diff        = eval("%&a_converted% - %&b_converted%");
+            ifmatches(%&diff%,"^-");
+                return_boolean = true;
+            elseifmatches(%&diff%,"^[0e.]+$");
+                return_boolean = true;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+    // math/index/_gt
+        // Wrapper that converts A and B to Numbers, then checks for A being > B.
+            // Params:
+                // {string} <&a>    First Number to Parse and Compare.
+                // {string} <&b>    Second Number to Parse and Compare.
+            // Returns a Boolean
+            // Example:
+                //    greater_than = gt("1M","1000000");
+        function _gt(&a,&b);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:572
+            equal          = _lte(%&a%,%&b%);
+            return_boolean = !%equal%;
+            return(%return_boolean%);
+        endfunction;
+    // gui/index/localGUI
+        // Changes the current GUI to a local GUI.
+            // Params:
+            //      {string} [&target_gui="NONE"]         - The Target GUI to switch to. Can be any of the following strings:
+            //                                              "NONE", "GUIINVENTORY", "GUICHAT".
+            //      {number} [#wait_ticks=@#def_wait_ticks]- Amount of ticks (1t = 50ms) to wait between each action (press/GUI).
+            //
+            // Returns a boolean indicating whether or not GUI == <&target_gui> at end of function.
+        function localGUI(&target_gui="NONE",#wait_ticks=20);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:11
+            &valid_guis[] = split(", ","NONE, GUIINVENTORY, GUICHAT");
+            #valid_gui    = indexof(&valid_guis[],,%&target_gui%);
+            if(#valid_gui == -1);
+                #valid_gui = 0;
+            endif;
+            &target_gui = ucase(%&valid_guis[%#valid_gui%]%);
+            
+            do;
+                if(%GUI% == %&target_gui%);
+                    break;
+                elseif(%GUI% != "NONE");
+                    press("escape");
+                    do(%#wait_ticks%);
+                        wait("1t");
+                    until(%GUI% == "NONE");
+                else;
+                    if(%&target_gui% == "GUIINVENTORY");
+                        gui("inventory");
+                    elseif(%&target_gui% == "GUICHAT");
+                        gui("chat");
+                    endif;
+                    
+                    do(%#wait_ticks%);
+                        wait("1t");
+                    until(%GUI% != "NONE");
+                endif;
+            until(%GUI% == %&target_gui%);
+            return_boolean = %GUI% == %&target_gui%;
+            return(%return_boolean%);
+        endfunction;
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemUUID
+        // Given the NBT Data of an Item, extracts the Item's UUID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item UUID from.
+            //
+            // Returns the Item's UUID, or an empty string if one is not found.
+        function getItemUUID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:92
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"uuid:\"(\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\"");
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // string/index/regexEscape
+        // string/index.txt
+        // Counts occurences of a given string within another string.
+            // Params:
+            //        <string> &source_string : The string to count occurences of &search_string in.
+            //        <string> &search_string : The string to count occurences of.
+            //
+            // Returns the integer amount of occurences found.
+        function countOccurencesInString(&source_string,&search_string);
+            &script_debug_name  = "&9countOccurencesInString&7";
+            debug               = false;
+            ifcontains(%&source_string%,%&search_string%);
+                &split_source_arr[] = split(%&search_string%,%&source_string%);
+                #occurences         = arraysize(&split_source_arr[]);
+                if(%#occurences% == 0); // source string exclusively held repetitions of the search string
+                    #source_length = strlen(%&source_string%);
+                    #search_length = strlen(%&search_string%);
+                    #occurences    = %#source_length% / %#search_length%;
+                endif;
+            endif;
+            return(%#occurences%);
+        endfunction;
+        
+        // Checks if a string matches UUID regex.
+            // Params:
+            //        <string> &check_string : The string to check
+            //
+            // Returns a boolean.
+            //
+        function isStringUUID(&check_string);
+            &script_debug_name = "&9isStringUUID&7";
+            debug              = false;
+            &split_uuid_expr   = "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$";
+            &joint_uuid_expr   = "^[a-f0-9]{32}$";
+            &uuid_exprs[]      = split(", ","%&split_uuid_expr%, %&joint_uuid_expr%");
+            foreach(&uuid_exprs[],&uuid_expr);
+                ifmatches(%&check_string%,%&uuid_expr%);
+                    match_found = true;
+                    break;
+                endif;
+            next;
+            return(%match_found%);
+        endfunction;
+        
+        // Checks if a string matches Boolean regex
+            // Params:
+                // {string} <&check_string>    The String to Check
+            // Returns a Boolean
+        function isStringBoolean(&check_string);
+            &check_string_lcase = lcase(%&check_string%);
+            &boolean_values[]   = split(", ","true, false, 1, 0");
+            return_boolean      = arrayincludes(&boolean_values[],%&check_string_lcase%);
+            return(%return_boolean%);
+        endfunction;
+        
+        // Checks if a String is a valid Integer.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Integer.
+        function isStringInteger(&check_string);
+            ifmatches(%&check_string%,"^[0-9-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Float (without commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringFloat(&check_string);
+            ifmatches(%&check_string%,"^[0-9-]*\.[0-9]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Float/Number (with commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Formatted Number.
+        function isStringFormattedNumber(&check_string);
+            ifmatches(%&check_string%,"^[\d-]+,[\d.,-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Number, coercable to a Float of some sort.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringNumber(&check_string);
+            &call_functions[] = split(", ","isStringInteger, isStringFloat, isStringFormattedNumber");
+            foreach(&call_functions[],&call_function,#cfi);
+                if(%&call_function% == "isStringInteger");
+                    return_boolean = isStringInteger(%&check_string%);
+                elseif(%&call_function% == "isStringFloat");
+                    return_boolean = isStringFloat(%&check_string%);
+                elseif(%&call_function% == "isStringFormattedNumber");
+                    return_boolean = isStringFormattedNumber(%&check_string%);
+                endif;
+                if(%return_boolean%);
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+        
+        // Coerces a given String to a Number (no decimal points).
+            // Params:
+                // {string} <&convert_string>    The String to Convert.
+                // {number} [#precision=0]       Decimal Precision
+            // Returns the Number result of the coercion.
+        function stringToNumber(&convert_string,#precision=0);
+            #convert_number = coerceNumber(%&convert_string%);
+            return(%#convert_number%);
+        endfunction;
+        
+        function isStringBoolean(&check_string);
+            if(%&check_string% == "");
+                return_boolean = true;
+            else;
+                &boolean_coercable[] = split(", ","0, 1, true, false, True, False");
+                #boolean_index       = indexof(&boolean_coercable[],,%&check_string%);
+                return_boolean       = %#boolean_index% != -1;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+        
+        function stringToBoolean(&convert_string);
+            is_coercable = isStringBoolean(%&convert_string%);
+            if(%is_coercable%);
+                return_boolean := %&convert_string%;
+            elseifmatches(%&convert_string%,"\S");
+                return_boolean  = true;
+            else;
+                return_boolean  = false;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+        
+        function regexEscape(&input_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:141
+            &split_array[]  = split("\\",%&input_string%);
+            foreach(&split_array[],&curr_char,#curr_index);
+                if(%&curr_char% == "\\");
+                    #last_index = #curr_index - 1;
+                    #next_index = #curr_index + 1;
+                    &last_char  = %&split_array[%#last_index%]%;
+                    &next_char  = %&split_array[%#next_index%]%;
+                    
+                    // If this backslash is escaped already (last char == '\'), then we do not need to escape this char.
+                    // If the backslash is escaping another backslash (next char == '\'), then we do not need to escape this char.
+                    if((%&last_char% != "\\") && (%&next_char% != "\\"));
+                        &rejoin_array[] = "\\";
+                    endif;
+                    &rejoin_array[] = %&curr_char%;
+                else;
+                    &rejoin_array[] = %&curr_char%;
+                endif;
+            next;
+            &rejoint_string = join("",&rejoin_array[]);
+            &search_string  = "(?<!\\\\)(?:\+|\*|\?|\^|\$|\.|\[|\]|\{|\}|\(|\)|\||\/)";
+            &escaped_string = regexreplace(&rejoint_string,%&search_string%,"\\\$0");
+            return(%&escaped_string%);
+        endfunction;
+    // misc/index/miscValidate
+        // Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+        // found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+            // Params:
+            //      {array} <&elements[]>       The Array to search for <&search_term> in.
+            //      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+            //      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+            //                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+            //                                  value should be used.
+            //
+            // Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+            // is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+        function miscValidate(&search_term,#default_idx=0,...&elements[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:12
+            #term_index = indexof(&elements[],,%&search_term%);
+            if(%#term_index% != -1);
+                &return_string = %&elements[%#term_index%]%;
+            elseif(%#default_idx% != -1);
+                &return_string = %&elements[%#default_idx%]%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // string/index/coerceNumber
+        // Coerces an input number string into a valid integer. The input number string can be in E Notation, or contain
+        // commas, or contain decimal values, or any mix of the above.
+            // Params:
+                // {string} <&number_string>                The Number String to Convert into a valid Integer.
+                // {string} [&rounding_strategy="ROUND"]    String ENUM that dictates how to handle decimal values. Valid values are:
+                //                                          FLOOR (towards negative infinity), CEILING|CEIL (towards positive infinity),
+                //                                          TRUNCATE|TRUNC (rounds up or down towards 0), ROUND (towards nearest integer).
+                //                                          Defaults to ROUND if omitted or an invalid input is provided.
+            // Returns the Number coerced into a valid Integer (real-integer type, not string type. If the input string is not
+            // coercable at all, 0 will be returned). If the final value before coercion to integer contains decimals, the coerced value
+            // will be rounded according to the [&rounding_strategy] parameter.
+            // Example:
+                //    Converting a comma split, float string into an Integer
+                    //    &number_string     = "100,000.9171";
+                    //    &rounding_strategy = "ROUND";
+                    //    #number_integer    = coerceNumber(%&number_string%,%&rounding_strategy%);
+                    //    log("#number_integer: %#number_integer%"); // '#number_integer: 100001'
+                //    Replace the content in the Parameters as needed:
+                    //    &number_string     = "Can contain commas, decimals, e. notation, or mix of all three.";
+                    //    &rounding_strategy = "One of: FLOOR, CEILING|CEIL, TRUNCATE|TRUNC, ROUND, or empty string.";
+                    //    #number_integer    = coerceNumber(%&number_string%,%&rounding_strategy%);
+        function coerceNumber(&number_string,&rounding_strategy="ROUND");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:343
+            &number_string = replace(&number_string,",");
+            &number_string = convertENote(%&number_string%);
+            ifcontains(%&number_string%,".");
+                &rounding_strategy = miscValidate(%&rounding_strategy%,0,"ROUND","FLOOR","CEILING","CEIL","TRUNCATE","TRUNC");
+                if(%&rounding_strategy% == "ROUND");
+                    // Round the decimal value to the nearest integer.
+                    &return_string = formatnumber(%&number_string%,0,true);
+                elseif((%&rounding_strategy% == "TRUNCATE") || (%&rounding_strategy% == "TRUNC"));
+                    // Exclude the decimal value entirely.
+                    &return_string = regexreplace(&number_string,"\.\d*$");
+                else;
+                    // Use xEval to evaluate the number_string with the corresponding rounding_term. Instruct
+                    // xEval to coerce the value into an integer for us, so any trailing ".0" is stripped from it's
+                    // return value.
+                    if((%&rounding_strategy% == "CEILING") || (%&rounding_strategy% == "CEIL"));
+                        &rounding_term = "ceil";
+                    elseif(%&rounding_strategy% == "FLOOR");
+                        &rounding_term = "floor";
+                    endif;
+                    &return_string = xEval("%&rounding_term%(%&number_string%)",true);
+                endif;
+            else;
+                // The Number does not contain a decimal value to begin with, return as usual.
+                &return_string = %&number_string%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // gui/index/findItemContainer
+        // Given any (or all, or any mix of) an Item's MCID, Name, SBID, and/or UUID, finds the Item in the Container and returns it's Slot.
+            // Params:
+                // {string} [...&filter_params[]]    An Array of Strings in format: [<PARAM_ENUM>: <FILTER>], where PARAM_ENUM can be any of:
+                //                                   MCID|ITEM, DATA, STACK, NAME, SBID, NBT, or UUID. <FILTER> can be a Regular Expression or an Exact String.
+                //                                   If Passing an Expression, prefix the Filter with 'r$'. All characters following the 'r$' will be used
+                //                                   as the Expression.
+                // {boolean} [return_arr=false]      If set to True, will return an Array of Slots matching the specified Filters. If set to False, will
+                //                                   return the first Slot ID found that matches the Filters.
+            // Returns the Slot ID(s) of the Item(s) found, or -1 if no Item(s) could be found. Will return -1 if CONTAINERSLOTS <= 0.
+        function findItemContainer(return_arr=false,...&filter_params[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:1092
+            #return_val = -1;
+            
+            // Setup Filter Parameters
+            if(true);
+                &valid_enums[] = split(", ","MCID, ITEM, DATA, STACK, NAME, SBID, UUID, NBT, SLOT");
+                foreach(&filter_params[],&filter_param,#fpi);
+                    ifmatches(%&filter_param%,"^(.+?):\s*(.+)$");
+                        match(%&filter_param%,"^(.+?):\s*(.+)$",{&param_enum,&param_filter});
+                        #enum_index = indexof(&valid_enums[],,%&param_enum%);
+                        if(%#enum_index% != -1);
+                            &param_enum = %&valid_enums[%#enum_index%]%;
+                            if(%&param_enum% == "SLOT");
+                                #prioritize_slot   = coerceNumber(%&param_filter%);
+                                #prioritized_index = indexof(#prioritized_slots[],,%#prioritize_slot%);
+                                if(%#prioritized_index% == -1);
+                                    #prioritized_slots[] = %#prioritize_slot%;
+                                endif;
+                            else;
+                                if(%&param_enum% == "ITEM");
+                                    &param_enum = "MCID";
+                                endif;
+                                
+                                ifmatches(%&param_filter%,"^r\$(.+)",&param_expression,1);
+                                    &param_filter = %&param_expression%;
+                                else;
+                                    &param_filter = regexEscape(%&param_filter%);
+                                    &param_filter = "^%&param_filter%$";
+                                endif;
+                                
+                                &enum_array = lcase("&%&param_enum%_regex[]");
+                                &enum_bool  = lcase("do_%&param_enum%");
+                                push(%&enum_array%,%&param_filter%);
+                                set(%&enum_bool%);
+                            endif;
+                        endif;
+                    endif;
+                next;
+                
+                foreach(&valid_enums[],&valid_enum);
+                    if((%&valid_enum% != "SLOT") && (&valid_enum% != "ITEM"));
+                        &enum_bool = lcase("do_%&valid_enum%");
+                        enum_bool := "%%&enum_bool%%";
+                        if(%enum_bool%);
+                            &enum_array = lcase("&%&valid_enum%_regex[]");
+                            &enum_value = join("|",%&enum_array%);
+                            &enum_value = "(?:%&enum_value%)";
+                            &enum_regex = lcase("&%&valid_enum%_regex");
+                            set(%&enum_regex%,%&enum_value%);
+                        endif;
+                    endif;
+                next;
+                
+                //    Array Name        |    Boolean Name    |    Regex String
+                //    &mcid_regex[]     |    do_mcid         |    &mcid_regex
+                //    &data_regex[]     |    do_data         |    &data_regex
+                //    &stack_regex[]    |    do_stack        |    &stack_regex
+                //    &name_regex[]     |    do_name         |    &name_regex
+                //    &sbid_regex[]     |    do_sbid         |    &sbid_regex
+                //    &uuid_regex[]     |    do_uuid         |    &uuid_regex
+                //    &nbt_regex[]      |    do_nbt          |    &nbt_regex
+            endif;
+            
+            // Iterate over Inventory Slots
+            if(%CONTAINERSLOTS% >= 1);
+                #r_start            = 0;
+                #r_end              = %CONTAINERSLOTS% - 37;
+                &r_filter[]         = split(", ","mcid, data, stack, name, sbid, uuid, nbt");
+                
+                #prioritize_slot_sz = arraysize(#prioritize_slot[]);
+                if(%#prioritize_slot_sz% >= 1);
+                    foreach(#prioritize_slot[],#prioritize_slot,#ps);
+                        &f_mcid = getslotitemnbt(%#prioritize_slot%,,&f_stack,&f_data,&f_nbt);
+                        &f_nbt  = strip(%&f_nbt%);
+                        f_valid = true;
+                        foreach(&r_filter[],&r_term,#rti);
+                            &f_bool  = "do_%&r_term%";
+                            f_bool  := "%%&f_bool%%";
+                            if(%f_bool%);
+                                if(%#rti% >= 3);
+                                    if(%&r_term% == "name");
+                                        &f_value = getItemName(%&f_nbt%,%&f_mcid%);
+                                    elseif(%&r_term% == "sbid");
+                                        &f_value = getItemSBID(%&f_nbt%);
+                                    elseif(%&r_term% == "uuid");
+                                        &f_value = getItemUUID(%&f_nbt%);
+                                    elseif(%&r_term% == "nbt");
+                                        &f_value = %&f_nbt%;
+                                    endif;
+                                else;
+                                    &f_value = "&f_%&r_term%";
+                                    &f_value = "%%&f_value%%";
+                                endif;
+                                &f_regex = "&%&r_term%_regex";
+                                &f_regex = "%%&f_regex%%";
+                                ifnotmatches(%&f_value%,%&f_regex%);
+                                    // log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+                                    f_valid = false;
+                                    break;
+                                endif;
+                            endif;
+                        next;
+                        
+                        if(%f_valid%);
+                            if(!%return_arr%);
+                                #return_val = %#f_slot%;
+                                break;
+                            endif;
+                            #return_val[] = %#f_slot%;
+                        endif;
+                    next;
+                endif;
+                for(#f_slot,%#r_start%,%#r_end%);
+                    &f_mcid = getslotitemnbt(%#f_slot%,,&f_stack,&f_data,&f_nbt);
+                    &f_nbt  = strip(%&f_nbt%);
+                    f_valid = true;
+                    foreach(&r_filter[],&r_term,#rti);
+                        &f_bool  = "do_%&r_term%";
+                        f_bool  := "%%&f_bool%%";
+                        if(%f_bool%);
+                            if(%#rti% >= 3);
+                                if(%&r_term% == "name");
+                                    &f_value = getItemName(%&f_nbt%,%&f_mcid%);
+                                elseif(%&r_term% == "sbid");
+                                    &f_value = getItemSBID(%&f_nbt%);
+                                elseif(%&r_term% == "uuid");
+                                    &f_value = getItemUUID(%&f_nbt%);
+                                elseif(%&r_term% == "nbt");
+                                    &f_value = %&f_nbt%;
+                                endif;
+                            else;
+                                &f_value = "&f_%&r_term%";
+                                &f_value = "%%&f_value%%";
+                            endif;
+                            &f_regex = "&%&r_term%_regex";
+                            &f_regex = "%%&f_regex%%";
+                            ifnotmatches(%&f_value%,%&f_regex%);
+                                // log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+                                f_valid = false;
+                                break;
+                            endif;
+                        endif;
+                    next;
+                    
+                    if(%f_valid%);
+                        if(!%return_arr%);
+                            #return_val = %#f_slot%;
+                            break;
+                        elseif(%#prioritize_slot_sz% <= 0);
+                            #return_val[] = %#f_slot%;
+                        else;
+                            #return_index = indexof(#return_val[],,%#f_slot%);
+                            if(%#return_index% == -1);
+                                #return_val[] = %#f_slot%;
+                            endif;
+                        endif;
+                    endif;
+                next;
+            endif;
+            
+            if(%return_arr%);
+                #return_val_sz = arraysize(#return_val[]);
+                if(%#return_val_sz% == 0);
+                    #return_val[] = -1;
+                endif;
+                return(#return_val[]);
+            endif;
+            return(%#return_val%);
+        endfunction;
+    // delivery/trading/tradingGetState
+        // Gets the current State of the Trade GUI.
+            // Returns a String ENUM of:
+                //    NONE                    Not currently in a Trading GUI.
+                //    NEW                     Trading GUI is empty.
+                //    DELAY                   Trading GUI recently had a change to it and is currently on cooldown from accepting.
+                //    PENDING_CONF            Trading GUI is pending our Confirmation.
+                //    PENDING_CONF_PARTNER    Trading GUI is pending Partner's Confirmation.
+                //    COIN_SIGN               Currently in the 'Coins Transaction' Sign GUI.
+            // Example:
+                //    &trading_state = tradingGetState();
+                //    if(%&trading_state% == "NONE");
+                //    elseif(%&trading_state% == "NEW");
+                //    elseif(%&trading_state% == "DELAY");
+                //    elseif(%&trading_state% == "PENDING_CONF");
+                //    elseif(%&trading_state% == "PENDING_CONF_PARTNER");
+                //    elseif(%&trading_state% == "COIN_SIGN");
+                //    endif;
+        function tradingGetState();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/delivery/trading.txt:47
+            // Setup Function Variables
+            if(true);
+                debug                      = true;
+                &script_debug_name         = "&5tradingGetState&7";
+                &enum_none                 = "NONE";
+                &enum_new                  = "NEW";
+                &enum_delay                = "DELAY";
+                &enum_pending_conf         = "PENDING_CONF";
+                &enum_pending_conf_partner = "PENDING_CONF_PARTNER";
+                &enum_coin_sign            = "COIN_SIGN";
+                &return_string             = %&enum_none%;
+            endif;
+            
+            ifmatches(%CONTAINERNAME%,"^You\s+\w+$");
+                if(%GUI% == "GUIEDITSIGN");
+                    &return_string = %&enum_coin_sign%;
+                elseif(%GUI% == "GUICHEST");
+                    // Wrap Name -> ENUM Map
+                    if(true);
+                        &trade_conf_names[]   = "Trading!";
+                        &trade_conf_enums[]   = %&enum_new%;
+                        
+                        &trade_conf_names[]   = "Deal Timer! (3)";
+                        &trade_conf_enums[]   = %&enum_delay%;
+                        
+                        &trade_conf_names[]   = "Deal Timer! (2)";
+                        &trade_conf_enums[]   = %&enum_delay%;
+                        
+                        &trade_conf_names[]   = "Deal Timer! (1)";
+                        &trade_conf_enums[]   = %&enum_delay%;
+                        
+                        &trade_conf_names[]   = "Warning!";
+                        &trade_conf_enums[]   = %&enum_pending_conf%;
+                        
+                        &trade_conf_names[]   = "Gift!";
+                        &trade_conf_enums[]   = %&enum_pending_conf%;
+                        
+                        &trade_conf_names[]   = "Deal!";
+                        &trade_conf_enums[]   = %&enum_pending_conf%;
+                        
+                        &trade_conf_names[]   = "Deal accepted!";
+                        &trade_conf_enums[]   = %&enum_pending_conf_partner%;
+                    endif;
+                    
+                    #trade_conf_slot      = 39;
+                    &trade_conf_mcid      = "stained_hardened_clay";
+                    &trade_conf_name_expr = "^(?:Deal Timer! \(\d+\)|(?:Trading|Warning|Gift|Deal(?: accepted)?)!)$";
+                    #found_conf_slot      = findItemContainer(false,"MCID: %&trade_conf_mcid%","SLOT: %#trade_conf_slot%","NAME: r$%&trade_conf_name_expr%");
+                    if(%#found_conf_slot% != -1);
+                        &found_conf_item  = getslotitemnbt(%#found_conf_slot%,,#found_conf_stack,#found_conf_data,&found_conf_nbt);
+                        &found_conf_nbt   = strip(%&found_conf_nbt%);
+                        &found_conf_name  = getItemName(%&found_conf_nbt%,%&found_conf_item%);
+                        #trade_conf_index = indexof(&trade_conf_names[],,%&found_conf_name%);
+                        if(%#trade_conf_index% != -1);
+                            &return_string = %&trade_conf_enums[%#trade_conf_index%]%;
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            debug_log(%debug%,%&script_debug_name%,"Returning Trading GUI State '&d%&return_string%&7'.");
+            return(%&return_string%);
+        endfunction;
+    // delivery/trading/tradingOfferCoins
+        // Adds the specified amount of Coins to our Offer
+            // Params:
+                // {string} <&amount>            The Amount of Coins to add to the Offer. Can be in any format that is parseable by `number()`,
+                //                               but will be rounded to an Integer.
+                // {number} [#timeout_sec=30]    Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable
+                //                               timeouts and make the Function loop until it encounters a different Error or is successful.
+                // {number} [#tick_wait=20]      Amount of Ticks to wait between repeating a given Action.
+            // Returns a String ENUM describing the outcome of the Function:
+                // SUCCESS          Successfully added the specified amount of Coins.
+                // ERROR_TRADE      Not in a Trading GUI.
+                // ERROR_COINS      Not enough Coins in Purse to add the specified amount to the Offer.
+                // ERROR_ROOM       No more slots in the Trading GUI are available, so cannot add more coins.
+                // ERROR_AMOUNT     Could not parse the <&amount> Parameter, or the <&amount> Parameter was <= 0.
+                // ERROR_TIMEOUT    Function timed out.
+            // Example:
+                //    &offered_coins = tradingOfferCoins("1m");
+                //    if(%&offered_coins% == "SUCCESS");
+                //    elseif(%&offered_coins% == "ERROR_TRADE");
+                //    elseif(%&offered_coins% == "ERROR_COINS");
+                //    elseif(%&offered_coins% == "ERROR_ROOM");
+                //    elseif(%&offered_coins% == "ERROR_AMOUNT");
+                //    elseif(%&offered_coins% == "ERROR_TIMEOUT");
+                //    endif;
+        function tradingOfferCoins(&amount,#timeout_sec=30,#tick_wait=20);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/delivery/trading.txt:240
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&5tradingOfferCoins&7";
+                #start_time        = %TIMESTAMP%;
+                do_timeout         = %#timeout_sec% > 0;
+                
+                &enum_success       = "SUCCESS";
+                &enum_error_trade   = "ERROR_TRADE";
+                &enum_error_coins   = "ERROR_COINS";
+                &enum_error_room    = "ERROR_ROOM";
+                &enum_error_amount  = "ERROR_AMOUNT";
+                &enum_error_timeout = "ERROR_TIMEOUT";
+                
+                // Validate Parameters and check for Errors
+                if(true);
+                    // Ensure that we are in a valid Trade GUI.
+                    if(true);
+                        &trading_state = tradingGetState();
+                        if(%&trading_state% == "NONE");
+                            debug_error(%debug%,%&script_debug_name%,"Not in a Trading GUI! Returning '&4%&enum_error_trade%&7'.");
+                            return(%&enum_error_trade%);
+                        elseif(%&trading_state% == "COIN_SIGN");
+                            localGUI("NONE");
+                        endif;
+                    endif;
+                    
+                    // Ensure that we will have enough Room to add these Coins to the Trade Offer.
+                    if(true);
+                        #final_trade_slot = 30;
+                        &final_trade_mcid = getslotitemnbt(%#final_trade_slot%);
+                        if(%&final_trade_mcid% != "air");
+                            debug_error(%debug%,%&script_debug_name%,"Not enough Room in the Trading GUI to add Coins to the Offer. Returning '&4%&enum_error_room%&7'.");
+                            return(%&enum_error_room%);
+                        endif;
+                    endif;
+                    
+                    // Validate the Amount Parameter
+                    if(true);
+                        &offer_amount = number(%&amount%,"F:I");
+                        gt_zero       = _gt(%&offer_amount%,"0");
+                        if(!%gt_zero%);
+                            debug_error(%debug%,%&script_debug_name%,"Parsed number &&offer_amount='&e%&offer_amount%&7' is not > 0 (from input: &&amount='&e%&amount%&7'). Returning '&4%&enum_error_amount%&7'.");
+                            return(%&enum_error_amount%);
+                        endif;
+                        
+                        &purse_coins    = getPurse();
+                        amount_gt_purse = _gt(%&offer_amount%,%&purse_coins%);
+                        if(%amount_gt_purse%);
+                            debug_error(%debug%,%&script_debug_name%,"Parsed number &&offer_amount='&e%&offer_amount%&7' is greater than our Purse &&purse_coins='&4%&purse_coins%&7'. Returning '&4%&enum_error_coins%&7'.");
+                            return(%&enum_error_coins%);
+                        endif;
+                        
+                        &expect_purse_after = xEval("%&purse_coins% - %&offer_amount%");
+                    endif;
+                endif;
+            endif;
+            
+            // Loop until we have offered the Coins.
+            if(true);
+                do;
+                    // 1. Check for Function Timeout
+                    if(%do_timeout%);
+                        func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+                        if(%func_timeout%);
+                            debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+                            &return_string = %&enum_error_timeout%;
+                            break;
+                        endif;
+                    endif;
+                    
+                    // 2. Check if we are in a valid Trading GUI.
+                    if(true);
+                        &trading_state = tradingGetState();
+                        if((!%offer_typed%) && (&trading_state% == "NONE"));
+                            debug_error(%debug%,%&script_debug_name%,"Not in a Trading GUI! Returning '&4%&enum_error_trade%&7'.");
+                            &return_string = %&enum_error_trade%;
+                            break;
+                        endif;
+                    endif;
+                    
+                    // 3. Find the 'Coins Transaction' Button.
+                    if(!%offer_typed%);
+                        #coins_transaction_slot = findItemContainer(false,"MCID: skull","NAME: Coins transaction","SLOT: 36","NBT: r$Click to add gold!");
+                        if(%#coins_transaction_slot% != -1);
+                            // 3a. Enter the 'COIN_SIGN' GUI.
+                            #recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+                            updated_gui        = containerClick(%#coins_transaction_slot%,%#recursive_timeout%,%#tick_wait%);
+                            if(%updated_gui%);
+                                // 3b. Type the amount of Coins that we want to Offer.
+                                offer_typed            = true;
+                                #offer_typed_timestamp = %TIMESTAMP%;
+                                wait("2t");
+                                type(%&offer_amount%);
+                                wait("2t");
+                                press("escape");
+                            endif;
+                        endif;
+                    else;
+                        // 4. If we are waiting for the Offer to update, query our Purse Amount and check if the Amount has been deducted.
+                        &purse_after = getPurse();
+                        purse_equal  = _eq(%&expect_purse_after%,%&purse_after%);
+                        if(%purse_equal%);
+                            &return_string = %&enum_success%;
+                            break;
+                        elseif((%TIMESTAMP% - %#offer_typed_timestamp%) >= 3);
+                            offer_typed = false;
+                        endif;
+                    endif;
+                    wait("1t");
+                until(%&return_string% != "");
+            endif;
+            
+            debug_log(%debug%,%&script_debug_name%,"Returning '&4%&return_string%&7'.");
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

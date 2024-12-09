@@ -1,0 +1,34 @@
+//! @mkb-import-begin
+    // gui/index/getContainerString
+        // Encodes the current values of GUI, CONTAINERNAME, CONTAINERSLOTS, and optionally Slot Data from each slot in the Container
+        // into a string using encode(). Used to check if the GUI has updated.
+            // Params:
+            //      {boolean} [include_items=false] If true, will call indexGUI and append it's data to the Container String.
+            //
+            // Returns a string encoded with encode() in format 'GUI|CONTAINERNAME|CONTAINERSLOTS[$<slot_nbt>~<slot_nbt>~<...>]'.
+            // The [$<slot_nbt>~<slot_nbt>~<...>] portion is only included if [include_items] is true.
+        function getContainerString(include_items=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:274
+            &env_var_str = "%GUI%|%CONTAINERNAME%|%CONTAINERSLOTS%";
+            if(%include_items%);
+                if(%CONTAINERSLOTS% > 0);
+                    #container_start = 0;
+                    #container_end   = %CONTAINERSLOTS% - 37;
+                    #inventory_start = %CONTAINERSLOTS% - 36;
+                    #inventory_end   = %CONTAINERSLOTS% - 1;
+                    #range_start     = %#container_start%;
+                    #range_end       = %#inventory_end%;
+                    for(#slot,%#range_start%,%#range_end%);
+                        &f_item     = getslotitemnbt(%#slot%,,#f_stack,#f_data,&f_nbt);
+                        &f_nbt      = strip(%&f_nbt%);
+                        &f_nbt      = encode(%&f_nbt%);
+                        &out_data[] = "%&f_item%|%#f_stack%|%#f_data%|%&f_nbt%";
+                    next;
+                endif;
+                &gui_items   = join("~",&out_data[]);
+                &env_var_str = "%&env_var_str%$%&gui_items%";
+            endif;
+            &return_string = encode(%&env_var_str%);
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

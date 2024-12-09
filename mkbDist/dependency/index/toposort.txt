@@ -1,0 +1,78 @@
+//! @mkb-import-begin
+    // dependency/index/toposort
+        // Given an Array of Node Strings, returns a topologically sorted Array of the Unique Node Strings in the Input Array.
+            // Params:
+                // {string} <&node_strings[]>    An Array of Tunnel Joint Strings where the 0'th Element is the Parent Node, and
+                //                               Elements at Index >= 1 are that Node's direct Children.
+            // Returns a topologically sorted Array of the Unique Elements in <&node_strings[]>.
+            // Example:
+                //    &node_strings[] = split(", ","root|grandfather|grandmother, son|dog, father|son, grandfather|father, grandmother|mother, mother|daughter, son|dog, daughter");
+                //    &node_sorted[]  = toposort(&node_strings[]);
+                //    &node_sorted    = join(", ",&node_sorted[]);
+                //    log("node sorted: %&node_sorted%"); // 'node sorted: root, grandfather, grandmother, father, son, dog, mother, daughter'
+        function toposort(&node_strings[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/dependency/index.txt:11
+            unset(&unique_nodes[]);
+            unset(&parent_nodes[]);
+            
+            foreach(&node_strings[],&node_string,#ns);
+                &nodes[] = split("|",%&node_string%);
+                #nodes   = arraysize(&nodes[]);
+                foreach(&nodes[],&node,#n);
+                    #unique_index = indexof(&unique_nodes[],,%&node%);
+                    if(%#unique_index% == -1);
+                        &unique_nodes[] = %&node%;
+                    endif;
+                    
+                    if((%#n% == 0) && (%#nodes% > 1));
+                        #parent_index = indexof(&parent_nodes[],,%&node%);
+                        if(%#parent_index% == -1);
+                            &parent_nodes[] = %&node%;
+                            #parent_index   = indexof(&parent_nodes[],,%&node%);
+                        endif;
+                    elseif(%#n% > 1);
+                        &array_prefix  = "&child_nodes_%#parent_index%";
+                        &array_pointer = "%&array_prefix%[]";
+                        #array_index   = indexof(%&array_pointer%,,%&node%);
+                        if(%#array_index% == -1);
+                            push(%&array_pointer%,%&node%);
+                        endif;
+                    endif;
+                next;
+            next;
+            
+            
+            
+            // A
+            //    -> B
+            //    -> C
+            //        -> D
+            //        -> E
+            //            -> F
+            //        -> G
+            //    -> H
+            //        -> I
+            //        -> J
+            //            -> K
+            
+            // J -> K
+            // H -> I
+            // A -> B
+            // A -> C
+            // E -> F
+            // C -> G
+            // C -> D
+            // C -> E
+            // H -> J
+            //
+            // 0. Find 'root' Element (Element that is not the Child of any other Element).
+            //        => 'A'
+            // 1. Find all 'child' Elements of 'root' Element
+            //        => For each 'child' Element,
+            
+            // A, B, C, H, D, E, G, F, I, J, K
+            // PARENT, DIRECT CHILDREN
+            
+            
+        endfunction;
+//! @mkb-import-end

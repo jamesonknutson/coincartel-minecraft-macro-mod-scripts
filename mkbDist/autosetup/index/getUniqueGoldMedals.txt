@@ -1,0 +1,69 @@
+//! @mkb-import-begin
+    // autosetup/index/getUniqueGoldMedals
+        // autosetup
+        // ❌ recover_main
+        // ❌ refresh_and_execute
+        // ❌ upgrade_farming_drops
+        // ❌ upgrade_hoe
+        // ✅ anita_find_medals => countMedals
+        // ✅ jacob_find_medals => countMedals
+        // ❌ anita_purchase
+        // ❌ swap_medals
+        // ❌ find_hoe_state
+        // ❌ index_jacob_rewards
+        // ❌ collect_jacob
+        // ❌ setup_pet
+        // ❌ setup_personal_compactor
+        // ❌ setup_rancher_boots
+        
+        // autosetup/index.txt
+        // Finds the amount of Medals in the Inventory.
+            // Params:
+                //    {boolean} [use_api=true]    Whether or not to allow the usage of the API to find the amount of Medals.
+                //                                Sometimes, API can be inaccurate, esp. when we have just changed the amount of
+                //                                Medals we have in our inventory (either via collecting rewards or by spending/swapping
+                //                                them).
+            // Returns: Array
+                //    0 {number} #bronze_medals    The amount of Bronze Medals in the Inventory.
+                //    1 {number} #silver_medals    The amount of Silver Medals in the Inventory.
+                //    2 {number} #gold_medals      The amount of Gold Medals in the Inventory.
+            // Example:
+                //    #inv_medals[]  = countMedals();
+                //    #bronze_medals = %#inv_medals[0]%;
+                //    #silver_medals = %#inv_medals[1]%;
+                //    #gold_medals   = %#inv_medals[2]%;
+        function countMedals(use_api=true);
+            // If we can use API, try to use API first.
+            if(%use_api%);
+                &active_profile[]       = getActiveProfile(%UUID%,%@&api_key%,true);
+                active_profile_success := %&active_profile[0]%;
+                if(%active_profile_success%);
+                    &skyblock_profile = %&active_profile[1]%;
+                    #bronze_medals    = jsonget("jacob2.medals_inv.bronze",%&skyblock_profile%);
+                    #silver_medals    = jsonget("jacob2.medals_inv.silver",%&skyblock_profile%);
+                    #gold_medals      = jsonget("jacob2.medals_inv.gold",%&skyblock_profile%);
+                    return(%#bronze_medals%,%#silver_medals%,%#gold_medals%);
+                endif;
+            endif;
+            
+            // If we could not use API, or API failed, go in-person to Jacob to get the info we need.
+            if(true);
+                in_jacob_gui = goto("JACOB",true);
+                if(%in_jacob_gui%);
+                    #wheat_slot = 15;
+                    &item_id    = getslotitemnbt(%#wheat_slot%,,#item_stack,#item_data,&item_nbt);
+                    &item_nbt   = strip(%&item_nbt%);
+                    match(%&item_nbt%,"Bronze medals: (\d+)",#bronze_medals,1,0);
+                    match(%&item_nbt%,"Silver medals: (\d+)",#silver_medals,1,0);
+                    match(%&item_nbt%,"Gold medals: (\d+)",#gold_medals,1,0);
+                    return(%#bronze_medals%,%#silver_medals%,%#gold_medals%);
+                endif;
+            endif;
+            
+            return(0,0,0);
+        endfunction;
+        
+        function getUniqueGoldMedals(use_api=true);
+        // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:63
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // misc/index/canDoInteraction
+        // Checks if we can 'do' an Interaction by determining whether we have waited a whole amount of <#ticks_per_action> in <#waited_ticks>.
+        // Basically a modulo operation. If return True, execute Action. If not, skip action and keep waiting.
+            // Params:
+                // {number} [#waited_ticks=0]    Amount of Ticks that have been waited thus far
+                // {number} [#tick_wait=20]      Ticks to wait in between actions
+            // Returns a Boolean
+            // Example:
+                //    can_do_action = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+        function canDoInteraction(#waited_ticks=0,#tick_wait=20);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:43
+            #actions_done  = %#waited_ticks% / %#tick_wait%;
+            #ticks_to_next = %#waited_ticks% - (%#actions_done% * %#tick_wait%);
+            can_do_action  = %#ticks_to_next% == 0;
+            return(%can_do_action%);
+        endfunction;
+//! @mkb-import-end

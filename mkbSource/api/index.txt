@@ -1,0 +1,563 @@
+// api/index.txt
+	// Gets a new Hypixel API Key.
+		// Params:
+		//		None
+		//
+		// Returns the new API Key String.
+	function getHypixelAPIKey();
+		&script_debug_name = "&9getHypixelAPIKey&7";
+		debug              = false;
+		&old_api_key       = %@&api_key%;
+		
+		// Check if we need to get onto a Hypixel Server (not in Limbo) before execution.
+		&hy_gamemode = getHypixelGamemode();
+		if(%&hy_gamemode% == "LIMBO");
+			do;
+				on_server = gotoServer("SKYBLOCK");
+				if(%on_server%);
+					break;
+				endif;
+				wait("1t");
+			until(%on_server%);
+		endif;
+		
+		do;
+			echo("/api new");
+			do(20);
+				wait("1t");
+			until(%&old_api_key% != %@&api_key%);
+			if(%&old_api_key% != %@&api_key%);
+				&new_api_key  = %@&api_key%;
+				new_valid_key = isStringUUID(%&new_api_key%);
+				&old_api_key  = %&new_api_key%;
+			endif;
+		until(%new_valid_key%);
+		return(%&new_api_key%);
+	endfunction;
+	
+	// Gets the limiting variables for the current Player.
+		// Params:
+		//		None
+		//
+		// Returns an Array:
+		//		0 <integer> #reqs_in_last_min : Total requests in the last 60 seconds.
+		//		1 <integer> #reqs_avail_now   : Total requests available now before hitting throttle.
+		//		2 <integer> #wait_timestamp   : Timestamp to wait till before making the next request to avoid being throttled.
+	function getHypixelAPIRequestLimit();
+		&script_debug_name = "&9getHypixelAPIRequestLimit&7";
+		debug              = true;
+		#max_req_per_min   = 120;
+
+		#api_reqs = arraysize(@#api_req_ts[]);
+		if(%#api_reqs% >= 1);
+			#array_end = %#api_reqs% - 1;
+			for(#i,%#array_end%,0);
+				#api_req_ts  = %@#api_req_ts[%#i%]%;
+				#elapsed_sec = %TIMESTAMP% - %#api_req_ts%;
+				if(%#elapsed_sec% <= 120);
+					#save_timestamps[] = %#api_req_ts%;
+				endif;
+			next;
+
+			unset(@#api_req_ts[]);
+			push(@#api_req_ts[],#save_timestamps[*]);
+
+		endif;
+
+		#reqs_in_last_min = arraysize(#save_timestamps[]);
+		#reqs_avail_now   = 120 - %#reqs_in_last_min%;
+		#wait_timestamp   = %TIMESTAMP% + ((%#reqs_in_last_min% - 120) / 2);
+		return(%#reqs_in_last_min%,%#reqs_avail_now%,%#wait_timestamp%);
+	endfunction;
+	
+	// Makes a Hypixel API Call.
+		// Params:
+			// {string}  <&api_url>            	The endpoint to call
+			// {string}  [&api_key=%@&api_key%]	The API Key to use with the request. Defaults to @&api_key
+			// {boolean} [recursion=false]     	True if this function was called by itself. Defaults to false
+		// Returns an Array:
+			// 0 {boolean}	req_success	True if we received response from API, false if we got throttled by CF.
+			// 1 {boolean}	api_success	The value of the 'success' key in the API response.
+			// 2 {integer}	#api_code  	The HTTP Response Code from the API Request.
+			// 3 {string} 	&api_resp  	The raw JSON data returned from the Server.
+		// Example:
+			// &api_data[]  = hypixelAPICall(%&api_url%);
+			// req_success := %&api_data[0]%; // True if we received response from API, false if we got throttled by CF.
+			// api_success := %&api_data[1]%; // The value of the 'success' key in the API response.
+			// #api_code   := %&api_data[2]%; // The HTTP Response Code from the API Request.
+			// &api_resp    = %&api_data[3]%; // The raw JSON data returned from the Server.
+	function hypixelAPICall(&api_url,&api_key=%@&api_key%,recursion=false);
+		&script_debug_name = "&9hypixelAPICall&7";
+		debug              = true;
+		
+		// Setup variables
+		if(true);
+			key_needed     = true;
+			req_success    = false;
+			api_success    = false;
+			#api_code      = -1;
+			&api_resp      = "";
+			#retry_codes[] = split(", ","403, 429, 503"); // 403: invalid api key, 429: throttled, 503: data unavailable right now
+
+			// Setup known API Endpoints
+			if(true);
+				&api_endpoints[] = "false|skyblock/auctions_ended";
+				&api_endpoints[] = "true|skyblock/auctions";
+				&api_endpoints[] = "true|skyblock/profiles";
+				&api_endpoints[] = "true|skyblock/auction";
+				&api_endpoints[] = "true|skyblock/profile";
+				&api_endpoints[] = "false|skyblock/bazaar";
+				&api_endpoints[] = "true|punishmentstats";
+				&api_endpoints[] = "true|skyblock/news";
+				&api_endpoints[] = "true|leaderboards";
+				&api_endpoints[] = "true|recentgames";
+				&api_endpoints[] = "false|resources";
+				&api_endpoints[] = "true|boosters";
+				&api_endpoints[] = "true|friends";
+				&api_endpoints[] = "true|player";
+				&api_endpoints[] = "true|status";
+				&api_endpoints[] = "true|counts";
+				&api_endpoints[] = "true|guild";
+				&api_endpoints[] = "true|key";
+			endif;
+
+			// Find the endpoint we are hitting
+			if(true);
+				&api_uri = regexreplace(&api_url,"https://api.hypixel.net/","");
+				&use_uri = "";
+				foreach(&api_endpoints[],&api_endpoint,#aei);
+					&this_data[]   = split("|",%&api_endpoint%);
+					this_key_req  := %&this_data[0]%;
+					&this_endpoint = %&this_data[1]%;
+					ifmatches(%&api_uri%,"^%&this_endpoint%");
+						&use_uri   = %&this_endpoint%;
+						key_needed = %this_key_req%;
+						break;
+					endif;
+				next;
+				skip_req = %&use_uri% == "";
+			endif;
+		endif;
+
+		// Validate the API Key passed to the function, if we are going to be using one.
+		if((!%skip_req%) && (%key_needed%));
+			key_test = isStringUUID(%&api_key%);
+			if(!%key_test%);
+				debug_error(%debug%,%&script_debug_name%,"Parameter 'api_key' is invalid UUID: &4%&api_key%&7. Attempting to fix");
+				global_test = isStringUUID(%@&api_key%);
+				if(%global_test%);
+					&api_key = %@&api_key%;
+					debug_log(%debug%,%&script_debug_name%,"Using environment api_key instead (&a%@&api_key%&7).");
+				else;
+					&new_key  = getHypixelAPIKey();
+					new_valid = isStringUUID(%&new_key%);
+					if(%new_valid%);
+						debug_log(%debug%,%&script_debug_name%,"Using new api_key instead (&a%&new_key%&7).");
+						&api_key = %&new_key%;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"Failed to get a new valid API key to use.");
+					endif;
+				endif;
+				key_test = isStringUUID(%&api_key%);
+				skip_req = !%key_test%;
+			endif;
+		endif;
+
+		// Make the request, if we are making the request.
+		if(true);
+			if(!%skip_req%);
+				if(%key_needed%);
+					setrequestheader("API-Key",%&api_key%);
+					#throttle_vars[]  = getHypixelAPIRequestLimit();
+					#reqs_in_last_min = %#throttle_vars[0]%;
+					#reqs_avail_now   = %#throttle_vars[1]%;
+					#wait_timestamp   = %#throttle_vars[2]%;
+
+					if(%#reqs_avail_now% <= 0);
+						#wait_seconds = %#wait_timestamp% - %TIMESTAMP%;
+						debug_log(%debug%,%&script_debug_name%,"Delaying request by &d%#wait_seconds% seconds&7 to avoid being limited by Hypixel API.");
+						wait("%#wait_seconds%s");
+						&return_array[] = call("hypixelAPICall",%&api_url%,%&api_key%);
+						return(&return_array[]);
+					endif;
+				endif;
+
+				// Add the base URL to the request URL if it was not provided.
+				ifmatches(%&api_url%,"^https://api.hypixel.net");else;
+					&api_parts[] = "https://api.hypixel.net"
+					ifmatches(%&api_url%,"^/");else;
+						&api_parts[] = "/";
+					endif;
+					&api_parts[] = %&api_url%;
+					&api_url     = join("",&api_parts[]);
+				endif;
+
+				@#api_req_ts[] = %TIMESTAMP%;
+				&api_resp      = httpget(%&api_url%,,#api_code);
+				&success       = jsonget("success",%&api_resp%);
+				ifmatches(%&success%,"ERROR_"); // If we got an unexpected error, it normally means we got throttled by CloudFlare.
+					&req_uuid      = %UNIQUEID%;
+					&log_strings[] = "-----"
+					&log_strings[] = "Request Date: %DATETIME%";
+					&log_strings[] = "Request UUID: %&req_uuid%";
+					&log_strings[] = "Request URL : %&api_url%";
+					&log_strings[] = "Request Key : %&api_key%";
+					&log_strings[] = " ";
+					&log_strings[] = "Response Code: %#api_code%";
+					&log_strings[] = "Response Body: %&api_resp%";
+					&log_strings[] = " ";
+					&log_strings[] = " ";
+					&log_path[]    = split(%FILESEPARATOR%,%MACROSCONFIGDIR%);
+					&log_path[]    = "logs";
+					&log_path[]    = "bad_requests.txt";
+					&log_path      = join(%FILESEPARATOR%,&log_path[]);
+					writefile(%&log_path%,&log_strings[],true);
+					debug_error(%debug%,%&script_debug_name%,"Got a bad request from the API call, response logged to file:");
+					&vars[] = split(" ","&req_uuid &log_path #api_code");
+					foreach(&vars[],&var,#v);
+						&_var = regexreplace(&var,"&","&&");
+						&val  = "%%&var%%";
+						debug_log(%debug%,%&script_debug_name%,"%#v% > %&_var%: &d%&val%&7.");
+					next;
+				else;
+					req_success  = true;
+					api_success := %&success%;
+					#retry_index = indexof(#retry_codes[],,%#api_code%);
+
+					// If the request was unsuccessful and the Response Code is an error that we can fix, attempt to do so.
+					if((!%api_success%) && (%#retry_index% != -1) && (!%recursion%));
+						if(%#api_code% == 403); // invalid api key
+							&api_key = getHypixelAPIKey();
+						elseif((%#api_code% == 429) || (%#api_code% == 503)); // throttled = 429, 503 = data unavailable right now
+							wait("10000ms");
+						endif;
+
+						skip_return_arr = true;
+						&return_array[] = call("hypixelAPICall",%&api_url%,%&api_key%,true);
+					endif;
+				endif;
+			elseif(%&use_uri% == "");
+				debug_error(%debug%,%&script_debug_name%,"Could not find API Endpoint from URL: &4%&api_url%&7.");
+			endif;
+		endif;
+
+		// Populate the return array, unless it was already populated.
+		if(!%skip_return_arr%);
+			&return_array[] = %req_success%;
+			&return_array[] = %api_success%;
+			&return_array[] = %#api_code%;
+			&return_array[] = %&api_resp%;
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Fetches a player's SkyBlock Profiles from Hypixel's API.
+		// Params:
+		//		{string} [&search_term=%UUID%] 	The player username/UUID to search for. If left blank, defaults to player's UUID.
+		//		{string} [&api_key=%@&api_key%]	The API Key to make Requests with. If left blank, defaults to @&api_key
+		//
+		// Returns an array:
+		//	0     	{boolean}	success   	Whether or not we were able to get any data from the API (false if request fails)
+		//	1, ...	{string} 	&profile[]	The JSON Objects of the Profiles. Only provided if success == true and profiles !== null.
+	function getSkyBlockProfiles(&search_term=%UUID%,&api_key=%@&api_key%);
+		&script_debug_name = "&9getSkyBlockProfiles&7";
+		debug              = false;
+
+		&player_identity[] = getMinecraftProfile(%&search_term%);
+		identity_found    := %&player_identity[0]%;
+		&player_username   = %&player_identity[1]%;
+		&player_joint_uuid = %&player_identity[2]%;
+		&player_split_uuid = %&player_identity[3]%;
+		if(%identity_found%);
+			&api_url     = "skyblock/profiles?uuid=%&player_split_uuid%";
+			&api_data[]  = hypixelAPICall(%&api_url%);
+			req_success := %&api_data[0]%;
+			api_success := %&api_data[1]%;
+			#api_code   := %&api_data[2]%;
+			&api_resp    = %&api_data[3]%;
+			success      = %req_success%;
+			
+
+			if((!%req_success%) || (!%api_success%));
+				if(%req_success%);
+					&cause = jsonget("cause",%&api_resp%);
+				else;
+					&cause = "Cloudflare Request Throttle";
+				endif;
+				debug_error(%debug%,%&script_debug_name%,"An error occurred while fetching SkyBlock Profiles for &4%&player_username%&7: &4%&cause%&7.");
+			else;
+				&player_profiles = jsonget("profiles",%&api_resp%);
+				#profile_index   = 0;
+				do;
+					&profile_data = jsonget(%#profile_index%,%&player_profiles%);
+					ifmatches(%&profile_data%,"ERROR_");
+						#found_profiles  = arraysize(&player_profiles[]);
+						debug_log(%debug%,%&script_debug_name%,"Found a total of &a%#found_profiles% profiles&7 for &a%&player_username%&7.");
+						no_more_profiles = true;
+						break;
+					else;
+						&profile_id        = jsonget("profile_id",%&profile_data%);
+						&profile_name      = jsonget("cute_name",%&profile_data%);
+						&profile_ids[]     = %&profile_id%;
+						&profile_names[]   = %&profile_name%;
+						&player_profiles[] = %&profile_data%;
+					endif;
+					#profile_index = %#profile_index% + 1;
+				until(%no_more_profiles%);
+
+				#player_cache_index = indexof(@&cached_profile_player_uuids[],,%&player_split_uuid%);
+				if(%#player_cache_index% == -1);
+					@&cached_profile_player_uuids[]         = %&player_split_uuid%;
+					@&cached_profile_player_profile_ids[]   = join("|",&profile_ids[]);
+					@&cached_profile_player_profile_names[] = join("|",&profile_names[]);
+					debug_log(%debug%,%&script_debug_name%,"&eInitialized&7 cached profile IDs and Names for &a%&player_username%&7.");
+				else;
+					&player_cached_profile_ids[]   = split("|",%@&cached_profile_player_profile_ids[%#player_cache_index%]%);
+					&player_cached_profile_names[] = split("|",%@&cached_profile_player_profile_names[%#player_cache_index%]%);
+
+					// Trim the cache if anything is not found.
+					foreach(&player_cached_profile_ids[],&cached_profile_id,#cpii);
+						#found_index = indexof(&profile_ids[],,%&cached_profile_id%);
+						if(%#found_index% == -1);
+							// This profile is no longer available for this member, trim it from the new array.
+							debug_log(%debug%,%&script_debug_name%,"Profile ID &e%&cached_profile_id%&7 (Name: &d%&player_cached_profile_names[%#cpii%]%&7) is no longer available, trimming");
+							&player_cached_profile_ids[]   = arrayDelete(&player_cached_profile_ids[],%#cpii%);
+							&player_cached_profile_names[] = arrayDelete(&player_cached_profile_names[],%#cpii%);
+						endif;
+					next;
+
+					// Append to the cache with any new finds.
+					foreach(&profile_ids[],&profile_id,#pii);
+						#cached_index = indexof(&player_cached_profile_ids[],,%&profile_id%);
+						if(%#cached_index% == -1);
+							debug_log(%debug%,%&script_debug_name%,"Found new Profile ID: &e%&profile_id%&7 (Name: &d%&profile_names[%#pii%]%&7).");
+							put(&player_cached_profile_ids[],%&profile_id%);
+							put(&player_cached_profile_names[],%&profile_names[%#pii%]%);
+						endif;
+					next;
+
+					// Update the cache
+					if(true);
+						@&cached_profile_player_profile_ids[%#player_cache_index%]   = join("|",&player_cached_profile_ids[]);
+						@&cached_profile_player_profile_names[%#player_cache_index%] = join("|",&player_cached_profile_names[]);
+					endif;
+
+					debug_log(%debug%,%&script_debug_name%,"&dUpdated&7 cached profile IDs and Names for &a%&player_username%&7.");
+				endif;
+			endif;
+		else;
+			debug_error(%debug%,%&script_debug_name%,"Could not resolve search_term &4%&search_term%&7 into a valid UUID!");
+		endif;
+
+		&return_array[] = %success%;
+		push(&return_array[],&player_profiles[*]);
+		return(&return_array[]);
+	endfunction;
+	
+	// Fetches a given SkyBlock Profile from Hypixel's API.
+		// Params:
+		//		{string} <&profile_id>        	The Profile ID to fetch
+		//		{string} [&api_key=%@&api_key]	The API Key to make Requests with. If left blank, defaults to @&api_key
+		//
+		// Returns an array:
+		//	0	{boolean} success	Whether or not we were able to get any data from the API (false if request fails)
+		//	1	{string} &profile	The JSON Data of the Profile
+	function getSkyBlockProfile(&profile_id,&api_key=%@&api_key%);
+		&script_debug_name = "&9getSkyBlockProfile&7";
+		debug              = true;
+		test_profile_id    = isStringUUID(%&profile_id%);
+		if(!%test_profile_id%);
+			debug_error(%debug%,%&script_debug_name%,"Invalid formatted Profile ID passed: &4%&profile_id%&7.");
+			return(false,"");
+		endif;
+
+		// Make the API request.
+		if(true);
+			&api_url     = "skyblock/profile?profile=%&profile_id%";
+			&api_data[]  = hypixelAPICall(%&api_url%);
+			req_success := %&api_data[0]%;
+			api_success := %&api_data[1]%;
+			#api_code   := %&api_data[2]%;
+			&api_resp    = %&api_data[3]%;
+
+			if(%api_success%);
+				&profile = jsonget("profile",%&api_resp%);
+				ifmatches(%&profile%,"^(?:ERROR_.*|null)$");
+					debug_error(%debug%,%&script_debug_name%,"Profile with ID &4%&profile_id%&7 does not exist.");
+					return(false,"");
+				endif;
+				debug_log(%debug%,%&script_debug_name%,"&aFound Profile, returning.");
+				return(true,%&profile%);
+			else;
+				debug_error(%debug%,%&script_debug_name%,"API Call failed!");
+				return(false,"");
+			endif;
+		endif;
+	endfunction;
+	
+	// Fetches the specified player's currently active SkyBlock Profile from Hypixel's API.
+		// Params:
+			// {string} [&search_term=%UUID%] 	The username or UUID of the player to look up. Defaults to the bot's UUID.
+			// {string} [&api_key=%@&api_key%]	The API Key to make Requests with. If left blank, defaults to @&api_key
+			// {boolean} [player_only=false]  	If true, will return the bot's data from the Profile only. Defaults to false.
+		// Returns a String Array:
+			//	0 {boolean} success 	Whether or not we were able to get any data from the API (false if request fails)
+			//	1 {string}  &profile	The JSON Data of the Profile
+		// Example:
+			//	&active_profile[] = getActiveProfile();
+			//	profile_found    := %&active_profile[0]%;
+			//	if(%profile_found%);
+			//		&profile_data = %&active_profile[1]%;
+			//	endif;
+	function getActiveProfile(&search_term=%UUID%,&api_key=%@&api_key%,player_only=false);
+		&script_debug_name = "&9getActiveProfile&7";
+		debug              = true;
+
+		// Get the Minecraft Profile associated with the Search Term.
+		if(true);
+			&player_identity[] = getMinecraftProfile(%&search_term%);
+			identity_found    := %&player_identity[0]%;
+			&player_username   = %&player_identity[1]%;
+			&player_joint_uuid = %&player_identity[2]%;
+			&player_split_uuid = %&player_identity[3]%;
+
+			if(!%identity_found%);
+				debug_error(%debug%,%&script_debug_name%,"Could not find Identity for Search Term: &4%&search_term%&7.");
+				return(false,"");
+			endif;
+		endif;
+
+		// If the Minecraft Profile we are executing this query on is the active bot account,
+		// try and get the Profile ID from reading Scoreboard and checking the Cache.
+		if(%&player_split_uuid% == %UUID%);
+			#player_cache_index = indexof(@&cached_profile_player_uuids[],,%&player_split_uuid%);
+			if(%#player_cache_index% != -1);
+				&active_profile = getSkyBlockPlayerListInfo("PROFILE");
+				if(%&active_profile% != "-1");
+					&cached_ids[]   = split("|",%@&cached_profile_player_profile_ids[%#player_cache_index%]%);
+					&cached_names[] = split("|",%@&cached_profile_player_profile_names[%#player_cache_index%]%);
+					#profile_index  = indexof(&cached_names[],,%&active_profile%);
+					debug_log(%debug%,%&script_debug_name%,"profile name &d%&active_profile%&7 found at index &e%#profile_index%&7 in cached_names array.");
+					if(%#profile_index% != -1);
+						skip_all_profiles_req = true;
+						&active_profile_id    = %&cached_ids[%#profile_index%]%;
+						&active_profile_name  = %&cached_names[%#profile_index%]%;
+						debug_log(%debug%,%&script_debug_name%,"&aHit cache! ID is: &e%&active_profile_id%");
+					endif;
+				endif;
+			endif;
+		endif;
+
+		// Get the active Profile ID & Data from API, if we do not already have it.
+		if(true);
+			if(!%skip_all_profiles_req%);
+				debug_log(%debug%,%&script_debug_name%,"Calling getSkyBlockProfiles, did not hit cache.");
+
+				// Get the profiles for the Minecraft Profile we are querying.
+				&profile_data[]  = getSkyBlockProfiles(%&player_split_uuid%);
+				#player_profiles = arraysize(&profile_data[]);
+				profile_success := %&profile_data[0]%;
+
+				// Iterate over all Profiles and find the one with the most recent save.
+				if((%profile_success%) && (%#player_profiles% > 1));
+					#final_profile_index = %#player_profiles% - 1;
+					#start_profile_index = 1;
+
+					for(#i,%#start_profile_index%,%#final_profile_index%);
+						&profile_data = %&profile_data[%#i%]%;
+						&profile_id   = jsonget("profile_id",%&profile_data%);
+						&profile_name = jsonget("cute_name",%&profile_data%);
+						&profile_mbrs = jsonget("members",%&profile_data%);
+						&player_data  = jsonget(%&player_joint_uuid%,%&profile_mbrs%);
+						ifmatches(%&player_data%,"ERROR_");
+							debug_error(%debug%,%&script_debug_name%,"Could not find Profile Member data for User: &4%&player_username%&7 in Profile ID &e%&profile_id%&7 (name: &d%&profile_name%&7).");
+						else;
+							&init_save = %&best_save%;
+
+							if(%&best_save% == "");
+								&best_save           = jsonget("last_save",%&player_data%);
+								&active_profile_data = %&profile_data%;
+							else;
+								&last_save = jsonget("last_save",%&player_data%);
+								eval(&ms_diff,"%&best_save% - %&last_save%"); // if last_save > best_save, result ms_diff will start with -1.
+								ifmatches(%&ms_diff%,"^-");
+									&best_save           = %&last_save%;
+									&active_profile_data = %&profile_data%;
+								endif;
+							endif;
+						endif;
+					next;
+				endif;
+			else;
+				// Only need to make one request for the correct Profile.
+				&profile_data[]      = getSkyBlockProfile(%&active_profile_id%);
+				profile_success     := %&profile_data[0]%;
+				&active_profile_data = %&profile_data[1]%;
+			endif;
+
+			if((%profile_success%) && (%player_only%));
+				&active_profile_data = jsonget("members.%&player_joint_uuid%",%&active_profile_data%);
+				ifmatches(%&active_profile_data%,"ERROR_");
+					debug_error(%debug%,%&script_debug_name%,"Could not find Player UUID %&player_joint_uuid% in Active Profile, wtf?");
+					&active_profile_data = "";
+				endif;
+			endif;
+		endif;
+		return(%profile_success%,%&active_profile_data%);
+	endfunction;
+
+	// Fetches the specified player's currently active SkyBlock Profile ID from Hypixel's API.
+		// Params:
+		//		{string} [&search_term=%UUID%] 	The username or UUID of the player to look up. Defaults to the bot's UUID.
+		//		{string} [&api_key=%@&api_key%]	The API Key to make Requests with. If left blank, defaults to @&api_key
+		//
+		// Returns an Array:
+		//	0 {boolean} success    	Whether or not we were able to get any data from the API (false if request fails)
+		//	1 {string}  &profile_id	The Active Profile's ID.
+	function getActiveProfileID(&search_term=%UUID%,&api_key=%@&api_key%);
+		&script_debug_name = "&9getActiveProfileID&7";
+		debug              = true;
+		
+		// Get the Minecraft Profile associated with the Search Term.
+		if(true);
+			&player_identity[] = getMinecraftProfile(%&search_term%);
+			identity_found    := %&player_identity[0]%;
+			&player_username   = %&player_identity[1]%;
+			&player_joint_uuid = %&player_identity[2]%;
+			&player_split_uuid = %&player_identity[3]%;
+			if(!%identity_found%);
+				debug_error(%debug%,%&script_debug_name%,"Could not find Identity for Search Term: &4%&search_term%&7.");
+				return(false,"");
+			endif;
+		endif;
+
+		// If the Player we are looking up is the Bot, see if we can hit the Profile Cache to get the ID early.
+		if(%&player_split_uuid% == %UUID%);
+			#player_cache_index = indexof(@&cached_profile_player_uuids[],,%&player_split_uuid%);
+			if(%#player_cache_index% != -1);
+				&active_profile = getSkyBlockPlayerListInfo("AREA");
+				if(%&active_profile% != "-1");
+					&cached_ids[]   = split("|",%@&cached_profile_player_profile_ids[%#player_cache_index%]%);
+					&cached_names[] = split("|",%@&cached_profile_player_profile_names[%#player_cache_index%]%);
+					#profile_index  = indexof(&cached_names[],,%&active_profile%);
+					if(%#profile_index% != -1);
+						active_profile_success = true;
+						&active_profile_id     = %&cached_ids[%#profile_index%]%;
+						&active_profile_name   = %&cached_names[%#profile_index%]%;
+					endif;
+				endif;
+				#
+			endif;
+		endif;
+
+		// Call getActiveProfile if we did not hit the Cache.
+		if(!%active_profile_success%);
+			&active_profile_data[]  = getActiveProfile(%&search_term%,%&api_key%);
+			active_profile_success := %&active_profile_data[0]%;
+			if(%profile_success%);
+				&active_profile_id = jsonget("profile_id",%&profile_data[1]%);
+			endif;
+		endif;
+
+		return(%active_profile_success%,%&active_profile_id%);
+	endfunction;

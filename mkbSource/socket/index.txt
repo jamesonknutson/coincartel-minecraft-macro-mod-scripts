@@ -1,0 +1,105 @@
+// socket/index.txt
+	// Opens up a Socket Connection to the Specified URL.
+		// Params:
+			// {string} <&socket_name>              	The Name to assign to the Socket. Must be Unique and not already in use.
+			// {string} <&socket_url>               	The Socket URL to connect to (e.g. wss://socket.coincartel.io)
+			// {boolean} [include_auth_headers=true]	Whether or not to include the Authentication Headers ('X-MC-UUID', 'X-MC-HWID') in the Request.
+			// {string} [&custom_headers]           	An optional JSON Object of key:value Headers to use in the Connection Request.
+	function _socketOpen(&socket_name,&socket_url,include_auth_headers=true,&custom_headers);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_socketOpen";
+			
+			&vars[]            = split(" ","&socket_name &socket_url include_auth_headers &custom_headers");
+			foreach(&vars[],&var,#v);
+				&val	= "%%&var%%";
+				&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+				&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+				debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+			next;
+			if(%debug%); log(" "); endif;
+		endif;
+		
+		&return_string = socketOpen(%&socket_name%,%&socket_url%,%include_auth_headers%,%&custom_headers%);
+		debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'.");
+		return(%&return_string%)
+	endfunction;
+
+	// Closes a Socket Connection.
+		// Params:
+			// {string} <&socket_name>	The Socket to close, as defined in the `socketOpen` Action.
+			//
+	function _socketClose(&socket_name);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_socketClose";
+			debug_log(%debug%,%&script_debug_name%,"Closing &&socket_name='&e%&socket_name%&7'.");
+		endif;
+		
+		&return_string = socketClose(%&socket_name%);
+		debug_log(%debug%,%&script_debug_name%,"Returning &&return_string='&e%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+
+	// Sends Data to a Socket
+		// Params:
+			// {string} <&socket_name>	The Socket to Send Data to, as defined in the `socketOpen` Action.
+			// {string} <&socket_data>	The Data to Send to the Socket (typically a JSON Object).
+	function _socketSend(&socket_name,&socket_data);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_socketSend";
+			debug_log(%debug%,%&script_debug_name%,"Sending &&socket_name='&e%&socket_name%&7' following data: &&socket_data='&e%&socket_data%&7'.");
+		endif;
+		
+		&return_string = socketSend(%&socket_name%,%&socket_data%);
+		debug_log(%debug%,%&script_debug_name%,"Returning &&return_string='&e%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+
+	// Handles the onSocketOpen Event
+		// Params:
+			// {string} <&socket_name>	The Name of the Socket as defined in the `socketOpen` Action
+			// {string} <&socket_url> 	The URL of the Socket that was opened.
+	function _onSocketOpen(&socket_name,&socket_url);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_onSocketOpen";
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Socket with name &&socket_name='&e%&socket_name%&7' was opened at URL &&socket_url='&e%&socket_url%&7'.");
+	endfunction;
+	
+	// Handles the onSocketEmit Event
+		// Params:
+			// {string} <&socket_name>	The Name of the Socket as defined in the `socketOpen` Action
+			// {string} <&socket_data>	The Data received by the Socket
+	function _onSocketEmit(&socket_name,&socket_data);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_onSocketEmit";
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Received Data from &&socket_name='&e%&socket_name%&7', data &&socket_data='&e%&socket_data%&7'.");
+	endfunction;
+	
+	// Handles the onSocketClose Event
+		// Params:
+			// {string} <&socket_name>        	Name of the Socket that was closed as defined in the `socketOpen` Action
+			// {string} <&socket_data>        	The URL associated with the Socket
+			// {string} <&socket_close_reason>	String Reason defining why the Socket was closed
+			// {number} <#socket_close_code>  	The Numeric Code that defines why the Socket was closed
+	function _onSocketClose(&socket_name,&socket_url,&socket_close_reason,#socket_close_code);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6_onSocketClose";
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Closed socket &&socket_name='&e%&socket_name%&7' with URL &&socket_url='&e%&socket_url%&7' for reason &&socket_close_reason='&e%&socket_close_reason%&7' and code #socket_close_code=&e%#socket_close_code%&7.");
+	endfunction;

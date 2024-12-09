@@ -1,0 +1,17 @@
+//! @mkb-import-begin
+    // movement/index/splitCoordString
+        // Given a coordinate string, splits it up by tunnel characters and returns an integer array.
+            // Params:
+            //      {string} [&coord_string="%XPOS%|%YPOS%|%ZPOS%"] The coordinate string to split up
+            //
+            // Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS.
+        function splitCoordString(&coord_string="%XPOS%|%YPOS%|%ZPOS%");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:6
+            &pos[] = split("|",%&coord_string%);
+            &x     = %&pos[0]%;
+            &y     = %&pos[1]%;
+            &z     = %&pos[2]%;
+            &arr[] = split(", ","%&x%, %&y%, %&z%");
+            return(&arr[]);
+        endfunction;
+//! @mkb-import-end

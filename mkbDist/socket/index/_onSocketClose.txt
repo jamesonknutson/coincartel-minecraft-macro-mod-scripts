@@ -1,0 +1,39 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // socket/index/_onSocketClose
+        // Handles the onSocketClose Event
+            // Params:
+                // {string} <&socket_name>            Name of the Socket that was closed as defined in the `socketOpen` Action
+                // {string} <&socket_data>            The URL associated with the Socket
+                // {string} <&socket_close_reason>    String Reason defining why the Socket was closed
+                // {number} <#socket_close_code>      The Numeric Code that defines why the Socket was closed
+        function _onSocketClose(&socket_name,&socket_url,&socket_close_reason,#socket_close_code);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/socket/index.txt:96
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6_onSocketClose";
+            endif;
+            
+            debug_log(%debug%,%&script_debug_name%,"Closed socket &&socket_name='&e%&socket_name%&7' with URL &&socket_url='&e%&socket_url%&7' for reason &&socket_close_reason='&e%&socket_close_reason%&7' and code #socket_close_code=&e%#socket_close_code%&7.");
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,169 @@
+//! @mkb-import-begin
+    // string/index/regexEscape
+        // string/index.txt
+        // Counts occurences of a given string within another string.
+            // Params:
+            //        <string> &source_string : The string to count occurences of &search_string in.
+            //        <string> &search_string : The string to count occurences of.
+            //
+            // Returns the integer amount of occurences found.
+        function countOccurencesInString(&source_string,&search_string);
+            &script_debug_name  = "&9countOccurencesInString&7";
+            debug               = false;
+            ifcontains(%&source_string%,%&search_string%);
+                &split_source_arr[] = split(%&search_string%,%&source_string%);
+                #occurences         = arraysize(&split_source_arr[]);
+                if(%#occurences% == 0); // source string exclusively held repetitions of the search string
+                    #source_length = strlen(%&source_string%);
+                    #search_length = strlen(%&search_string%);
+                    #occurences    = %#source_length% / %#search_length%;
+                endif;
+            endif;
+            return(%#occurences%);
+        endfunction;
+        
+        // Checks if a string matches UUID regex.
+            // Params:
+            //        <string> &check_string : The string to check
+            //
+            // Returns a boolean.
+            //
+        function isStringUUID(&check_string);
+            &script_debug_name = "&9isStringUUID&7";
+            debug              = false;
+            &split_uuid_expr   = "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$";
+            &joint_uuid_expr   = "^[a-f0-9]{32}$";
+            &uuid_exprs[]      = split(", ","%&split_uuid_expr%, %&joint_uuid_expr%");
+            foreach(&uuid_exprs[],&uuid_expr);
+                ifmatches(%&check_string%,%&uuid_expr%);
+                    match_found = true;
+                    break;
+                endif;
+            next;
+            return(%match_found%);
+        endfunction;
+        
+        // Checks if a string matches Boolean regex
+            // Params:
+                // {string} <&check_string>    The String to Check
+            // Returns a Boolean
+        function isStringBoolean(&check_string);
+            &check_string_lcase = lcase(%&check_string%);
+            &boolean_values[]   = split(", ","true, false, 1, 0");
+            return_boolean      = arrayincludes(&boolean_values[],%&check_string_lcase%);
+            return(%return_boolean%);
+        endfunction;
+        
+        // Checks if a String is a valid Integer.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Integer.
+        function isStringInteger(&check_string);
+            ifmatches(%&check_string%,"^[0-9-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Float (without commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringFloat(&check_string);
+            ifmatches(%&check_string%,"^[0-9-]*\.[0-9]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Float/Number (with commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Formatted Number.
+        function isStringFormattedNumber(&check_string);
+            ifmatches(%&check_string%,"^[\d-]+,[\d.,-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+        
+        // Checks if a String is a valid Number, coercable to a Float of some sort.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringNumber(&check_string);
+            &call_functions[] = split(", ","isStringInteger, isStringFloat, isStringFormattedNumber");
+            foreach(&call_functions[],&call_function,#cfi);
+                if(%&call_function% == "isStringInteger");
+                    return_boolean = isStringInteger(%&check_string%);
+                elseif(%&call_function% == "isStringFloat");
+                    return_boolean = isStringFloat(%&check_string%);
+                elseif(%&call_function% == "isStringFormattedNumber");
+                    return_boolean = isStringFormattedNumber(%&check_string%);
+                endif;
+                if(%return_boolean%);
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+        
+        // Coerces a given String to a Number (no decimal points).
+            // Params:
+                // {string} <&convert_string>    The String to Convert.
+                // {number} [#precision=0]       Decimal Precision
+            // Returns the Number result of the coercion.
+        function stringToNumber(&convert_string,#precision=0);
+            #convert_number = coerceNumber(%&convert_string%);
+            return(%#convert_number%);
+        endfunction;
+        
+        function isStringBoolean(&check_string);
+            if(%&check_string% == "");
+                return_boolean = true;
+            else;
+                &boolean_coercable[] = split(", ","0, 1, true, false, True, False");
+                #boolean_index       = indexof(&boolean_coercable[],,%&check_string%);
+                return_boolean       = %#boolean_index% != -1;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+        
+        function stringToBoolean(&convert_string);
+            is_coercable = isStringBoolean(%&convert_string%);
+            if(%is_coercable%);
+                return_boolean := %&convert_string%;
+            elseifmatches(%&convert_string%,"\S");
+                return_boolean  = true;
+            else;
+                return_boolean  = false;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+        
+        function regexEscape(&input_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:141
+            &split_array[]  = split("\\",%&input_string%);
+            foreach(&split_array[],&curr_char,#curr_index);
+                if(%&curr_char% == "\\");
+                    #last_index = #curr_index - 1;
+                    #next_index = #curr_index + 1;
+                    &last_char  = %&split_array[%#last_index%]%;
+                    &next_char  = %&split_array[%#next_index%]%;
+                    
+                    // If this backslash is escaped already (last char == '\'), then we do not need to escape this char.
+                    // If the backslash is escaping another backslash (next char == '\'), then we do not need to escape this char.
+                    if((%&last_char% != "\\") && (%&next_char% != "\\"));
+                        &rejoin_array[] = "\\";
+                    endif;
+                    &rejoin_array[] = %&curr_char%;
+                else;
+                    &rejoin_array[] = %&curr_char%;
+                endif;
+            next;
+            &rejoint_string = join("",&rejoin_array[]);
+            &search_string  = "(?<!\\\\)(?:\+|\*|\?|\^|\$|\.|\[|\]|\{|\}|\(|\)|\||\/)";
+            &escaped_string = regexreplace(&rejoint_string,%&search_string%,"\\\$0");
+            return(%&escaped_string%);
+        endfunction;
+//! @mkb-import-end

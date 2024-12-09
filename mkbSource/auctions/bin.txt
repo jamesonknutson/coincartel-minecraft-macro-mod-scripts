@@ -1,0 +1,132 @@
+// auctions/bin.txt
+	// Purchases and attempts to Collect a BIN Auction Listing.
+		// Params:
+			// {string} [&auction_id]        	The ID of the Auction to bid on. If omitted, will take it as to place a bid on whatever
+			//                               	Listing is currently opened (so long as an Auction Listing GUI is open).
+			// {number} [#bid_amount]        	The amount of Coins to spend on the bid. If omitted, will take it as meaning the minimum
+			//                               	price needed to place the Bid on the Listing specified.
+			// {boolean} [refill_coins=true] 	Whether or not to allow the automatic refilling of Coins should we not have enough to
+			//                               	place the bid.
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /ah Command, so long as a Booster Cookie is
+			//                               	enabled, and/or the current SkyBlock Server Type is HUB.
+			// {number} [#tick_wait=20]      	The amount of Ticks to wait in between click interactions.
+			// {number} [#timeout_sec=30]    	The maximum amount of seconds this Function can run for before timing out and returning
+			//                               	an Error. Set to <= 0 to disable timeouts.
+		// Returns a String ENUM:
+			// SUCCESS           	The Function executed as expected and was successful.
+			// ERROR_TIMEOUT     	The Function exited early due to a timeout.
+			// ERROR_UNAVAILABLE 	The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_NOT_FOUND   	The Function exited due to not being able to find the Auction (can occur if the Auction ID
+			//                   	is invalid, or the Function was called with the Auction ID Parameter omitted without a Listing GUI open).
+			// ERROR_COINS       	The function exited due to not having enough Coins to place the bid for the Auction.
+			// ERROR_EXPIRED     	The function exited due to the Auction being expired by the time we went to go place the Bid for it.
+			// ERROR_UNKNOWN     	The function exited due to an unknown Error.
+			// ERROR_SERVER      	The function exited due to not being able to get onto SkyBlock.
+			// ERROR_BID_AMOUNT  	The function exited due to the Bid Amount being invalid.
+			// ERROR_INVENTORY   	Not enough Inventory Space to collect the Listing.
+			// ERROR_AUCTION_TYPE	The Type of the Auction Listing specified was AUCTION, not BIN.
+		// Example:
+			//	&auction_bid_placed = auctionsPlaceBid(%&auction_id%,%#bid_amount%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+			//	if(%&auction_bid_placed% == "SUCCESS");
+			//	else;
+			//		if(%&auction_bid_placed% == "ERROR_TIMEOUT");
+			//		elseif(%&auction_bid_placed% == "ERROR_UNAVAILABLE");
+			//		elseif(%&auction_bid_placed% == "ERROR_NOT_FOUND");
+			//		elseif(%&auction_bid_placed% == "ERROR_COINS");
+			//		elseif(%&auction_bid_placed% == "ERROR_EXPIRED");
+			//		elseif(%&auction_bid_placed% == "ERROR_UNKNOWN");
+			//		elseif(%&auction_bid_placed% == "ERROR_BID_AMOUNT");
+			//		elseif(%&auction_bid_placed% == "ERROR_SERVER");
+			//		endif;
+			//	endif;
+	function auctionsBuyAndCollectBIN(&auction_id,#bid_amount,refill_coins=true,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			if(true);
+				debug              = true;
+				&script_debug_name = "&6auctionsBuyAndCollectBIN&7";
+				#start_time        = %TIMESTAMP%;
+				do_timeout         = %#timeout_sec% > 0;
+				do_id_lookup       = %&auction_id% != "";
+				do_custom_bid      = %#bid_amount% > 0;
+				&enum_success      = "SUCCESS";
+				&enum_timeout      = "ERROR_TIMEOUT";
+				&enum_unavailable  = "ERROR_UNAVAILABLE";
+				&enum_not_found    = "ERROR_NOT_FOUND";
+				&enum_coins        = "ERROR_COINS";
+				&enum_expired      = "ERROR_EXPIRED";
+				&enum_unknown      = "ERROR_UNKNOWN";
+				&enum_bid_amount   = "ERROR_BID_AMOUNT";
+				&enum_server       = "ERROR_SERVER";
+				&enum_auction_type = "ERROR_AUCTION_TYPE";
+				&enum_inventory    = "ERROR_INVENTORY";
+				
+				if(%TIMESTAMP% < %@#ah_closed_timestamp%);
+					debug_error(%debug%,%&script_debug_name%,"Auction House is currently closed, cannot place bids!");
+					return(%&enum_unavailable%);
+				endif;
+			endif;
+			
+			// Get the Listing Info.
+			if(true);
+				&listing_info[]  = auctionsGetListingInfo(%&auction_id%);
+				listing_hit     := %&listing_info[0]%;
+				if(!%listing_hit%);
+					debug_error(%debug%,%&script_debug_name%,"Failed to get Listing Info for ID: &d%&auction_id%&7.");
+					return(%&enum_not_found%);
+				endif;
+				&listing_id       = %&listing_info[1]%;
+				&listing_type     = %&listing_info[2]%;
+				#listing_price   := %&listing_info[3]%;
+				#listing_bids    := %&listing_info[4]%;
+				listing_ended    := %&listing_info[5]%;
+				listing_claimed  := %&listing_info[6]%;
+				&listing_owner    = %&listing_info[7]%;
+				&listing_profile  = %&listing_info[8]%;
+				&listing_sbid     = %&listing_info[9]%;
+				&listing_name     = %&listing_info[10]%;
+				&listing_mcid     = %&listing_info[11]%;
+				#listing_data    := %&listing_info[12]%;
+				#listing_stack   := %&listing_info[13]%;
+				&listing_buyers   = %&listing_info[14]%;
+				
+				if(%&auction_id% == "");
+					&auction_id = %&listing_id%;
+				endif;
+				
+				if(%&listing_type% == "AUCTION");
+					debug_error(%debug%,%&script_debug_name%,"Listing Type for Auction ID '&9%&auction_id%&7' is &e%&listing_type%&7, cannot BIN this Auction!");
+					return(%&enum_auction_type%);
+				endif;
+				
+				#inventory_room = getStackRoomInventory(%&listing_sbid%);
+				if(%#inventory_room% < %#listing_stack%);
+					debug_error(%debug%,%&script_debug_name%,"Room in Inventory for SBID '&4%&listing_sbid%&c' is only &4%#inventory_room%&c, we need at least &9%#listing_stack%&c to be able to collect this BIN after buying.");
+					return(%&enum_inventory%);
+				endif;
+			endif;
+			
+			attempt_bin = ((!%listing_claimed%) && (!%listing_ended%));
+			attempt_col = !%attempt_bin%;
+			
+			// Attempt to BIN the Item.
+			if(%attempt_bin%);
+				debug_log(%debug%,%&script_debug_name%,"Attempting to BIN Auction ID &d%&auction_id%&7...");
+				#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+				&auction_bid_placed = auctionsPlaceBid(%&auction_id%,%#bid_amount%,%refill_coins%,%allow_command%,%#tick_wait%,%#recursive_timeout%);
+				attempt_col         = %&auction_bid_placed% == "SUCCESS";
+				if(%&auction_bid_placed% == "SUCCESS");
+				else;
+					if(%&auction_bid_placed% == "ERROR_TIMEOUT");
+					elseif(%&auction_bid_placed% == "ERROR_UNAVAILABLE");
+					elseif(%&auction_bid_placed% == "ERROR_NOT_FOUND");
+					elseif(%&auction_bid_placed% == "ERROR_COINS");
+					elseif(%&auction_bid_placed% == "ERROR_EXPIRED");
+					elseif(%&auction_bid_placed% == "ERROR_UNKNOWN");
+					elseif(%&auction_bid_placed% == "ERROR_BID_AMOUNT");
+					elseif(%&auction_bid_placed% == "ERROR_SERVER");
+					endif;
+				endif;
+			endif;
+		endif;
+	endfunction;

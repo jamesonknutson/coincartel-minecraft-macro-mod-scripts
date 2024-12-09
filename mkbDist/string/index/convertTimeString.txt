@@ -1,0 +1,345 @@
+//! @mkb-import-begin
+    // debug/index/debug_error
+        // Logs a message to chat with an error prefix.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_error(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:49
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &error_message = "&4Error > &c%&string%";
+            &error_message = regexreplace(&error_message,"&7","&c");
+            &error_message = "&7%&script_debug_name%&7: %&error_message%";
+            if(%debug_enabled%);
+                log(%&error_message%);
+            endif;
+            return(%&error_message%);
+        endfunction;
+    // string/index/convertENote
+        // Converts a Number formatted in Exponential Notation (e.g. "3.172E10") to standard string decimal form.
+            // Params:
+                // {string} <&enote_string>    The E. Notation Number string to convert.
+                //
+            // Returns the Number coerced into a valid decimal float value. If a non-e-notation string is passed,
+            // the input string is returned as-is.
+        function convertENote(&convert_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:172
+            debug              = true;
+            &script_debug_name = "&9convertENote&7";
+            &convert_string    = replace(&convert_string,",");
+            &return_string     = %&convert_string%;
+            ifmatches(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$");
+                match(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$",{&m_sign_num,&m_leading_num,&m_trailing_num,&m_sign_exponent,&m_exponent_num});
+                output_negative   = %&m_sign_num% == "-";
+                exponent_negative = %&m_sign_exponent% == "-";
+                
+                // Convert Scientific Notation to a Real Number
+                // Multiply the decimal number by 10 raised to the power indicated.
+                // 3.456 x 10^4  = 3.456 x 10,000 = 34560
+                // 3.456 x 10^-4 = 3.456 x .0001  = 0.0003456
+                //
+                
+                //    Convert Scientific Notation without a Calculator
+                //    We’ve shown you how to convert a number expressed in scientific notation to a decimal by solving,
+                //    but this would get more difficult to do manually as the exponent gets larger. There’s an alternate
+                //    way to convert to decimal without solving the equation.
+                //
+                //    If the exponent is positive, move the decimal point in the coefficient to the right one space for each
+                //    value in the exponent.
+                //
+                //    For instance, if the exponent is two, then move the decimal point to the right two spaces. If the exponent
+                //    is negative, then move the decimal point to the left.
+                //
+                //    For example, let’s convert 1.5 × 10^2 to a decimal using this method.
+                //
+                //    1.5 × 10^2 = 15.0  × 10^1
+                //    1.5 × 10^2 = 150.0 × 10^0
+                //    1.5 × 10^2 = 150.0
+                
+                //    For a Positive Exponent (moving decimal point to the right)
+                    //    1.396       x    10^6    =    13.96        x 10^5
+                    //    13.96       x    10^5    =    139.6        x 10^4
+                    //    139.6       x    10^4    =    1396.0       x 10^3
+                    //    1396.0      x    10^3    =    13960.0      x 10^2
+                    //    13960.0     x    10^2    =    139600.0     x 10^1
+                    //    139600.0    x    10^1    =    1396000.0    x 10^0
+                    //    1.396       x    10^6    =    1396000.0
+                //    For a Negative Exponent (moving decimal point to the left)
+                    //    1.396          x    10^-6    = 0.1396         x    10^-5
+                    //    0.1396         x    10^-5    = 0.01396        x    10^-4
+                    //    0.01396        x    10^-4    = 0.001396       x    10^-3
+                    //    0.001396       x    10^-3    = 0.0001396      x    10^-2
+                    //    0.0001396      x    10^-2    = 0.00001396     x    10^-1
+                    //    0.00001396     x    10^-1    = 0.000001396    x    10^ 0
+                    //    0.000001396    x    10^-6    = 0.000001396
+                
+                #m_exponent_num  := %&m_exponent_num%;
+                &m_joint_chars    = "%&m_leading_num%.%&m_trailing_num%";
+                &m_joint_chars[]  = split("",%&m_joint_chars%);
+                do(%#m_exponent_num%);
+                    #m_joint_chars_sz   = arraysize(&m_joint_chars[]);
+                    #m_joint_chars_len  = %#m_joint_chars_sz% - 1;
+                    #curr_decimal_idx   = indexof(&m_joint_chars[],,".");
+                    if(!%exponent_negative%);
+                        #next_decimal_idx = %#curr_decimal_idx% + 1;
+                        if(%#next_decimal_idx% <= %#m_joint_chars_len%);
+                            &m_joint_chars[%#curr_decimal_idx%] = %&m_joint_chars[%#next_decimal_idx%]%;
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        else;
+                            &m_joint_chars[%#curr_decimal_idx%] = "0";
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        endif;
+                    else;
+                        #next_decimal_idx = %#curr_decimal_idx% - 1;
+                        if(%#next_decimal_idx% >= 0);
+                            &m_joint_chars[%#curr_decimal_idx%] = %&m_joint_chars[%#next_decimal_idx%]%;
+                            &m_joint_chars[%#next_decimal_idx%] = ".";
+                        else;
+                            unset(&tmp_joint_chars[]);
+                            &m_joint_chars[%#curr_decimal_idx%] = "0";
+                            push(&tmp_joint_chars[],".",&m_joint_chars[*]);
+                            unset(&m_joint_chars[]);
+                            push(&m_joint_chars[],&tmp_joint_chars[*]);
+                        endif;
+                    endif;
+                loop;
+                &return_string = join("",&m_joint_chars[]);
+                &return_string = regexreplace(&return_string,"\.0*$");
+                &return_string = regexreplace(&return_string,"^\.","0.");
+                &return_string = "%&m_sign_num%%&return_string%";
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // string/index/xFormatNumber
+        // Identical to original `formatnumber`, but passes the input_string through `convertENote` before passing it into `formatnumber`.
+            // Params:
+                // {string} <&input_string>          The Number or String to Format into a Number. If this Number includes Commas, they will be stripped
+                //                                   from the string passed to `formatnumber`.
+                // {string} [&decimal_precision]     The desired level of precision following the decimal. If omitted or an empty string, will
+                //                                   include the amount of decimals included in the <&input_string>. If provided, should be an integer >= 0.
+                //                                   If set to 0, will not include a decimal character or trail at all. Providing a value that is incoherent
+                //                                   to the level of decimal precision present in the <&input_string> will result in the output being rounded
+                //                                   to the desired level of precision.
+                // {boolean} [strip_commas=false]    Whether or not to strip commas when formatting the Number. If set to True, and [&decimal_precision]
+                //                                   is set to "0", this Function will return a valid Integer.
+            // Returns the result of the `formatnumber` expression.
+            // Examples:
+                // Converting a formatted string Number to a valid Integer:
+                    //    &input_string      = "1009.0131";
+                    //    &decimal_precision = "0";
+                    //    strip_commas       = true;
+                    //    #output_integer    = xFormatNumber(%&input_string%,%&decimal_precision%,%strip_commas%);
+                // Converting a valid Integer to a formatted (comma split) string:
+                    //    &input_string      = "10000";
+                    //    &decimal_precision = "";
+                    //    strip_commas       = false;
+                    //    &output_string     = xFormatNumber(%&input_string%,%&decimal_precision%,%strip_commas%);
+        function xFormatNumber(&input_string,&decimal_precision,strip_commas=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:315
+            &return_string = replace(&input_string,",");
+            &return_string = convertENote(%&return_string%);
+            &return_string = formatnumber(%&return_string%,%&decimal_precision%,%strip_commas%);
+            return(%&return_string%);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // string/index/xEval
+        // Identical to original `eval`, but passes the result of the function along to `convertENote` to ensure decimal values are conserved.
+            // Params:
+                // {string} <&expression>              The arithmetic expression to evaluate with `eval`.
+                // {boolean} [coerce_integer=false]    If true, will attempt to coerce the result of the evaluation from a decimal value into an integer.
+            // Returns the result of `eval` passed through `convertENote`, and optionally coerced into an Integer if [coerce_integer] is True.
+        function xEval(&expression,coerce_integer=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:276
+            debug              = false;
+            &script_debug_name = "&9xEval&7";
+            debug_log(%debug%,%&script_debug_name%,"evaluating '%&expression%', coerce_integer: %coerce_integer%.");
+            &return_string     = eval(%&expression%);
+            debug_log(%debug%,%&script_debug_name%,"got result: '&d%&return_string%&7', passing thru convertENote");
+            &return_string     = convertENote(%&return_string%);
+            debug_log(%debug%,%&script_debug_name%,"convertENote returned: '&d%&return_string%&7'");
+            if(%coerce_integer%);
+                debug_log(%debug%,%&script_debug_name%,"coercing '&d%&return_string%&7' to a number");
+                &return_string = formatnumber(%&return_string%,0,true);
+            endif;
+            debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'");
+            return(%&return_string%);
+        endfunction;
+    // math/index/floatWithinBounds
+        // Checks if <&check_float> is greater than or equal to the minimum bound and less than or equal to the maximum bound.
+            // Params:
+                // {string} <&check_float>    The Float to Check. Can be any Number, Float or Integer.
+                // {string} <&max_bound>      The maximum boundary. Can be any Number, Float or Integer.
+                // {string} <&min_bound>      The minimum boundary. Can be any Number, Float or Integer.
+            // Returns a boolean indicating whether or not the Float is within the Boundaries.
+            // Example:
+                //    &check_float = "10.091";
+                //    &max_bound   = "10";
+                //    &min_bound   = "-50.10";
+                //    in_bounds    = floatWithinBounds(%&check_float%,%&max_bound%,%&min_bound%);
+                //    log(%in_bounds%); // 'false'
+        function floatWithinBounds(&check_float,&max_bound,&min_bound);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:120
+            debug              = true;
+            &script_debug_name = "&6floatWithinBounds&7";
+            debug_log(%debug%,%&script_debug_name%,"Checking if float '%&check_float%' is <= '%&max_bound%' and >= '%&min_bound%'.");
+            &check_float       = xFormatNumber(%&check_float%,"",true);
+            &max_bound         = xFormatNumber(%&max_bound%,"",true);
+            &min_bound         = xFormatNumber(%&min_bound%,"",true);
+            if((%&check_float% == %&max_bound%) || (%&check_float% == %&min_bound%));
+                return_boolean = true;
+            else;
+                &diff_max = xEval("%&max_bound% - %&check_float%");
+                &diff_min = xEval("%&check_float% - %&min_bound%");
+                ifmatches(%&diff_max%,"^-");
+                    return_boolean = false
+                elseifmatches(%&diff_min%,"^-");
+                    return_boolean = false
+                else;
+                    return_boolean = true;
+                endif;
+            endif;
+            
+            if(%return_boolean%);
+                debug_log(%debug%,%&script_debug_name%,"float '%&check_float%' is within the bounds of '%&max_bound%' and '%&min_bound%'.");
+            else;
+                debug_error(%debug%,%&script_debug_name%,"float '%&check_float%' is not within the bounds of '%&max_bound%' and '%&min_bound%'.");
+            endif;
+            return(%return_boolean%);
+        endfunction;
+    // string/index/convertTimeString
+        // Takes an Input of a Time String and converts it into a Number of the specified Units, optionally formatting the Value.
+            // Params:
+                // {string} <&time_string>        The Time String to Parse.
+                // {string} [...&formatting[]]    Catch-all String Array of `<key>: <value>` pairs that dictate how to format
+                //                                the Return Value of this Function. Pairings are as follows:
+                //                                [unit: s]     : [y, mo, wk, d, h, m, s - The base unit to use in the conversion
+                //                                [comma: false]: {boolean} - Whether or not to use comma delimiters in the return value
+                //                                [float: 0]    : {number} - Amount of decimal values to round the return value off to in the return value.
+            // Returns the Time String formatted according to the rules specified in [...&formatting]. By default,
+            // this function will return the converted amount of Seconds as a valid Number without Commas, rounded off to nearest Integer.
+            // Example:
+                //    &time_string  = "1h 30m";
+                //    #time_seconds = convertTimeString(%&time_string%,"unit: s","comma: false","float: 0");
+                //    log(%#time_seconds%); // '5400'
+        function convertTimeString(&time_string,...&formatting[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:407
+            // Setup Function Variables
+            if(true);
+                &script_debug_name = "&8convertTimeString&7";
+                debug              = true;
+                
+                // Setup Defaults
+                if(true);
+                    &format_unit  = "s";
+                    #format_float = 0;
+                    format_comma  = false;
+                endif;
+                
+                // Setup Time Unit Map
+                if(true);
+                    // Setup Time Unit Expressions
+                    if(true);
+                        &expr_year   = "([\d.]+).*?\by";
+                        &expr_month  = "([\d.]+).*?mo";
+                        &expr_week   = "([\d.]+).*?w";
+                        &expr_day    = "([\d.]+).*?d";
+                        &expr_hour   = "([\d.]+).*?h";
+                        &expr_minute = "([\d.]+).*?m(?!o)";
+                        &expr_second = "([\d.]+).*?\bs";
+                    endif;
+                    
+                    &map_time_unit_chars[] = split(", ","y, mo, wk, d, h, m, s");
+                    #map_time_unit_sec[]   = split(", ","31540000, 2628000, 604800, 86400, 3600, 60, 1");
+                    &map_time_unit_exprs[] = split(", ","&expr_year, &expr_month, &expr_week, &expr_day, &expr_hour, &expr_minute, &expr_second");
+                endif;
+                
+                // Read Formatting Parameters
+                if(true);
+                    foreach(&formatting[],&formatting_pair,#f);
+                        ifmatches(%&formatting_pair%,"^(UNIT|COMMA|FLOAT): (.+)$");
+                            match(%&formatting_pair%,"^(UNIT|COMMA|FLOAT): (.+)$",{&key,&value});
+                            &key = ucase(%&key%);
+                            if(%&key% == "UNIT");
+                                #map_time_unit_chars_index = indexof(&map_time_unit_chars[],,%&value%);
+                                if(%#map_time_unit_chars_index% != -1);
+                                    &format_unit = ucase(%&value%);
+                                endif;
+                            elseif(%&key% == "COMMA");
+                                ifmatches(%&value%,"^true|false$");
+                                    format_comma := lcase(%&value%);
+                                endif;
+                            elseif(%&key% == "FLOAT");
+                                ifmatches(%&value%,"^(\d+)$");
+                                    #format_float := %&value%;
+                                endif;
+                            endif;
+                        endif;
+                    next;
+                    strip_commas = !%format_comma%;
+                    debug_log(%debug%,%&script_debug_name%,"formatting '&d%&time_string%&7' using unit: %&format_unit%, #format_float: %#format_float%, format_comma: %format_comma%, strip_commas: %strip_commas%");
+                endif;
+                
+                // For each Time Unit, attempt to parse out the supplied Value for it.
+                if(true);
+                    #max_integer    = 2147483645;
+                    #min_integer    = -2147483648;
+                    #div_factor_idx = indexof(&map_time_unit_chars[],,%&format_unit%);
+                    #div_factor     = %#map_time_unit_sec[%#div_factor_idx%]%;
+                    &extracted_sec  = "0";
+                    foreach(&map_time_unit_exprs[],&map_time_unit_expr,#mtue);
+                        debug_log(%debug%,%&script_debug_name%,"looking for match between %&time_string% and %%&map_time_unit_expr%%");
+                        ifmatches(%&time_string%,%%&map_time_unit_expr%%,&extracted_val,1);
+                            #conversion_sec = %#map_time_unit_sec[%#mtue%]%;
+                            debug_log(%debug%,%&script_debug_name%,"found %&extracted_val%x %&map_time_unit_chars[%#mtue%]% (conversion: %#conversion_sec%), adding to &&extracted_sec: %&extracted_sec%");
+                            &converted_sec  = xEval("%&extracted_val% * %#conversion_sec%");
+                            debug_log(%debug%,%&script_debug_name%,"converted_sec (%&extracted_val% * %#conversion_sec%) = %&converted_sec%");
+                            &extracted_sec  = xEval("(%&extracted_val% * %#conversion_sec%) + %&extracted_sec%");
+                        endif;
+                    next;
+                    
+                    &extracted_units = xEval("%&extracted_sec% / %#div_factor%");
+                    debug_log(%debug%,%&script_debug_name%,"got a total of %&extracted_units%x %&format_unit% (&&extracted_sec: %&extracted_sec% / #div_factor: %#div_factor%)");
+                    if(%#format_float% <= 0);
+                        // Need to check if <&extracted_units> is >= <#min_integer> and <= <#max_integer>. If it is, then we
+                        // can round it off and return it. If it is not, then we need to round it to the nearest boundary.
+                        in_bounds = floatWithinBounds(%&extracted_units%,%#max_integer%,%#min_integer%);
+                        if(!%in_bounds%);
+                            ifmatches(%&extracted_units%,"^-");
+                                &extracted_units = %#min_integer%;
+                            else;
+                                &extracted_units = %#max_integer%;
+                            endif;
+                        endif;
+                    endif;
+                    &return_string = xFormatNumber(%&extracted_units%,%#format_float%,%strip_commas%);
+                endif;
+                
+                return(%&return_string%);
+            endif;
+        endfunction;
+//! @mkb-import-end

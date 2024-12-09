@@ -1,0 +1,43 @@
+//! @mkb-import-begin
+    // info/index/getEntityPos
+        // Given an Entity Name expression (and optionally the Entity Type and/or Range), uses the Entities Iterator to find them and return their position.
+            // Params:
+            //      {string} <&entity_expr>         A regular expression to use in the iterator filter
+            //      {string} [&entity_type]         Optional entity type to use in the iterator filter
+            //      {string} [&entity_range]        Optional max range to use in the iterator filter
+            //      {boolean} [return_float=false]  If set to true, will return the entity's XPOSF, YPOSF, ZPOSF instead of integers.
+            //
+            // Returns an Array where element 0 = XPOS[F], 1 = YPOS[F], 2 = ZPOS[F]. Will return a string array no matter what,
+            // if cannot find entity the first value of this array will be an empty string.
+        function getEntityPos(&entity_expr,&entity_type="",&entity_range="",return_float=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:610
+            &filter_terms[] = "name:%&entity_expr%";
+            if(%&entity_type% != "");
+                &filter_terms[] = "type:%&entity_expr%";
+            endif;
+            &filter_terms = join(",",&filter_terms[]);
+            &filter_terms = "filter:{%&filter_terms%}"
+            if(%&entity_range% != "");
+                &filter_terms = "%&filter_terms%,range:%&entity_range%";
+            endif;
+            
+            foreach("entities(%&filter_terms%)");
+                if(%return_float%);
+                    &out_arr[] = %ENTITYXPOSF%;
+                    &out_arr[] = %ENTITYYPOSF%;
+                    &out_arr[] = %ENTITYZPOSF%;
+                else;
+                    &out_arr[] = %ENTITYXPOS%;
+                    &out_arr[] = %ENTITYYPOS%;
+                    &out_arr[] = %ENTITYZPOS%;
+                endif;
+                found = true;
+                break;
+            next;
+            
+            if(!%found%);
+                &out_arr[0] = "";
+            endif;
+            return(&out_arr[]);
+        endfunction;
+//! @mkb-import-end

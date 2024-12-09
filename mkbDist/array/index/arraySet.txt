@@ -1,0 +1,21 @@
+//! @mkb-import-begin
+    // array/index/arraySet
+        // Gets a Set of all the Unique Values present in the Array.
+            // Params:
+                // {string} <&array[]>    The Array to iterate over.
+                //
+            // Returns an Array of all the Unique Values in the Array.
+            // Example:
+                //    &array_a[] = split(", ","a, a, b, c, d, d, e");
+                //    &array_b[] = arraySet(&array_a[]); // a, b, c, d, e
+        function arraySet(&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:413
+            foreach(&array[],&array_element,#a);
+                #unique_index = indexof(&unique_array[],,%&array_element%);
+                if(%#unique_index% == -1);
+                    &unique_array[] = %&array_element%;
+                endif;
+            next;
+            return(&unique_array[]);
+        endfunction;
+//! @mkb-import-end

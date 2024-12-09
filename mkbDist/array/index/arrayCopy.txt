@@ -1,0 +1,13 @@
+//! @mkb-import-begin
+    // array/index/arrayCopy
+        // Returns a copy of the input Array.
+            // Params:
+            //        <array> <&array[]>    The Array to Copy
+            //
+            // Returns a copy of the same Array.
+        function arrayCopy(&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:61
+            push(&return_array[],&array[*]);
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,130 @@
+// auctions/indexPlayer.txt
+	// Indexes all of a given Player's Auctions.
+		// Params:
+			// {string} <&player_name>   	The Name of the Player to Index.
+			// {number} [#tick_wait=20]  	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+		// Returns an Array of Tunnel Joint Array Strings where each String represents a Listing the Player has for Sale.
+		// The value of each Array String is the same as the Return Value from `auctionsIndexSlotData()`.
+		// Example:
+			//	&player_listings[] = auctionsIndexPlayer("Blitzkrieg");
+			//	foreach(&player_listings[],&player_listing,#pli);
+			//		&listing_info[] = split("|",%&player_listing%);
+			//		listing_hit       := %&listing_info[0]%;
+			//		&listing_id        = %&listing_info[1]%;
+			//		&listing_type      = %&listing_info[2]%;
+			//		#listing_price    := %&listing_info[3]%;
+			//		#listing_bids     := %&listing_info[4]%;
+			//		listing_ended     := %&listing_info[5]%;
+			//		listing_claimed   := %&listing_info[6]%;
+			//		&listing_owner     = %&listing_info[7]%;
+			//		&listing_profile   = %&listing_info[8]%;
+			//		&listing_sbid      = %&listing_info[9]%;
+			//		&listing_name      = %&listing_info[10]%;
+			//		&listing_mcid      = %&listing_info[11]%;
+			//		#listing_data     := %&listing_info[12]%;
+			//		#listing_stack    := %&listing_info[13]%;
+			//		&listing_buyers    = %&listing_info[14]%;
+			//		#listing_end_time := %&listing_info[15]%;
+			//	next;
+	function auctionsIndexPlayer(&player_name,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6auctionsIndexPlayer&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			// Validate Player
+			if(true);
+				&player_profile[] = getMinecraftProfile(%&player_name%);
+				player_found     := %&player_profile[0]%;
+				if(!%player_found%);
+					debug_error(%debug%,%&script_debug_name%,"Could not resolve &&player_name='&4%&player_name%&7' to any known Player!");
+					return(&return_array[]);
+				endif;
+				
+				&player_name = %&player_profile[1]%;
+				&player_uuid = %&player_profile[2]%;
+			endif;
+		endif;
+		
+		// Loop until we are in their View Auctions GUI, or we encounter an Error.
+		if(true);
+			&player_auctions    = "%&player_name%'s Auctions";
+			@ah_failure         = false;
+			@&ah_failure_string = "";
+			allow_command       = true;
+			
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						error_detected = true;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if we are in <playername>'s Auctions GUI
+				if(%CONTAINERNAME% == %&player_auctions%);
+					#container_start = 0;
+					#container_end   = %CONTAINERSLOTS% - 37;
+					for(#container_slot,%#container_start%,%#container_end%);
+						&container_item = getslotitemnbt(%#container_slot%,,#container_stack,#container_data,&container_nbt);
+						&container_nbt  = strip(%&container_nbt%);
+						if((%&container_item% != "air") && ((%&container_item% != "stained_glass_pane") || (%#container_data% != 15)));
+							&container_name      = getItemName(%&container_nbt%,%&container_item%);
+							&container_sbid      = getItemSBID(%&container_nbt%);
+							&test_container_name = trim(%&container_name%);
+							if((%&test_container_name% != "") && (%&test_container_name% != "Claim All") && (%&test_container_name% != "Go Back") && (%&test_container_name% != "Sort") && (%&test_container_name% != "Create Auction"));
+								&listing_info[]     = auctionsIndexSlotData(%#container_slot%);
+								listing_info_valid := %&listing_info[0]%;
+								if(%listing_info_valid%);
+									&return_array[] = join("|",&listing_info[]);
+								endif;
+							endif;
+						endif;
+					next;
+					debug_log(%debug%,%&script_debug_name%,"Successfully indexed all Auctions.");
+					auctions_indexed = true;
+					break;
+				endif;
+				
+				// 3. If we have already issued the Command, check to see if we have hit an Error of some sort.
+				if((%command_issued%) && (%@ah_failure%));
+					if(%@&ah_failure_string% == "This player doesn't have any active auctions!");
+						debug_error(%debug%,%&script_debug_name%,"This Player has no Auctions to Index.");
+						error_detected = true;
+						break;
+					endif;
+					@ah_failure         = false;
+					@&ah_failure_string = "";
+				endif;
+				
+				// 4. If we are not in <playername>'s Auctions GUI yet, try to get into it.
+				if(true);
+					can_issue_command  = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+					if(%can_issue_command%);
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						&auctions_opened   = auctionsOpen(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+						if(%&auctions_opened% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"&bauctionsOpen(%allow_command%,%#tick_wait%,%#recursive_timeout%);&7 returned Error Code '&4%&auctions_opened%&7'.");
+							error_detected = true;
+							break;
+						endif;
+						
+						wait("1000ms");
+						echo("/ah %&player_name%");
+						command_issued = true;
+					endif;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until((%auctions_indexed%) || (%error_detected%));
+		endif;
+		
+		return(&return_array[]);
+	endfunction;

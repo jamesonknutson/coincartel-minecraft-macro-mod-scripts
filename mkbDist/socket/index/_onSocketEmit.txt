@@ -1,0 +1,37 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // socket/index/_onSocketEmit
+        // Handles the onSocketEmit Event
+            // Params:
+                // {string} <&socket_name>    The Name of the Socket as defined in the `socketOpen` Action
+                // {string} <&socket_data>    The Data received by the Socket
+        function _onSocketEmit(&socket_name,&socket_data);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/socket/index.txt:80
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6_onSocketEmit";
+            endif;
+            
+            debug_log(%debug%,%&script_debug_name%,"Received Data from &&socket_name='&e%&socket_name%&7', data &&socket_data='&e%&socket_data%&7'.");
+        endfunction;
+//! @mkb-import-end

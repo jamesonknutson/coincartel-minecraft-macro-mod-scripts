@@ -1,0 +1,87 @@
+// nert/extractStandardVariables.txt
+	// Extracts the Standard Variables from a Flip Instruction Data JSON.
+		// Params:
+			// {string} <&instruction_data>	The Flip Instruction Data's JSON String.
+			//
+		// Returns an Array:
+			// 0 {string} &flip_sbid    	The SBID of the Item to be flipped.
+			// 1 {string} &flip_time    	The UNIX Milliseconds Timestamp of when this Instruction was posted to the API.
+			// 2 {string} &flip_type    	The Type of this Instruction, one of: 'BIN2BIN', 'AH2BIN', 'MARKETMANIPULATION', or 'REGRESSION'.
+			// 3 {number} #flip_profit  	The Sum Expected Profit of all the Flips in this Instruction.
+			// 4 {number} #flip_newprice	The Price we should re-list this Listing at, if won.
+			// 5 {string} &flip_uuids   	Tunnel Joint Array of Auction UUID Strings.
+		// Example:
+			//	&standard_vars[] = nertExtractStandardVariables(%&instruction_data%);
+			//	&flip_sbid       = %&standard_vars[0]%;
+			//	&flip_time       = %&standard_vars[1]%;
+			//	&flip_type       = %&standard_vars[2]%;
+			//	#flip_profit    := %&standard_vars[3]%;
+			//	#flip_newprice  := %&standard_vars[4]%;
+			//	&flip_uuids[]    = split("|",%&standard_vars[5]%);
+	function nertExtractStandardVariables(&instruction_data);
+		&flip_sbid = jsonget("name",%&instruction_data%);
+		&flip_time = jsonget("timeAdded",%&instruction_data%);
+		&flip_type = jsonget("type",%&instruction_data%);
+		&flip_type = ucase(%&flip_type%);
+		
+		// Profit:
+		//	Regression: 'predictedProfit'
+		//	AH2Bin: 'predictedProfit'
+		//	BIN2BIN (singleBin = true variant): 'predictedProfit'
+		//	BIN2BIN (singleBin = false variant): 'predictedProfit'
+		//	marketManipulation: 'combinedProfit'
+		
+		// New Price:
+		//	Regression: 'targetPrice'
+		//	AH2Bin: 'lowestPrice' - 1
+		//	BIN2BIN (singleBin = true variant): 'targetPrice'
+		//	BIN2BIN (singleBin = false variant): 'secondLowestPrice' - 1
+		//	marketManipulation: 'lowestPrice'
+		//
+		
+		if(%&flip_type% != "MARKETMANIPULATION");
+			&flip_profit  = xJsonGet("predictedProfit",%&instruction_data%);
+			&flip_uuids[] = jsonget("uuid",%&instruction_data%);
+		else;
+			&flip_profit  = xJsonGet("combinedProfit",%&instruction_data%);
+			&flip_uuids   = jsonget("uuidList",%&instruction_data%);
+			&json_uuids[] = getjsonasarray(%&flip_uuids%);
+			#json_uuids   = arraysize(&json_uuids[]);
+			#final_index  = %#json_uuids% - 1;
+			#start_index  = 1;
+			for(#i,%#start_index%,%#final_index%);
+				&flip_uuids[] = %&json_uuids[%#i%]%;
+			next;
+		endif;
+		#flip_profit = coerceNumber(%&flip_profit%);
+		
+		&flip_uuids = join("|",&flip_uuids[]);
+		if(%&flip_type% == "REGRESSION");
+			&flip_newprice = xJsonGet("targetPrice",%&instruction_data%);
+			#flip_newprice = coerceNumber(%&flip_newprice%);
+		elseif(%&flip_type% == "MARKETMANIPULATION");
+			&flip_newprice = xJsonGet("lowestPrice",%&instruction_data%);
+			#flip_newprice = coerceNumber(%&flip_newprice%);
+		elseif(%&flip_type% == "AH2BIN");
+			&flip_newprice = xJsonGet("lowestPrice",%&instruction_data%);
+			#flip_newprice = coerceNumber(%&flip_newprice%);
+			#flip_newprice = %#flip_newprice% - 1;
+		elseif(%&flip_type% == "BIN2BIN");
+			single_bin = jsonget("singleBin",%&instruction_data%);
+			if(%single_bin%);
+				&flip_newprice = xJsonGet("targetPrice",%&instruction_data%);
+				#flip_newprice = coerceNumber(%&flip_newprice%);
+			else;
+				&flip_newprice = xJsonGet("secondLowestPrice",%&instruction_data%);
+				#flip_newprice = coerceNumber(%&flip_newprice%);
+				#flip_newprice = %#flip_newprice% - 1;
+			endif;
+		else;
+			debug_log(%debug%,%&script_debug_name%,"Invalid &&flip_type: '&4%&flip_type%&c'!");
+		endif;
+		
+		&return_array[] = split(", ","%&flip_sbid%, %&flip_time%, %&flip_type%, %#flip_profit%, %#flip_newprice%, %&flip_uuids%");
+		if(%debug%); log(" "); endif;
+		
+		return(&return_array[]);
+	endfunction;

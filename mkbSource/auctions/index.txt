@@ -1,0 +1,985 @@
+// auctions/index.txt
+	// Opens the Auction House to the Main GUI.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /bz Command.
+			// {number} [#tick_wait=20]      	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]    	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+		// Returns a String ENUM of:
+			// SUCCESS      	Function was successful
+			// ERROR_TIMEOUT	Function timed out
+			// ERROR_CLOSED 	Auction House is Closed
+			// ERROR_UNKNOWN	Unknown Error occurred
+		// Example:
+		//	&auctions_opened = auctionsOpen(%allow_command%,%#tick_wait%,%#timeout_sec%);
+		//	if(%&auctions_opened% == "SUCCESS");
+		//	else;
+		//		if(%&auctions_opened% == "ERROR_TIMEOUT");
+		//		elseif(%&auctions_opened% == "ERROR_CLOSED");
+		//		elseif(%&auctions_opened% == "ERROR_UNKNOWN");
+		//		endif;
+		//	endif;
+	function auctionsOpen(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9auctionsOpen&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&target_guis[]     = split(", ","Co-op Auction House, Auction House");
+			&str_enum_success  = "SUCCESS";
+			&str_enum_timeout  = "ERROR_TIMEOUT";
+			&str_enum_closed   = "ERROR_CLOSED";
+			&str_enum_unknown  = "ERROR_UNKNOWN";
+			
+			debug_log(%debug%,%&script_debug_name%,"allow_command: %allow_command%, tick_wait: %#tick_wait%, timeout_sec: %#timeout_sec%");
+		endif;
+		
+		// Begin Looping until we are in the correct GUI.
+		if(true);
+			&exact_auction_guis[] = split(", ","Create Auction, Create BIN Auction, Auction Stats, Auctions Browser, Your Bids");
+			&rough_auction_guis[] = split(", ","BIN Auction View, Auction View");
+			&regex_auction_gui    = "^Auctions: \".*";
+			do;
+				// 1. Check if we are in a valid GUI
+				if(%GUI% == "GUICHEST");
+					#target_index = indexof(&target_guis[],,%CONTAINERNAME%);
+					if(%#target_index% != -1);
+						&return_string = %&str_enum_success%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if the Function has timed out
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&str_enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 3. Figure out what action to take dependant on which GUI we are currently in.
+				if(true);
+					&action_type = "OPEN";
+					if(%GUI% == "GUICHEST");
+						#exact_index = indexof(&exact_auction_guis[],,%CONTAINERNAME%);
+						#rough_index = indexof(&rough_auction_guis[],,%CONTAINERNAME%);
+						ifmatches(%CONTAINERNAME%,%&regex_auction_gui%);
+							&action_type = "BACK";
+						elseif(%#exact_index% != -1);
+							&action_type = "BACK";
+						elseif(%#rough_index% != -1);
+							&action_type = "CLOSE";
+							#arrow_slot = findItemContainer(false,"MCID: arrow","NAME: Go Back");
+							if(%#arrow_slot% != -1);
+								&action_type = "BACK";
+							endif;
+						else;
+							&action_type = "CLOSE";
+						endif;
+					elseif(%GUI% != "NONE");
+						&action_type = "CLOSE";
+					endif;
+					
+					if(%&action_type% == "CLOSE");
+						localGUI("NONE");
+					elseif(%&action_type% == "BACK");
+						#arrow_slot = findItemContainer(false,"MCID: arrow","NAME: Go Back");
+						if(%#arrow_slot% != -1);
+							&init_gui     = getContainerString(true);
+							#waited_ticks = 0;
+							do;
+								// 1. Check if we are in a valid GUI
+								if(%GUI% == "GUICHEST");
+									#target_index = indexof(&target_guis[],,%CONTAINERNAME%);
+									if(%#target_index% != -1);
+										&return_string = %&str_enum_success%;
+										break;
+									endif;
+								endif;
+								
+								// 2. Check if the Function has timed out
+								if(%do_timeout%);
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										debug_error(%debug%,%&script_debug_name%,"Function timed out");
+										&return_string = %&str_enum_timeout%;
+										break;
+									endif;
+								endif;
+								
+								// 3. Check if we can click
+								can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+								if(%can_click%);
+									slotclick(%#arrow_slot%);
+								endif;
+								
+								// 4. Check if the GUI has updated
+								gui_updated = enteredNewGUI(%&init_gui%,true);
+								if(%gui_updated%);
+									break;
+								endif;
+								
+								wait("1t");
+								inc(#waited_ticks);
+							until((%gui_updated%) || (%&return_string% != ""));
+						endif;
+					elseif(%&action_type% == "OPEN");
+						if(%allow_command%);
+							use_command = isCookieEnabled(30);
+						endif;
+						
+						debug_log(%debug%,%&script_debug_name%,"allow_command: %allow_command%, use_command: %use_command%");
+						
+						#use_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						if(%use_command%);
+							entered_gui  = remoteGUI("AUCTION_HOUSE",%#tick_wait%,%#use_timeout%);
+						else;
+							entered_gui  = goto("AUCTION",true,%#use_timeout%);
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		return(%&return_string%);
+	endfunction;
+	
+	// Opens the Auction House to the Auction Browser GUI.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /bz Command.
+			// {number} [#tick_wait=20]      	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]    	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+		// Returns a String ENUM of:
+			// SUCCESS      	Function was successful
+			// ERROR_TIMEOUT	Function timed out
+			// ERROR_CLOSED 	Auction House is Closed
+			// ERROR_UNKNOWN	Unknown Error occurred
+	function auctionsOpenBrowser(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9auctionsOpenBrowser&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&target_gui_regex  = "^(?:Auctions(?: Browser|: \".*))$";
+			&str_enum_success  = "SUCCESS";
+			&str_enum_timeout  = "ERROR_TIMEOUT";
+			&str_enum_closed   = "ERROR_CLOSED";
+			&str_enum_unknown  = "ERROR_UNKNOWN";
+			
+			debug_log(%debug%,%&script_debug_name%,"allow_command: %allow_command%, tick_wait: %#tick_wait%, timeout_sec: %#timeout_sec%");
+		endif;
+		
+		// Begin Looping until we are in the correct GUI.
+		if(true);
+			&back_exact_guis[]    = split(", ","Create Auction, Create BIN Auction, Auction Stats, Your Bids");
+			&back_rough_guis[]    = split(", ","BIN Auction View, Auction View");
+			do;
+				// 1. Check if we are in a valid GUI
+				if(%GUI% == "GUICHEST");
+					ifmatches(%CONTAINERNAME%,%&target_gui_regex%);
+						&return_string = %&str_enum_success%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if the Function has timed out
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&str_enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 3. Figure out what action to take dependant on which GUI we are currently in.
+				if(true);
+					if((%GUI% == "GUICHEST") && ((%CONTAINERNAME% == "Co-op Auction House") || (%CONTAINERNAME% == "Auction House")));
+						#browser_slot = findItemContainer(true,"MCID: gold_block","NAME: Auctions Browser");
+						if(%#browser_slot% != -1);
+							&init_gui     = getContainerString(true);
+							#waited_ticks = 0;
+							do;
+								// 1. Check if we have changed our GUI.
+								entered_new_gui = enteredNewGUI(%&init_gui%,true);
+								if(%entered_new_gui%);
+									break;
+								endif;
+								
+								// 2. Check if the Function has timed out
+								if(%do_timeout%);
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										debug_error(%debug%,%&script_debug_name%,"Function timed out");
+										&return_string = %&str_enum_timeout%;
+										break;
+									endif;
+								endif;
+								
+								// 3. Click, if we can click.
+								can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+								if(%can_click%);
+									slotclick(%#browser_slot%);
+								endif;
+								
+								wait("1t");
+								inc(#waited_ticks);
+							until((%entered_new_gui%) || (%&return_string% != ""));
+						endif;
+					else;
+						#new_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						&opened_ah   = auctionsOpen(%allow_command%,%#tick_wait%,%#new_timeout%);
+						if(%&opened_ah% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"auctionsOpen returned error &4%&opened_ah%&c, breaking early");
+							&return_string = %&opened_ah%;
+							break;
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		return(%&return_string%);
+	endfunction;
+	
+	// Retrieves the current Filtered Search Term.
+		// Params: None
+		// Returns an Empty String to indicate no text/invalid GUI/cannot determine, or the String that is being filtered.
+	function auctionsFilterGetSearchTerm();
+		&extract_sign_expr      = "Filtered: (.+?)\",";
+		&extract_arrow_expr     = "To Auctions: \"(.+?)\"\"";
+		&extract_container_expr = "Auctions: \"(.+?)(?:\"$)?";
+		if((%GUI% == "GUIEDITSIGN") || (%GUI% == "GUICHEST"));
+			&search_text = %CONTAINERNAME%
+			&search_expr = %&extract_container_expr%;
+			
+			if(%GUI% == "GUICHEST");
+				// Try to find the Sign that says 'Search', or the Arrow that says 'Go Back'.
+				#search_sign_slot = findItemContainer(false,"MCID: sign","NAME: Search");
+				#arrow_slot       = findItemContainer(false,"MCID: arrow","NAME: Go Back");
+				&mouse_item       = getmouseitem(,#mouse_stack,#mouse_data,&mouse_nbt);
+				&mouse_nbt        = strip(%&mouse_nbt%);
+				if(%#search_sign_slot% != -1);
+					&f_item      = getslotitemnbt(%#search_sign_slot%,,#f_stack,#f_data,&search_text);
+					&search_text = strip(%&search_text%);
+					&search_expr = %&extract_sign_expr%;
+				elseif((%&mouse_item% == "arrow") || (%&mouse_item% == "sign"));
+					&mouse_name = getItemName(%&mouse_nbt%,%&mouse_item%);
+					if((%&mouse_item% == "sign") && (%&mouse_name% == "Search"));
+						&search_text = %&mouse_nbt%;
+						&search_expr = %&extract_sign_expr%;
+					elseif((%&mouse_item% == "arrow") && (%&mouse_name% == "Go Back"));
+						&search_text = %&mouse_nbt%;
+						&search_expr = %&extract_arrow_expr%;
+					endif;
+				elseif(%#arrow_slot% != -1);
+					&f_item      = getslotitemnbt(%#arrow_slot%,,#f_stack,#f_data,&search_text);
+					&search_text = strip(%&search_text%);
+					&search_expr = %&extract_arrow_expr%;
+				endif;
+			endif;
+			
+			ifmatches(%&search_text%,%&search_expr%,&capture_group,1);
+				&return_string = %&capture_group%;
+			endif;
+		endif;
+		return(%&return_string%);
+	endfunction;
+	
+	// Gets all currently active filtering terms for the Auctions Browser GUI.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /bz Command.
+			// {number} [#tick_wait=20]      	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]    	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+		// Returns an Array:
+			// 0 {string} &f_category	The Category that is currently open. One of: WEAPONS, ARMOR, ACCESSORIES, CONSUMABLES, BLOCKS,
+			//                       	or TOOLS_AND_MISC. If the function returned an error, this will be 'ERROR_<...>'
+			// 1 {string} &f_search  	The Search Term that is currently active. Empty string if no Search Term Parameter is in use.
+			// 2 {string} &f_sort    	The Sort Term that is currently active. One of: HIGHEST, LOWEST, ENDING_SOON, MOST_BIDS, or RANDOM.
+			// 3 {string} &f_tier    	The Tier Term that is currently active. One of: NO_FILTER, COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC,
+			//                       	DIVINE, SPECIAL, or VERY_SPECIAL.
+			// 4 {string} &f_bin     	The BIN Term that is currently active. One of: SHOW_ALL, BIN_ONLY, AUCTIONS_ONLY.
+		// Example:
+			//	&f_filters[] = auctionsGetFilters();
+			//	&f_category  = %&f_filters[0]%;
+			//	&f_search    = %&f_filters[1]%;
+			//	&f_sort      = %&f_filters[2]%;
+			//	&f_tier      = %&f_filters[3]%;
+			//	&f_bin       = %&f_filters[4]%;
+	function auctionsGetFilters(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5auctionsGetFilters&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			debug_log(%debug%,%&script_debug_name%,"allow_command: %allow_command%, tick_wait: %#tick_wait%, timeout_sec: %#timeout_sec%");
+		endif;
+		
+		// Get the Auctions GUI Open
+		&in_browser = auctionsOpenBrowser(%allow_command%,%#tick_wait%,%#timeout_sec%);
+		if(%&in_browser% != "SUCCESS");
+			debug_error(%debug%,%&script_debug_name%,"auctionsOpenBrowser returned an error: &4%&in_browser%&c! Returning early.");
+			&return_array[] = %&in_browser%;
+			return(&return_array[]);
+		endif;
+		
+		// Setup ENUM -> Text and vice versa maps
+		if(true);
+			&category_enums[] = split(", ","WEAPONS, ARMOR, ACCESSORIES, CONSUMABLES, BLOCKS, TOOLS_AND_MISC");
+			&category_texts[] = split(", ","Weapons, Armor, Accessories, Consumables, Blocks, Tools & Misc");
+			&sort_enums[]     = split(", ","HIGHEST, HIGHEST, LOWEST, LOWEST,  ENDING_SOON, MOST_BIDS, RANDOM");
+			&sort_texts[]     = split(", ","Highest Bid, Highest Price, Lowest Bid, Lowest Price, Ending soon, Most Bids, Random");
+			&tier_enums[]     = split(", ","NO_FILTER, COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC, DIVINE, SPECIAL, VERY_SPECIAL");
+			&tier_texts[]     = split(", ","No filter, Common, Uncommon, Rare, Epic, Legendary, Mythic, Divine, Special, Very Special");
+			&bin_enums[]      = split(", ","SHOW_ALL, BIN_ONLY, AUCTIONS_ONLY");
+			&bin_texts[]      = split(", ","Show All, BIN Only, Auctions Only");
+		endif;
+		
+		// Get the currently applied Filters.
+		if(true);
+			&var_pointers[]   = split(", ","&f_category, &f_sort, &f_tier, &f_bin");
+			&var_mcids[]      = split(", ","golden_sword|diamond_chestplate|skull|apple|cobblestone|stick, hopper, ender_eye, golden_rail|gold_ingot|gold_block");
+			&var_names[]      = split(", ","Weapons|Armor|Accessories|Consumables|Blocks|Tools & Misc, Sort, Item Tier, BIN Filter");
+			&var_nbts[]       = split(", ","Currently browsing, \u25B6 (.+?)\", \u25B6 (.+?)\", \u25B6 (.+?)\"");
+			all_matches_found = true;
+			foreach(&var_pointers[],&var_pointer,#vp);
+				&pvar_mcids[] = split("|",%&var_mcids[%#vp%]%);
+				&pvar_names[] = split("|",%&var_names[%#vp%]%);
+				&pvar_nbt     = %&var_nbts[%#vp%]%;
+				&mouse_item   = getmouseitem(,#mouse_stack,#mouse_data,&mouse_nbt);
+				&mouse_nbt    = strip(%&mouse_nbt%);
+				&mouse_name   = getItemName(%&mouse_nbt%,%&mouse_item%);
+				match_found   = false;
+				
+				// Search for an Item in the Container, Inventory, or on the Mouse Cursor that matches the Item we are searching for.
+				foreach(&pvar_mcids[],&pvar_mcid,#pm);
+					&pvar_name = %&pvar_names[%#pm%]%;
+					#r_start   = 0;
+					#r_end     = %CONTAINERSLOTS% - 1;
+					#r_offset  = %#r_start%;
+					&r_item    = %&pvar_mcid%;
+					&r_name    = %&pvar_name%;
+					debug_log(%debug%,%&script_debug_name%,"looking for %&r_item% %&r_name% nbt match %&pvar_nbt%");
+					if((%&mouse_item% == %&r_item%) && (%&mouse_name% == %&r_name%));
+						debug_log(%debug%,%&script_debug_name%,"mouse matches %&r_item% %&r_name%, checking nbt");
+						ifmatches(%&mouse_nbt%,%&pvar_nbt%,&capture_group,1);
+							debug_log(%debug%,%&script_debug_name%,"nbt match found");
+							match_found  = true;
+							&match_nbt   = %&mouse_nbt%;
+							&match_group = %&capture_group%;
+							&match_name  = %&mouse_name%;
+						else;
+							debug_log(%debug%,%&script_debug_name%,"no nbt match for mouse (%&mouse_nbt%)");
+						endif;
+					endif;
+					
+					if(!%match_found%)
+						for(#r_slot,%#r_start%,%#r_end%);
+							#f_slot = %#r_slot%;
+							if(%&r_item%);
+								getslot(%&r_item%,#f_slot,%#r_offset%);
+							endif;
+							
+							debug_log(%debug%,%&script_debug_name%,"checking %#f_slot% to be %&r_item% %&r_name%");
+							
+							if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+								#r_offset = %#f_slot% + 1;
+								&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+								&f_nbt    = strip(%&f_nbt%);
+								&f_name   = getItemName(%&f_nbt%,%&f_item%);
+								if(%&f_name% == %&r_name%);
+									debug_log(%debug%,%&script_debug_name%,"slot %#f_slot% matches %&r_item% %&r_name%, checking nbt");
+									ifmatches(%&f_nbt%,%&pvar_nbt%,&capture_group,1);
+										debug_log(%debug%,%&script_debug_name%,"slot %#f_slot% nbt match found");
+										match_found  = true;
+										&match_nbt   = %&f_nbt%;
+										&match_group = %&capture_group%;
+										&match_name  = %&f_name%;
+										break;
+									else;
+										debug_log(%debug%,%&script_debug_name%,"no nbt match for slot %#f_slot% (%&f_nbt%)");
+									endif;
+								endif;
+							else;
+								break;
+							endif;
+						next;
+					endif;
+					
+					if(%match_found%);
+						debug_log(%debug%,%&script_debug_name%,"found a match, breaking out of item search loop early");
+						break;
+					endif;
+				next;
+				
+				match(%&var_pointer%,"_(\w+)",&array_prefix,1);
+				
+				// If we could not find a match against any of the MCIDs/Names that we were searching for, then there is something wrong, and we must error.
+				if(!%match_found%);
+					all_matches_found = false;
+					&return_array[]   = ucase("ERROR_CANNOT_FIND_VARIABLE_%&array_prefix%");
+					debug_breakpoint(%debug%,%&script_debug_name%,"Could not find a match for variable: &d%&array_prefix%&7!");
+					break;
+				endif;
+				
+				// Assign the Variable Text that we will be using to draw the ENUM index from the appropriate Array based off the Variable we are searching for.
+				if(true);
+					if(%&var_pointer% == "&f_category");
+						&var_text = %&match_name%;
+					else;
+						&var_text = %&match_group%;
+					endif;
+				
+					&text_array_pointer = "&%&array_prefix%_texts[]";
+					#text_array_index   = indexof(%&text_array_pointer%,,%&var_text%);
+					&enum_array_value   = "&%&array_prefix%_enums[%#text_array_index%]";
+					&enum_array_value   = "%%&enum_array_value%%";
+					
+					&vars[] = split(" ","&var_pointer &var_text &match_name &match_group &text_array_pointer #text_array_index &enum_array_value");
+					foreach(&vars[],&var,#v);
+						&val = %%&var%%;
+						&logvar = regexreplace(&var,"(?<!&)&","&&");
+						debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&val%");
+					next;
+					
+					set(%&var_pointer%,%&enum_array_value%);
+				endif;
+			next;
+		endif;
+		
+		// If we did not find all matches, we must return an Error to the Caller of this fn.
+		if(!%all_matches_found%);
+			return(&return_array[])
+		endif;
+		
+		&f_search       = auctionsFilterGetSearchTerm();
+		&return_array[] = split(", ","%&f_category%, %&f_search%, %&f_sort%, %&f_tier%, %&f_bin%");
+		return(&return_array[]);
+	endfunction;
+	
+	// Given a Search Term, splits it up into an Array of maximum length 2, where each entry has a maximum length of 15
+	// characters. Used to convert a string search term to the most efficient possible input for the Auction House GUI.
+		// Params:
+			// {string} <&search_term>	The Search Term to convert into an Array of Search Strings.
+			//
+		// Returns an Array of 1 to 2 strings of maximum length 15 characters.
+	function auctionsSplitSearchTerm(&search_term);
+		&search_chars[] = split("",%&search_term%);
+		#search_chars   = arraysize(&search_chars[]);
+		if(%#search_chars% > 15);
+			// If there are more than 15 characters in the Search Term, split it up into words (by spaces).
+			// For each word, check if there is room enough in the "last word" to join it together into the last
+			// word with a space delimiting the two. If there is not enough room to do so, move this word onto the
+			// next line, so long as there is another line to move them to.
+			&search_words[] = split(" ",%&search_term%);
+			#search_words   = arraysize(&search_words[]);
+			if(%#search_words% > 1);
+				foreach(&search_words[],&search_word,#swi);
+					#return_array_len = arraysize(&return_array[]);
+					if(%#return_array_len% != 0);
+						#last_word_index  = %#return_array_len% - 1;
+						&last_word_string = %&return_array[%#last_word_index%]%;
+						#last_word_length = strlen(%&last_word_string%);
+						&next_word_string = "%&last_word_string% %&search_word%";
+						#next_word_length = strlen(%&next_word_string%);
+						if(%#next_word_length% <= 15);
+							&return_array[%#last_word_index%] = %&next_word_string%;
+						elseif(%#return_array_len% < 2);
+							&return_array[] = %&search_word%;
+						elseif(%#last_word_length% < 14); // 14 instead of 15 here to account for the space appended to the last word before new text
+							&next_word_string    = "%&last_word_string% ";
+							&search_word_chars[] = split("",%&search_word%);
+							foreach(&search_word_chars[],&search_word_char,#swci);
+								#next_word_length = strlen(%&next_word_string%);
+								if(%#next_word_length% < 15);
+									&next_word_string = "%&next_word_string%%&search_word_char%";
+								else;
+									broke_early = true;
+									break;
+								endif;
+							next;
+							&return_array[%#last_word_index%] = %&next_word_string%;
+							if(%broke_early%);
+								break;
+							endif;
+						else;
+							break; 
+						endif;
+					else;
+						#word_length = strlen(%&search_word%);
+						if(%#word_length% <= 15);
+							&return_array[] = %&search_word%;
+						else;
+							&word_chars[] = split("",%&search_word%);
+							for(#i,0,14);
+								&return_chars[] = %&word_chars[%#i%]%;
+							next;
+							&return_array[] = join("",&return_chars[]);
+							break;
+						endif;
+					endif;
+				next;
+			else;
+				for(#i,0,14);
+					&return_chars[] = %&search_chars[%#i%]%;
+				next;
+				&return_array[] = join("",&return_chars[]);
+			endif;
+		else;
+			&return_array[] = %&search_term%;
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Applies Filters to the Auction House GUI.
+		// Params:
+			// {boolean} [allow_command=true]
+			// {number} [#tick_wait=20]
+			// {number} [#timeout_sec=30]
+			// {string} <...&filter_params[]>	Catch all Array of Filter Parameters in Format: `<filter_key>: <filter_val>`,
+			//                               	where <filter_key> is a String ENUM of CATEGORY, SORT, TIER, BIN, or SEARCH,
+			//                               	and <filter_val> is the corresponding Value to provide for that ENUM.
+	function auctionsApplyFilters(allow_command=true,#tick_wait=20,#timeout_sec=30,...&filter_params[]);
+		// Setup Function Variables
+		if(true);
+			debug               = true;
+			&script_debug_name  = "&6auctionsApplyFilters&7";
+			#start_time         = %TIMESTAMP%;
+			do_timeout          = %#timeout_sec% > 0;
+			&target_gui_regex   = "^(?:Auctions(?: Browser|: \".*))$";
+			&str_enum_success   = "SUCCESS";
+			&str_enum_timeout   = "ERROR_TIMEOUT";
+			&str_enum_closed    = "ERROR_CLOSED";
+			&str_enum_unknown   = "ERROR_UNKNOWN";
+			&str_enum_input_err = "ERROR_INVALID_INPUT";
+			debug_log(%debug%,%&script_debug_name%,"allow_command: %allow_command%, tick_wait: %#tick_wait%, timeout_sec: %#timeout_sec%");
+			
+			&valid_filter_prefixes[] = split(", ","CATEGORY, SORT, TIER, BIN, SEARCH")
+			foreach(&filter_params[],&filter_param,#fpi);
+				ifmatches(%&filter_param%,"(.+?): (.+)");
+					match(%&filter_param%,"(.+?): (.+)",{&filter_prefix,&filter_suffix});
+					&filter_prefix_lcase = lcase(%&filter_prefix%);
+					#filter_prefix_index = indexof(&valid_filter_prefixes[],,%&filter_prefix_lcase%);
+					if(%#filter_prefix_index% != -1);
+						&set_pointer = "&%&filter_prefix_lcase%";
+						debug_log(%debug%,%&script_debug_name%,"setting pointer &d&%&set_pointer%&7 to be &d%&filter_suffix%&7.");
+						set(%&set_pointer%,%&filter_suffix%);
+					endif;
+				endif;
+			next;
+			
+			
+			// Setup ENUM -> Text and vice versa maps
+			if(true);
+				&category_enums[] = split(", ","WEAPONS, ARMOR, ACCESSORIES, CONSUMABLES, BLOCKS, TOOLS_AND_MISC");
+				&category_texts[] = split(", ","Weapons, Armor, Accessories, Consumables, Blocks, Tools & Misc");
+				&category_mcids[] = split(", ","golden_sword, diamond_chestplate, skull, apple, cobblestone, stick");
+				
+				&sort_enums[] = split(", ","HIGHEST, HIGHEST, LOWEST, LOWEST,  ENDING_SOON, MOST_BIDS, RANDOM");
+				&sort_texts[] = split(", ","Highest Bid, Highest Price, Lowest Bid, Lowest Price, Ending soon, Most Bids, Random");
+				&sort_mcid    = "hopper";
+				&sort_name    = "Sort";
+				
+				&tier_enums[] = split(", ","NO_FILTER, COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC, DIVINE, SPECIAL, VERY_SPECIAL");
+				&tier_texts[] = split(", ","No filter, Common, Uncommon, Rare, Epic, Legendary, Mythic, Divine, Special, Very Special");
+				&tier_mcid    = "ender_eye";
+				&tier_name    = "Item Tier";
+				
+				&bin_enums[] = split(", ","SHOW_ALL, BIN_ONLY, AUCTIONS_ONLY");
+				&bin_texts[] = split(", ","Show All, BIN Only, Auctions Only");
+				&bin_mcid    = "golden_rail|gold_ingot|gold_block";
+				&bin_name    = "BIN Filter|BIN Filter|BIN Filter";
+				
+				&search_mcid = "sign";
+				&search_name = "Search";
+			endif;
+			
+			// Enter the Auctions Browser GUI so we can apply appropriate defaults for SORT/BIN ENUMs should we need to.
+			if(true);
+				#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+				&auctions_browser  = auctionsOpenBrowser(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+				if(%&auctions_browser% != "SUCCESS");
+					debug_error(%debug%,%&script_debug_name%,"Could not open AUCTIONS_BROWSER due to Error: &4%&auctions_browser%&c.");
+					return(%&auctions_browser%);
+				endif;
+				do;
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&afs[]             = auctionsGetFilters(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+					&active_category   = %&afs[0]%;
+					ifnotmatches(%&active_category%,"^ERROR_");
+						break;
+					endif;
+					wait("1t");
+				until(((%do_timeout%) && (%TIMESTAMP% - %#start_time%) >= %#timeout_sec%))
+				&active_search     = %&afs[1]%;
+				&active_sort       = %&afs[2]%;
+				&active_tier       = %&afs[3]%;
+				&active_bin        = %&afs[4]%;
+			endif;
+			
+			// Determine which filters we are going to be applying
+			if(true);
+				&category_filter = miscValidate(%&category%,-1,...&category_enums[]);
+				&sort_filter     = miscValidate(%&sort%,-1,...&sort_enums[]);
+				&tier_filter     = miscValidate(%&tier%,-1,...&tier_enums[]);
+				&bin_filter      = miscValidate(%&bin%,-1,...&bin_enums[]);
+				log("category_filter: %&category_filter% (category: %&category%)")
+				category_filter  = %&category_filter% != "";
+				sort_filter      = %&sort_filter% != "";
+				tier_filter      = %&tier_filter% != "";
+				bin_filter       = %&bin_filter% != "";
+				search_filter    = %&search% != "";
+				#category_index  = indexof(&category_enums[],,%&category_filter%);
+				#sort_index      = indexof(&sort_enums[],,%&sort_filter%);
+				#tier_index      = indexof(&tier_enums[],,%&tier_filter%);
+				#bin_index       = indexof(&bin_enums[],,%&bin_filter%);
+				
+				// If we are applying a SORT filter, check if the BIN_FILTER is compatible.
+				if(%sort_filter%);
+					&sort_required_compatibility_enums[]    = split(", ","MOST_BIDS, RANDOM");
+					&bin_required_compatibility_enums[]     = split(", ","AUCTIONS_ONLY|SHOW_ALL, BIN_ONLY");
+					#sort_required_compatibility_enum_index = indexof(&sort_required_compatibility_enums[],,%&sort_filter%);
+					if(%#sort_required_compatibility_enum_index% != -1);
+						&valid_bin_enums[] = split("|",%&bin_required_compatibility_enums[%#sort_required_compatibility_enum_index%]%);
+						#valid_bin_index   = indexof(&valid_bin_enums[],,%&bin_filter%);
+						if((%#valid_bin_index% == -1) && (%&bin_filter% != ""));
+							&compatible_sort_terms = join(", ",&valid_bin_enums[]);
+							debug_error(%debug%,%&script_debug_name%,"BIN Term &4%&bin_filter%&c is incompatible with SORT Term &4%&sort_filter%&c. The following BIN Terms are compatible with this SORT Term: &6%&compatible_sort_terms%&c.");
+							return(%&str_enum_input_err%);
+						elseif(%&bin_filter% == "");
+							#active_bin_index = indexof(&valid_bin_enums[],,%&active_bin%);
+							if(%#active_bin_index% == -1);
+								&bin_filter = %&valid_bin_enums[0]%;
+							else;
+								&bin_filter = %&active_bin%;
+							endif;
+							debug_log(%debug%,%&script_debug_name%,"overriding BIN_FILTER from omitted to &4%&bin_filter%&7 to make it compatible with Sort Term &d%&sort_filter%&7.");
+							bin_filter = true;
+							#bin_index = indexof(&bin_enums[],,%&bin_filter%);
+						endif;
+					endif;
+					
+					// Since we are applying a SORT filter, we need to know what the active setting is going to be for the BIN filter,
+					// so we can create an Array of expected SORT text Terms appropriate for the given BIN filter (i.e. if our BIN filter
+					// term is going to be BIN_ONLY, SORT text Terms we can expect to see will be [Highest Price, Lowest Price,
+					// Ending soon, Random], and if our BIN filter term is going to be AUCTIONS_ONLY or SHOW_ALL, we can expect to see
+					// [Highest Bid, Lowest Bid, Ending soon, Most Bids].)
+					if(true);
+						
+						&sort_text_array_from_term = %&active_bin%;
+						if(%bin_filter%);
+							&sort_text_array_from_term = %&bin_filter%;
+						endif;
+						
+						if((%&sort_text_array_from_term% == "AUCTIONS_ONLY") || (%&sort_text_array_from_term% == "SHOW_ALL"));
+							&expected_sort_term_enums[] = split(", ","HIGHEST, LOWEST, ENDING_SOON, MOST_BIDS");
+							&expected_sort_term_texts[] = split(", ","Highest Bid, Lowest Bid, Ending soon, Most Bids");
+							&opposing_sort_term_enums[] = split(", ","HIGHEST, LOWEST, ENDING_SOON, RANDOM");
+							&opposing_sort_term_texts[] = split(", ","Highest Price, Lowest Price, Ending soon, Random");
+						elseif(%&sort_text_array_from_term% == "BIN_ONLY");
+							&expected_sort_term_enums[] = split(", ","HIGHEST, LOWEST, ENDING_SOON, RANDOM");
+							&expected_sort_term_texts[] = split(", ","Highest Price, Lowest Price, Ending soon, Random");
+							&opposing_sort_term_enums[] = split(", ","HIGHEST, LOWEST, ENDING_SOON, MOST_BIDS");
+							&opposing_sort_term_texts[] = split(", ","Highest Bid, Lowest Bid, Ending soon, Most Bids");
+						endif;
+					endif;
+				endif;
+				
+				// If we are applying a SEARCH filter, create the SEARCH Sign Text Array.
+				if(%search_filter%);
+					&search_filter_text[] = auctionsSplitSearchTerm(%&search%);
+					&search_filter        = join(" ",&search_filter_text[]);
+				endif;
+			endif;
+		endif;
+		
+		// Begin Looping until all Filters are applied appropriately.
+		if(true);
+			// Create an Array of Terms that we are actively going to be applying Filters for.
+			if(true);
+				&all_filter_terms[] = split(", ","bin, category, search, tier, sort");
+				foreach(&all_filter_terms[],&all_filter_term,#aft);
+					&filter_bool = "%&all_filter_term%_filter";
+					filter_bool := %%&filter_bool%%;
+					if(%filter_bool%);
+						&af_goal       = "&%&all_filter_term%_filter";
+						&af_index      = "#%&all_filter_term%_index";
+						&af_terms[]    = %&all_filter_term%;
+						&af_goals[]    = "%%&af_goal%%";
+						&af_pointers[] = "&active_%&all_filter_term%";
+						#af_indexes[] := "%%&af_index%%";
+						af_bools[]     = false;
+						
+						debug_log(%debug%,%&script_debug_name%,"will be applying filter %&all_filter_term% with goal &d%%&af_goal%%&7.");
+					else;
+						debug_log(%debug%,%&script_debug_name%,"will not be applying filter %&all_filter_term%.");
+					endif;
+				next;
+				
+				&direction_based_terms[] = split(", ","tier, bin, sort");     // Terms that can cycle forward with leftclick
+				&direction_fluid_terms[] = split(", ","tier, bin");           // Terms that can cycle forward with leftclick & backward with rightclick
+				&button_based_terms[]    = split(", ","category, search");    // Terms where a static button singlehandedly controls the setting of the Term without cycling
+			endif;
+			do;
+				// 1. Check if we have timed out
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&str_enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Get the current values of all our applied Filters.
+				if(true);
+					do;
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						&afs[]             = auctionsGetFilters(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+						&active_category   = %&afs[0]%;
+						ifnotmatches(%&active_category%,"^ERROR_");
+							break;
+						endif;
+						wait("1t");
+					until(((%do_timeout%) && (%TIMESTAMP% - %#start_time%) >= %#timeout_sec%))
+					&active_search     = %&afs[1]%;
+					&active_sort       = %&afs[2]%;
+					&active_tier       = %&afs[3]%;
+					&active_bin        = %&afs[4]%;
+					
+					&vars[] = split(" ","&active_category &active_search &active_sort &active_tier &active_bin");
+					foreach(&vars[],&var,#v);
+						&val = %%&var%%;
+						&logvar = regexreplace(&var,"(?<!&)&","&&");
+						debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&val%");
+					next;
+				endif;
+				
+				// 3. For each of the Filter Terms that we are seeking to apply, make sure they are applied appropriately.
+				if(true);
+					all_filters_valid = true;
+					foreach(&af_terms[],&af_term,#aft);
+						&af_goal       = %&af_goals[%#aft%]%;
+						&af_pointer    = %&af_pointers[%#aft%]%;
+						#af_index      = %#af_indexes[%#aft%]%;
+						&af_value      = "%%&af_pointer%%";
+						af_value_valid = %&af_value% == %&af_goal%;
+						
+						&vars[] = split(" ","&af_term &af_goal &af_pointer #af_index &af_value af_value_valid");
+						foreach(&vars[],&var,#v);
+							&val = %%&var%%;
+							&logval = regexreplace(&val,"(?<!&)&","&&");
+							&logvar = regexreplace(&var,"(?<!&)&","&&");
+							debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&logval%");
+						next;
+						
+						// If the applied filter value is invalid and the applied filter term is Sort, check to see if the value
+						// is only invalid because the BIN filter setting has us on a different sort_term_enums Array than what we
+						// are expecting. If this is the case, then the SORT Term setting is actually correct, so long as the Element
+						// found at the Index where we found our af_value in either Array is equal to the Goal in the opposite Array.
+						if((%&af_value% != %&af_goal%) && (%&af_term% == "sort"));
+							#opposing_index = indexof(&opposing_sort_term_enums[],,%&af_value%);
+							af_value_valid  = ((%#opposing_index% != -1) && (%&expected_sort_term_enums[%#opposing_index%]% == %&af_goal%));
+							if(!%af_value_valid%);
+								#expected_index = indexof(&expected_sort_term_enums[],,%&af_value%);
+								af_value_valid  = ((%#expected_index% != -1) && (%&opposing_sort_term_enums[%#expected_index%]% == %&af_goal%));
+							endif;
+						endif;
+						
+						if(!%af_value_valid%);
+							all_filters_valid = false;
+							
+							// 1. Setup the Item MCID and Name to find in the Container.
+							if(true);
+								unset(&af_search_parameters[]);
+								if(%&af_term% == "category");
+									// Category Term is a special case, since there are 6 distinct buttons for us to click on to control the Category Setting.
+									// The MCID and Name of the Button we are going to want to click on is category_texts[%#af_index%] (name), and category_mcids[%#af_index%] (mcid).
+									&af_search_parameters[] = "MCID: %&category_mcids[%#af_index%]%";
+									&af_search_parameters[] = "NAME: %&category_texts[%#af_index%]%";
+								else;
+									// Take the value of '&<af_term>_mcid' and '&<af_term>_name', split by tunnel character to create af_search_<...> Arrays.
+									&af_search_parameters[] = "MCID: r$(?:%&%&af_term%_mcid%)";
+									&af_search_parameters[] = "NAME: r$(?:%&%&af_term%_name%)";
+								endif;
+								
+								foreach(&af_search_parameters[],&af_search_parameter,#afi);
+									debug_log(%debug%,%&script_debug_name%,"af_search_parameter %#afi% > %&af_search_parameter%");
+								next;
+							endif;
+							
+							// 2. Find the Item in the Container.
+							#af_search_slot = findItemContainer(false,...&af_search_parameters[]);
+							if(%#af_search_slot% != -1);
+								&af_search_item_init = getslotitemnbt(%#af_search_slot%,,#af_search_stack,#af_search_data,&af_search_nbt);
+								&af_search_nbt       = strip(%&af_search_nbt%);
+								&af_search_nbt_init  = encode(%&af_search_nbt%);
+								
+								&click_mode         = "left";
+								#fluid_index        = indexof(&direction_fluid_terms[],,%&af_term%);
+								if(%#fluid_index% != -1);
+									// If the click is bidirectional, then we can do some Array logic to determine whether we can get to our
+									// goal quicker via left or rightclicks.
+									
+									&enum_array_pointer_prefix = "&%&af_term%_enums";
+									&enum_array_pointer_value  = "%&enum_array_pointer_prefix%[]";
+									#enum_array_length         = arraysize(%&enum_array_pointer_value%);
+									#enum_array_last_index     = %#enum_array_length% - 1;
+									#curr_enum_array_index     = indexof(%&enum_array_pointer_value%,,%&af_value%);
+									#goal_enum_array_index     = indexof(%&enum_array_pointer_value%,,%&af_goal%);
+									
+									// Left Clicks to Goal:
+									//    curr_enum_array_index > goal_enum_array_index
+									//        ? (enum_array_last_index - curr_enum_array_index) + goal_enum_array_index
+									//        : goal_enum_array_index - curr_enum_array_index
+									//
+									// Right Clicks to Goal:
+									//    curr_enum_array_index > goal_enum_array_index
+									//        ? curr_enum_array_index - goal_enum_array_index
+									//        : curr_enum_array_index + (enum_array_last_index - goal_enum_array_index)
+									
+									&vars[] = split(" ","&enum_array_pointer_prefix #enum_array_length #enum_array_last_index #curr_enum_array_index &af_value #goal_enum_array_index &af_goal");
+									foreach(&vars[],&var,#v);
+										&val = %%&var%%;
+										&logvar = regexreplace(&var,"(?<!&)&","&&");
+										debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&val%");
+									next;
+									
+									if(%#curr_enum_array_index% > %#goal_enum_array_index%);
+										#l_clicks = 1 + ((%#enum_array_last_index% - %#curr_enum_array_index%) + %#goal_enum_array_index%);
+										#r_clicks = %#curr_enum_array_index% - %#goal_enum_array_index%;
+									else;
+										#l_clicks = %#goal_enum_array_index% - %#curr_enum_array_index%;
+										#r_clicks = 1 + (%#curr_enum_array_index% + (%#enum_array_last_index% - %#goal_enum_array_index%));
+									endif;
+									
+									if(%#r_clicks% < %#l_clicks%);
+										&click_mode = "right";
+									endif;
+								endif;
+								
+								debug_log(%debug%,%&script_debug_name%,"executing click_mode &d%&click_mode%&7 on slot &e%#af_search_slot%&7 for af_term &d%&af_term%&7 to get to goal &9%&af_goal%&7 because value is &6%&af_value%&7.");
+								
+								&init_gui     = getContainerString(true);
+								#ticks_waited = 0;
+								do;
+									// 1. Check if the function has timed out
+									if(%do_timeout%);
+										func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+										if(%func_timeout%);
+											debug_error(%debug%,%&script_debug_name%,"Function timed out");
+											&return_string = %&str_enum_timeout%;
+											break;
+										endif;
+									endif;
+									
+									// 2. Check if we have entered a new GUI
+									if(true);
+										entered_new_gui = enteredNewGUI(%&init_gui%,true);
+										if(%entered_new_gui%);
+											break;
+										else;
+											&af_search_item_post = getslotitemnbt(%#af_search_slot%,,#item_stack,#item_data,&af_search_nbt_post);
+											if(%&af_search_item_post% != "air");
+												&af_search_nbt_post = strip(%&af_search_nbt_post%);
+												&af_search_nbt_post = encode(%&af_search_nbt_post%);
+												if(%&af_search_nbt_init% != %&af_search_nbt_post%);
+													entered_new_gui = true;
+													break;
+												endif;
+											endif;
+										endif;
+									endif;
+									
+									// 3. Check if we can click
+									if(true);
+										can_click = %saved_click%;
+										if(!%can_click%);
+											can_click = canDoInteraction(%#ticks_waited%,%#tick_wait%);
+										endif;
+										
+										if(%can_click%);
+											&mouse_item = getMouseItem();
+											if(%&mouse_item% != "air");
+												saved_click = true;
+											else;
+												saved_click = false;
+												slotclick(%#af_search_slot%,%&click_mode%);
+											endif;
+										endif;
+									endif;
+									
+									inc(#ticks_waited);
+									wait("1t");
+								until((%entered_new_gui%) || (%&return_string% != ""));
+								
+								if(%GUI% == "GUIEDITSIGN");
+									if(%&af_term% == "search");
+										foreach(&search_filter_text[],&search_filter_text,#sfti);
+											debug_log(%debug%,%&script_debug_name%,"%#sfti% > typing text '%&search_filter_text%' into line");
+											type(%&search_filter_text%);
+											wait("1t");
+											press("RETURN");
+											wait("1t");
+										next;
+									endif;
+									
+									press("escape");
+									do;
+										wait("1t");
+										if(%GUI% == "GUICHEST");
+											break;
+										endif;
+										
+										if(%do_timeout%);
+											func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+											if(%func_timeout%);
+												debug_error(%debug%,%&script_debug_name%,"Function timed out");
+												&return_string = %&str_enum_timeout%;
+												break;
+											endif;
+										endif;
+									until((%GUI% == "GUICHEST") || (%&return_string% != ""));
+								endif;
+							endif;
+						endif;
+					next;
+					
+					if(%all_filters_valid%);
+						debug_log(%debug%,%&script_debug_name%,"applied all filters!");
+						&return_string = %&str_enum_success%;
+						break;
+					else;
+						do;
+							&mouse_item = getmouseitem();
+							if(%&mouse_item% == "air");
+								break;
+							endif;
+							
+							if(%do_timeout%);
+								func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+								if(%func_timeout%);
+									debug_error(%debug%,%&script_debug_name%,"Function timed out");
+									&return_string = %&str_enum_timeout%;
+									break;
+								endif;
+							endif;
+							
+							wait("1t");
+						until((%&return_string% != "") || (%&mouse_item% == "air"));
+					endif;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		
+		return(%&return_string%);
+	endfunction;

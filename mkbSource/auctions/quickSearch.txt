@@ -1,0 +1,60 @@
+	// For testing Nert's Scraping fuckery.
+		// Params:
+			// {string} <&search_term>
+			// {boolean} [allow_command=true]
+			// {number} [#tick_wait=20]
+			// {number} [#timeout_sec=30]
+	function auctionsQuickSearch(&search_term,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		debug               = true;
+		&script_debug_name  = "&9auctionsQuickSearch&7";
+		&search_strings[]   = auctionsSplitSearchTerm(%&search_term%);
+		&expected_container = join(" ",&search_strings[]);
+		
+		#search_slot = 48;
+		do;
+			&in_browser = auctionsOpenBrowser(%allow_command%,%#tick_wait%,%#timeout_sec%);
+			if(%&in_browser% != "SUCCESS");
+				debug_error(%debug%,%&script_debug_name%,"AuctionsOpenBrowser returned &4%&in_browser%&c.");
+				return(false);
+			endif;
+			
+			ifmatches(%CONTAINERNAME%,"^Auctions: \"%&expected_container%");
+				return_boolean = true;
+				break;
+			endif;
+			
+			&search_item = getslotitemnbt(%#search_slot%,,#search_stack,#search_data,&search_nbt);
+			&search_nbt  = strip(%&search_nbt%);
+			ifmatches(%&search_nbt%,"Filtered: %&expected_container%");
+				return_boolean = true;
+				break;
+			elseif(%&search_item% == "sign");
+				#waited_ticks = 0;
+				do;
+					if(%GUI% != "GUICHEST");
+						break;
+					endif;
+				
+					can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+					if((%GUI% == "GUICHEST") && (%can_click%));
+						slotclick(%#search_slot%,"right");
+					endif;
+					
+					wait("1t");
+					inc(#search_slot%);
+				loop;
+			
+				if(%GUI% == "GUIEDITSIGN");
+					foreach(&search_strings[],&search_string,#ss);
+						type(%&search_string%);
+						press("RETURN");
+					next;
+					press("escape");
+					
+					do;
+						wait("1t");
+					until(%GUI% == "GUICHEST");
+				endif;
+			endif;
+		untilmatches(%CONTAINERNAME%,"^Auctions: \"%&expected_container%");
+	endfunction;

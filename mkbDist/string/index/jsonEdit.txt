@@ -1,0 +1,24 @@
+//! @mkb-import-begin
+    // string/index/jsonEdit
+        // Given a JSON Object, a Key, and a Value, either Edits the value of that Key within the Object to be the
+        // Value, or adds the Key to that Object with that Value (depending on whether or not that Key is found within
+        // the Object to begin with).
+            // Params:
+                // {string} <&json_object>    The JSON Object to set the value of the key inside of.
+                // {string} <&json_key>       The Key in the JSON Object to set the value for.
+                // {string} [&json_value]     The Value to set the Key in the JSON Object to. If omitted, will remove
+                //                            the Key from the JSON Object if it exists instead of setting the Value of
+                //                            the Key to an empty string. Note that this Function does not and will not
+                //                            wrap values in quotes, so wrap this value in escaped double quotes if necessary.
+            // Returns the Edited JSON Object.
+            // Example:
+                //    &json_object = {"foo":"bar","baz":true};
+                //    &json_key    = "baz";
+                //    &json_value  = "false";
+                //    &json_object = jsonEdit(%&json_object%,%&json_key%,%&json_value%);
+                //    log(%&json_object%);
+        function jsonEdit(&json_object,&json_key,&json_value);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:389
+            
+        endfunction;
+//! @mkb-import-end

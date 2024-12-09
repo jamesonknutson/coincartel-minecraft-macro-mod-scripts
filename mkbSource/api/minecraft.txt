@@ -1,0 +1,147 @@
+// api/minecraft.txt
+	// Checks if a Minecraft Profile is available in the Cached Arrays (@&cached_mc_ [split_ids, joint_ids, usernames, change_ts]).
+	// If it is, and the Cache is not invalid, the index the entry can be found at is returned. Otherwise, -1 is returned.
+			// Params:
+			//		<string>  &search_term   : The term to search for. Can be the username, dashed UUID, or joint UUID.
+			//      [boolean] check_validity : True to return the index only if it is valid, false to return the index regardless of it's validity.
+			//
+			// Returns the index the Profile can be found at in the Cache.
+	function getMinecraftProfileCacheIndex(&search_term,check_validity=true);
+		&script_debug_name = "&9getMinecraftProfileCacheIndex&7";
+		debug              = true;
+
+		// Check if the search term can be found in any of the caches.
+		if(true);
+			#lookup_index  = -1;
+			#cache_index[] = indexof(@&cached_mc_split_uuids[],,%&search_term%);
+			#cache_index[] = indexof(@&cached_mc_joint_uuids[],,%&search_term%);
+			#cache_index[] = indexof(@&cached_mc_usernames[],,%&search_term%);
+			foreach(#cache_index[],#cache_index);
+				if(%#cache_index% != -1);
+					#lookup_index = %#cache_index%;
+					break;
+				endif;
+			next;
+
+			// If we hit a valid cache entry, check if it is valid.
+			if(%#lookup_index% != -1);
+				#valid_before = %@#cached_mc_valid_until[%#lookup_index%]%;
+				if((!%check_validity%) || (%#valid_before% >= %TIMESTAMP%));
+					// Player can't change name yet, the cache is valid.
+					return(%#lookup_index%);
+				endif;
+			endif;
+		endif;
+
+		return(-1);
+	endfunction;
+
+	// Gets a User's Minecraft Profile from playerdb.co.
+		// Params:
+			// {string} &search_term : The term to search for. Can be the username, dashed UUID, or joint UUID.
+			//
+		// Returns an Array:
+			// 0 {boolean} success     : Whether or not the request was successful
+			// 1 {string}  &username   : The player's username
+			// 2 {string}  &joint_uuid : The player's joint UUID
+			// 3 {string}  &split_uuid : The player's split UUID
+		// Example:
+			//	&minecraft_profile[]   = getMinecraftProfile(%&search_term%);
+			//	minecraft_profile     := %&minecraft_profile[0]%;
+			//	&minecraft_username    = %&minecraft_profile[1]%;
+			//	&minecraft_joint_uuid  = %&minecraft_profile[2]%;
+			//	&minecraft_split_uuid  = %&minecraft_profile[3]%;
+	function getMinecraftProfile(&search_term);
+		&script_debug_name = "&9getMinecraftProfile&7";
+		debug              = false;
+
+		// If we are checking the current player, we can skip requests altogether.
+		&player_split_uuid = %UUID%;
+		&player_joint_uuid = regexreplace(&player_split_uuid,"-","");
+		&player_identity[] = split(", ","%&player_split_uuid%, %&player_joint_uuid%, %PLAYER%");
+		#player_index      = indexof(&player_identity[],,%&search_term%);
+		if(%#player_index% != -1);
+			&player_username   = %PLAYER%;
+			&player_joint_uuid = %&player_joint_uuid%;
+			&player_split_uuid = %UUID%;
+			success            = true;
+		else;
+			// Not checking current player, do API calls.
+			#cache_index  = getMinecraftProfileCacheIndex(%&search_term%,false);
+			#valid_before = %@#cached_mc_valid_until[%#cache_index%]%;
+			if((%#valid_before% >= %TIMESTAMP%) && (%#cache_index% != -1));
+				// Entry is cached, we can skip the request.
+				&player_username   = %@&cached_mc_usernames[%#cache_index%]%;
+				&player_joint_uuid = %@&cached_mc_joint_uuids[%#cache_index%]%;
+				&player_split_uuid = %@&cached_mc_split_uuids[%#cache_index%]%;
+				success            = true;
+			else;
+				// Search term is not cached, try the API.
+				if(true);
+					setrequestheader("accept","application/json");
+					setrequestheader("user-agent","MC_API")
+					&api_url  = "https://playerdb.co/api/player/minecraft/%&search_term%";
+					&api_resp = httpget(%&api_url%,,#api_code);
+					&api_code = jsonget("code",%&api_resp%);
+					if(%&api_code% == "player.found");
+						&player_username   = jsonget("data.player.username",%&api_resp%);
+						&player_joint_uuid = jsonget("data.player.raw_id",%&api_resp%);
+						&player_split_uuid = jsonget("data.player.id",%&api_resp%);
+						success            = true;
+					elseif(%debug%);
+						&vars[] = split(" ","&api_url &api_resp &api_code #api_code");
+						foreach(&vars[],&var,#v);
+							&var_ = regexreplace(&var,"&","&&");
+							&val  = "%%&var%%";
+						next;
+					endif;
+				endif;
+
+				// Update the cache entry.
+				if(true);
+					if(%success%);
+						// Search term (could be UUID or Username) was valid and found on a Player.
+						// Update or initialize the Cache entry for the UUID.
+						&player_name_hist      = jsonget("data.player.meta.name_history",%&api_resp%);
+						&player_name_changes[] = getjsonasarray(%&player_name_hist%);
+						#player_name_changes   = arraylength(&player_name_changes[]);
+						if(%#player_name_changes% == 1);
+							&latest_change_time = 0;
+						else;
+							&latest_change_time = xJsonGet("changedToAt",%&player_name_changes[%#player_name_changes%]%);
+							&latest_change_time = match(%&latest_change_time%,"(^.{10})",1);
+						endif;
+
+						// A player can change their name every 30 days since their most recent name change.
+						// Set the 'cache invalidation' timestamp for this entry to be the latest change time + ms in 30 days.
+						#latest_change_time := %&latest_change_time%;
+						#can_change_name_at  = %#latest_change_time% + (60 * 60 * 24 * 30);
+						
+						#uuid_index = indexof(@&cached_mc_split_uuids[],,%&player_split_uuid%);
+						if(%#uuid_index% == -1);
+							@&cached_mc_split_uuids[] = %&player_split_uuid%;
+							@&cached_mc_joint_uuids[] = %&player_joint_uuid%;
+							@&cached_mc_usernames[]   = %&player_username%;
+							@#cached_mc_valid_until[] = %#can_change_name_at%;
+						else;
+							@&cached_mc_usernames[%#uuid_index%]   = %&player_username%;
+							@#cached_mc_valid_until[%#uuid_index%] = %#can_change_name_at%;
+						endif;
+					elseif(%#cache_index% != -1);
+						// Search term (has to be Username) was a previously valid Username on another User, but they have since
+						// changed their Username. We can be certain of this because the Cache was hit successfully, but the request
+						// did not pull up any valid Account.
+						//
+						// Clear the invalid entry from the Cache.
+						//
+						
+						@&cached_mc_split_uuids[] = arrayDelete(@&cached_mc_split_uuids[],%#cache_index%);
+						@&cached_mc_joint_uuids[] = arrayDelete(@&cached_mc_joint_uuids[],%#cache_index%);
+						@&cached_mc_usernames[]   = arrayDelete(@&cached_mc_usernames[],%#cache_index%);
+						@#cached_mc_valid_until[] = arrayDelete(@#cached_mc_valid_until[],%#cache_index%);
+					endif;
+				endif;
+			endif;
+		endif;
+		return(%success%,%&player_username%,%&player_joint_uuid%,%&player_split_uuid%);
+	endfunction;

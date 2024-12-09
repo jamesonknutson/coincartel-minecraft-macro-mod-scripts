@@ -1,0 +1,32 @@
+//! @mkb-import-begin
+    // misc/index/areMultipleInstancesRunning
+        // Checks if multiple Macros exist with a MACRONAME value that matches <&task_expr>. Returns a Boolean.
+            // Params:
+                // {string} <&task_expr>            A Regular Expression to match against all running Macro's MACRONAME value.
+                // {string} [...&exempt_tasks[]]    An optional array of MACRONAMEs that are exempt from being counted towards the
+                //                                  total amount of Macros matching the <&task_expr>.
+            // Returns a Boolean
+            // Example:
+                //    already_running = areMultipleInstancesRunning("^NERT_MAIN");
+                //    if(%already_running%);
+                //        stop("ALL");
+                //        stop();
+                //    endif;
+        function areMultipleInstancesRunning(&task_expr,...&exempt_tasks[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:184
+            foreach("running");
+                #task_index = indexof(&exempt_tasks[],,%MACRONAME%);
+                if(%#task_index% == -1);
+                    ifmatches(%MACRONAME%,%&task_expr%);
+                        inc(#matched_tasks);
+                        if(%#matched_tasks% > 1);
+                            break;
+                        endif;
+                    endif;
+                endif;
+            next;
+            
+            return_boolean = %#matched_tasks% > 1;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

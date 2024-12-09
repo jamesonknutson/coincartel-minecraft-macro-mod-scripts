@@ -1,0 +1,1151 @@
+// movement/index.txt
+	// Given a coordinate string, splits it up by tunnel characters and returns an integer array.
+		// Params:
+		//      {string} [&coord_string="%XPOS%|%YPOS%|%ZPOS%"] The coordinate string to split up
+		//
+		// Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS.
+	function splitCoordString(&coord_string="%XPOS%|%YPOS%|%ZPOS%");
+		&pos[] = split("|",%&coord_string%);
+		&x     = %&pos[0]%;
+		&y     = %&pos[1]%;
+		&z     = %&pos[2]%;
+		&arr[] = split(", ","%&x%, %&y%, %&z%");
+		return(&arr[]);
+	endfunction;
+	
+	// Generates a coordinate string from the input numbers
+		// Params:
+		//      {number} [#x=%XPOS%]    The X Position
+		//      {number} [#x=%YPOS%]    The Y Position
+		//      {number} [#x=%ZPOS%]    The Z Position
+		//
+		// Returns the coordinate string.
+	function getCoordString(#x=%XPOS%,#y=%YPOS%,#z=%ZPOS%);
+		&coord_string = "%XPOS%|%YPOS%|%ZPOS%";
+		return(%&coord_string%);
+	endfunction;
+	
+	// Given an X, Y, Z value (and/or coordinate string), calculates the yaw and pitch values required to look at the value.
+		// Params:
+		//      {string} <&coordinate_string>   The Coordinate String, or X position.
+		//      {string} [&y_pos]               The Y position (only required if <&coordinate_string> is a single value).
+		//      {string} [&z_pos]               The Z position (only required if <&coordinate_string> is a single value).
+		//
+		// Returns an Array where element 0 = yaw, element 1 = dist, element 2 = pitch.
+	function fnCalcYawTo(&coordinate_string,&y_pos,&z_pos);
+		&x_pos = %&coordinate_string%;
+		ifmatches(%&coordinate_string%,"(.+)\|(.+)\|(.+)");
+			&split_pos[] = splitCoordString(%&coordinate_string%);
+			&x_pos       = %&split_pos[0]%;
+			&y_pos       = %&split_pos[1]%;
+			&z_pos       = %&split_pos[2]%;
+		endif;
+		
+		calcyawto(%&x_pos%,%&y_pos%,%&z_pos%,#calc_yaw,#calc_dist,#calc_pitch);
+		#calc_yaw = %#calc_yaw% + 180;
+		if(%#calc_yaw% > 360);
+			#calc_yaw = %#calc_yaw% - 360;
+		elseif(%#calc_yaw% == 360);
+			#calc_yaw = 0;
+		endif;
+		
+		return(%#calc_yaw%,%#calc_dist%,%#calc_pitch%);
+	endfunction;
+	
+	// Used to check if the player is "stalled" (not moving more than [#stall_break] absolute distance)
+	// for more than [#seconds] seconds.
+		// Params:
+		//      {number} #start_timestamp   The timestamp the last known 'unstalled' position was recorded at
+		//      {string} &start_position    The coordinate string of the last known 'unstalled' position
+		//      {number} [#seconds=5]       Amount of seconds required to have passed with no more than [#stall_break]
+		//                                  blocks of absolute movement to consider as a stall
+		//      {number} [#stall_break=3]   Blocks of absolute movement required to consider as having moved
+		//
+		// Returns an Array where element 0 is a boolean indicating whether or not the Player is stalled, and
+		// element 1 is a boolean indicating whether or not to update the stall position / timestamp.
+	function isStalled(#start_timestamp=%TIMESTAMP%,&start_position="%XPOS%|%YPOS%|%ZPOS%",#seconds=5,#stall_break=3);
+		#last_pos[] = splitCoordString(%&start_position%);
+		#curr_pos[] = splitCoordString();
+		#abs_diff   = xEval("sqrt((%#last_pos[0]% - %#curr_pos[0]%)^2) + sqrt((%#last_pos[1]% - %#curr_pos[1]%)^2) + sqrt((%#last_pos[2]% - %#curr_pos[2]%)^2)",true);
+		
+		update_pos = #abs_diff >= #stall_break;
+		is_stalled = !%update_pos%;
+		if(%is_stalled%);
+			is_stalled = hasTimeExceeded(%#start_timestamp%,%#seconds%);
+		endif;
+		return(%over_limit%,%update_pos%);
+	endfunction;
+	
+	// Given a coordinate string, splits it up by tunnel characters and returns the minimum and maximum
+	// coordinate strings, evaluated by +/- [#expand_by] to each coordinate point.
+		// Params:
+		//      {string} [&coord_string="%XPOS%|%YPOS%|%ZPOS%"] The coordinate string to split up
+		//      {number} [#expand_by=1]                         The offset to apply to each coordinate point
+		//
+		// Returns an Array where the first element is the minimum string and second element is maximum string.
+	function expandCoordStringToRange(&coord_string="%XPOS%|%YPOS%|%ZPOS%",#expand_by=1);
+		#expand_greater = %#expand_by%;
+		#expand_lesser  = %#expand_by% * -1;
+		#coord_array[]  = splitCoordString(%&coord_string%);
+		foreach(#coord_array[],#coord_pos,#cpi);
+			#min_coord[%#cpi%] = %#coord_pos% + %#expand_lesser%;
+			#max_coord[%#cpi%] = %#coord_pos% + %#expand_greater%;
+		next;
+		&min_string = join("|",#min_coord[]);
+		&max_string = join("|",#max_coord[]);
+		return(%&min_string%,%&max_string%);
+	endfunction;
+	
+	// Given a minimum and maximum coordinate string, splits both of them, then finds the middle most value.
+		// Params:
+		//      {string} <&min_coord_string>    The minimum coordinate string
+		//      {string} <&max_coord_string>    The maximum coordinate string
+		//
+		// Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS. The value is the
+		// middle point (min X + max X / 2, etc) of each coordinate point.
+	function getMiddlePointCoordRange(&min_coord_string,&max_coord_string);
+		#min_coord[] = splitCoordString(%&min_coord_string%);
+		#max_coord[] = splitCoordString(%&max_coord_string%);
+		
+		#avg_pos_x   = (%#min_coord[0]% + %#max_coord[0]%) / 2;
+		#avg_pos_y   = (%#min_coord[1]% + %#max_coord[1]%) / 2;
+		#avg_pos_z   = (%#min_coord[2]% + %#max_coord[2]%) / 2;
+		
+		log("getMiddlePointCoordRange: avg x %#avg_pos_x%, avg y %#avg_pos_y%, avg z %#avg_pos_z%");
+		return(%#avg_pos_x%,%#avg_pos_y%,%#avg_pos_z%);
+	endfunction;
+	
+	// Takes input of a coordinate position in the world to move to, as well as optional setting pairs to pass along
+	// to baritone, then instructs Baritone to move to the position in the world.
+		// Params:
+		//      {string} <&target_position>     The Coordinate string to move to (X|Y|Z).
+		//      {string} [&coord_bounds[]]      An optional array of coordinate bounds (idx 0 = min coord bound, idx 1 = max coord bound)
+		//                                      strings. If provided, will exit the function and kill Baritone should the Player exit
+		//                                      these bounds.
+		//      {number} [#timeout_sec=300]     Maximum amount of seconds for the function to wait before timing out and exiting. Set to -1
+		//                                      to disable timeouts.
+		//      {number} [#stall_sec=5]         Maximum amount of seconds for the function to be stalled in nearly the same X/Y/Z position (no more
+		//                                      than 3 blocks of absolute distance) before timing out and exiting. Set to -1 to disable stall timeouts.
+		//      {string} [...&setting_pairs[]]  An optional array of key value Baritone Setting pairs to pass through to
+		//                                      Baritone before executing the movement. By default, this function will always
+		//                                      use the settings defined below. If you pass in these settings' keys, your values
+		//                                      will be used instead of the defaults. You can pass in other settings as well, if
+		//                                      needed. The format to pass key value pairs in is: '<key>|<value>'.
+			// Baritone Settings Used:
+			//  allowPlace              : false
+			//  allowBreak              : false
+			//  allowSprint             : true
+			//  allowDiagonalDescend    : true
+			//  allowDiagonalAscend     : true
+			//  allowParkour            : true
+			//  allowParkourAscend      : true
+			//  antiCheatCompatibility  : true
+			//  allowWalkOnBottomSlab   : true
+			//  allowWaterBucketFall    : false
+			//  blocksToAvoid           : spruce_fence,spruce_fence_gate,birch_fence,birch_fence_gate,jungle_fence,jungle_fence_gate,acacia_fence,acacia_fence_gate,dark_oak_fence,dark_oak_fence_gate,nether_brick_fence,cobblestone_wall
+			//  freeLook                : false
+			//  overshootTraverse       : true
+			//  randomLooking           : 0.03
+			//  sprintAscends           : true
+			//  sprintInWater           : false
+	function baritoneGoto(&target_position,&coord_bounds[],#timeout_sec=300,#stall_sec=5,...&setting_pairs[]);
+		log("baritoneGoto : target_position = %&target_position%");
+		// Validate input parameters
+		if(true);
+			// Issue Baritone Settings
+			if(true);
+				// Default Settings
+					&baritone_keys[] = "allowBreak";
+					&baritone_vals[] = "false";
+
+					&baritone_keys[] = "allowPlace";
+					&baritone_vals[] = "false";
+
+					&baritone_keys[] = "allowSprint";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowDiagonalDescend";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowDiagonalAscend";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowParkour";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowParkourAscend";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "antiCheatCompatibility";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowWalkOnBottomSlab";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "allowWaterBucketFall";
+					&baritone_vals[] = "false";
+					
+					&baritone_keys[] = "blocksToAvoid";
+					&baritone_vals[] = "spruce_fence,spruce_fence_gate,birch_fence,birch_fence_gate,jungle_fence,jungle_fence_gate,acacia_fence,acacia_fence_gate,dark_oak_fence,dark_oak_fence_gate,nether_brick_fence,cobblestone_wall";
+
+					&baritone_keys[] = "freeLook";
+					&baritone_vals[] = "false";
+
+					&baritone_keys[] = "overshootTraverse";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "randomLooking";
+					&baritone_vals[] = "0.03";
+
+					&baritone_keys[] = "sprintAscends";
+					&baritone_vals[] = "true";
+
+					&baritone_keys[] = "sprintInWater";
+					&baritone_vals[] = "false";
+				foreach(&setting_pairs[],&setting_pair,#spi);
+					&setting_pair[] = split("|",%&setting_pair%);
+					&setting_key    = %&setting_pair[0]%;
+					if(%&setting_key% != "");
+						&setting_val = %&setting_pair[1]%;
+						#setting_idx = indexof(&baritone_keys[],,%&setting_key%);
+						if(#setting_idx != -1);
+							&baritone_vals[%#setting_idx%] = %&setting_val%;
+						else;
+							&baritone_keys[] = %&setting_key%;
+							&baritone_vals[] = %&setting_val%;
+						endif;
+					endif;
+				next;
+				
+				foreach(&baritone_keys[],&baritone_key,#bki);
+					&baritone_val = %&baritone_vals[%#bki%]%;
+					baritonecommand("set %&baritone_key% %&baritone_val%");
+				next;
+			endif;
+			
+			// Setup bounds and exit conditions
+			if(true);
+				foreach(&coord_bounds[],&coord_bound,#cbi);
+					ifmatches(%&coord_bound%,"(.+)\|(.+)\|(.+)");
+						#coords[]   = splitCoordString(%&coord_bound%);
+						#bounds_x[] = %#coord[0]%;
+						#bounds_y[] = %#coord[1]%;
+						#bounds_z[] = %#coord[2]%;
+					endif;
+				next;
+				#bounds_x = arraysize(#bounds_x[]);
+				do_coord_bound = #bounds_x >= 2;
+				if(%do_coord_bound%);
+					#final_idx = #bounds_x - 1;
+					sort("ASC",#bounds_x[]);
+					sort("ASC",#bounds_y[]);
+					sort("ASC",#bounds_z[]);
+					#min_bound_x = %#bounds_x[0]%;
+					#min_bound_y = %#bounds_y[0]%;
+					#min_bound_z = %#bounds_z[0]%;
+					#max_bound_x = %#bounds_x[%#final_idx%]%;
+					#max_bound_y = %#bounds_y[%#final_idx%]%;
+					#max_bound_z = %#bounds_z[%#final_idx%]%;
+				endif;
+				
+				#target_pos[] = splitCoordString(%&target_position%);
+				#target_x    := %#target_pos[0]%;
+				#target_y    := %#target_pos[1]%;
+				#target_z    := %#target_pos[2]%;
+			endif;
+			
+			do_timeout  = #timeout_sec != -1;
+			do_stall    = #stall_sec != -1;
+			#start_time = %TIMESTAMP%;
+			
+			if(%do_stall%);
+				#stall_time = #start_time;
+				&stall_pos  = getCoordString();
+			endif;
+		endif;
+		
+		// Start moving to the position.
+		localGUI("NONE");
+		baritonecommand("goto %#target_x% %#target_y% %#target_z%");
+		do;
+			// Exit any GUI if we are in one.
+			if(%GUI% != "NONE");
+				localGUI("NONE");
+			endif;
+			
+			// Check if we have timed out
+			break_condition = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+			if(%break_condition%);
+				break;
+			endif;
+			
+			// Check if we have exited the boundaries
+			if(%do_coord_bound%);
+				wait("1t");
+				in_bounds_x     = withinBounds(%XPOS%,%#min_bound_x%,%#max_bound_x%);
+				in_bounds_y     = withinBounds(%YPOS%,%#min_bound_y%,%#max_bound_y%);
+				in_bounds_z     = withinBounds(%ZPOS%,%#min_bound_z%,%#max_bound_z%);
+				break_condition = !((%in_bounds_x%) && (%in_bounds_y%) && (%in_bounds_z%));
+				if(%break_condition%);
+					break;
+				endif;
+			endif;
+			
+			// Check if we are on the correct position
+			return_boolean = ((%XPOS% == #target_x) && (%YPOS% == #target_y) && (%ZPOS% == #target_z));
+			if(%return_boolean%);
+				break;
+			endif;
+			
+			// Check if we have stalled out
+			if(%do_stall%);
+				wait("1t");
+				stall_data[]    = isStalled(%#start_time%,%&start_pos%,%#stall_sec%);
+				break_condition = %stall_data[0]%;
+				update_stall    = %stall_data[1]%;
+				if(%break_condition%);
+					break;
+				elseif(%update_stall%);
+					#stall_time = %TIMESTAMP%;
+					&stall_pos  = getCoordString();
+				endif;
+			endif;
+			
+			wait("1t");
+		until((!%BARITONEWORKING%) || (%break_condition%) || (%return_boolean%));
+		
+		if((!%BARITONEWORKING%) && (!%break_condition%));
+			return_boolean = ((%XPOS% == #target_x) && (%YPOS% == #target_y) && (%ZPOS% == #target_z));
+		elseif(%BARITONEWORKING%);
+			baritonecommand("stop");
+		endif;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Given a Server type to get to, gets to the Server type from wherever we are. Returns a boolean indicating
+	// whether or not the action was successful.
+		// Params:
+		//      {string} [&target_server="SKYBLOCK_HOME"]   The target server to get to. Valid values are: 'SKYBLOCK',
+		//                                                  'SKYBLOCK_HUB', 'SKYBLOCK_HOME. Defaults to 'SKYBLOCK_HOME'.
+		//                                                  If set to 'SKYBLOCK', will accept any SkyBlock server.
+		//      {number} [#command_wait_ticks=100]          Amount of ticks to wait between issuing each command needed.
+		//      {number} [#timeout_sec=300]                 Amount of seconds to attempt this action before timing out and
+		//                                                  returning false. Set to -1 to make the action try to go on indefinitely.
+		//                                                  Defaults to 300 (5 minutes).
+		//      {boolean} [force_cmd=false]                 If set to true, will force the function to send a command to try and
+		//                                                  get to the correct server regardless of whether or not it is already on it
+		//                                                  at time of function call.
+		//
+		// Returns a boolean indicating whether or not the Player is on the [&target_server] at the time of function exit.
+	function gotoServer(&target_server="SKYBLOCK_HOME",#command_wait_ticks=100,#timeout_sec=300,force_cmd=false);
+		debug              = true;
+		&script_debug_name = "&4gotoServer";
+		
+		&target_server = miscValidate(%&target_server%,0,"SKYBLOCK_HOME","SKYBLOCK_HUB","SKYBLOCK");
+		do_timeout     = #timeout_sec > 0;
+		#start_time    = %TIMESTAMP%;
+		&encode_vars[] = split(", ","@&auto-restarts-case, @world_changed, BIOME, DIMENSION, XPOS, YPOS, ZPOS"); // Variables used to detect a world change event.
+		first_loop     = false;
+		#min_tick_wait = %#command_wait_ticks% / 2; // used to ensure we do not spam requests if we switch servers quickly
+		
+		do;
+			if(%do_timeout%);
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+			endif;
+			
+			// Figure out what type of command we are going to need to issue.
+			if(!%do_override%);
+				&hypixel_gamemode = getHypixelGamemode(); // 'LOBBY', 'LIMBO', 'SKYBLOCK', or 'OTHER'.
+				debug_log(%debug%,%&script_debug_name%,"force_cmd: %force_cmd%, target_server: %&target_server%, hypixel_gamemode: %&hypixel_gamemode%");
+				if(%&hypixel_gamemode% == "SKYBLOCK");
+					return_boolean = %&target_server% == "SKYBLOCK";
+					if((%return_boolean%) && ((!%force_cmd%) || (%first_loop%)));
+						debug_log(%debug%,%&script_debug_name%,"Got to target_server 'SKYBLOCK'.");
+						break;
+					endif;
+					
+					&skyblock_area = getSkyBlockArea(); // 'SKYBLOCK_HUB', 'SKYBLOCK_HOME', 'OTHER'
+					debug_log(%debug%,%&script_debug_name%,"force_cmd: %force_cmd%, target_server: %&target_server%, hypixel_gamemode: %&hypixel_gamemode%, skyblock_area: %&skyblock_area%");
+					return_boolean = %&target_server% == %&skyblock_area%;
+					if((%return_boolean%) && ((!%force_cmd%) || (%first_loop%)));
+						debug_log(%debug%,%&script_debug_name%,"Got to target_server '%&skyblock_area%'.");
+						break;
+					endif;
+					
+					if(%&skyblock_area% == "SKYBLOCK_HUB");
+						if((%force_cmd%) && (%&target_server% == "SKYBLOCK_HUB"));
+							&echo_command = "/warp hub";
+						else;
+							&echo_command = "/warp home";
+						endif;
+					elseif(%&skyblock_area% == "SKYBLOCK_HOME");
+						&echo_command = "/warp hub";
+					elseif(%&skyblock_area% == "OTHER");
+						&echo_command = "/lobby";
+					endif;
+				elseif(%&hypixel_gamemode% == "LIMBO");
+					&echo_command = "/lobby";
+				elseif(%&hypixel_gamemode% == "LOBBY");
+					&echo_command = "/play skyblock";
+				elseif(%&hypixel_gamemode% == "OTHER");
+					&echo_command = "/lobby";
+				endif;
+			else;
+				// Issue the override "/lobby" command to break out of the "Cannot send chat message" loop.
+				&echo_command = "/lobby";
+				do_override   = false;
+			endif;
+			debug_log(%debug%,%&script_debug_name%,"echo_command: &d%&echo_command%");
+			
+			// Issue the command and wait for an update in our environment variables.
+			if(true);
+				if((#waited_ticks > 0) && (#waited_ticks < #command_wait_ticks));
+					do;
+						wait("1t");
+						inc(#waited_ticks);
+					until(%#waited_ticks% >= %#command_wait_ticks%);
+				endif;
+			
+				foreach(&encode_vars[],&encode_var,#evi);
+					ifmatches(%&encode_var%,"(?-i:[a-z])"); // Unset any global variables, i.e. '@world_changed'.
+						unset(%&encode_var%);
+					endif;
+					&initial_vals[%#evi%] = "%%&encode_var%%";
+				next;
+				
+				debug_log(%debug%,%&script_debug_name%,"running %&echo_command%");
+				echo(%&echo_command%);
+				env_updated   = false;
+				#waited_ticks = 0;
+				do(%#command_wait_ticks%);
+					wait("1t");
+					inc(#waited_ticks);
+					foreach(&encode_vars[],&encode_var,#evi);
+						&encode_val = "%%&encode_var%%";
+						if(%&initial_vals[%#evi%]% != %&encode_val%);
+							env_updated = true; // Break early as soon as we detect some sort of change in our environment.
+							break;
+						endif;
+					next;
+				until(%env_updated%);
+				
+				// Check to see if we hit the @&auto-restarts-case ("Cannot send chat message")
+				if(%@&auto-restarts-case% != "");
+					do_override = true;
+				endif;
+			endif;
+			
+			first_loop = true;
+		until((%func_timeout%) || ((%return_boolean%) && ((!%force_cmd%) || (%first_loop%))));
+		
+		return(%return_boolean%);
+	endfunction;
+	
+	// Given a position string (and/or a server and coordinate string), gets the Player to the
+	// required Server then moves them to the required position.
+		// Params:
+		//      {string} [&position]        The name of the pre-defined position to move to. Valid strings are:
+			//  'HUB'                   : SkyBlock Hub
+			//  'HOME'                  : SkyBlock Home (Private Island)
+			//  'BANKER'                : SkyBlock Hub => Banker NPC
+			//  'BAZAAR'                : SkyBlock Hub => Bazaar NPC
+			// Note that in order to use the 'BAZAAR' or 'BAZAAR_AGENT' term, Chat Filter must be setup with 'You need level 7 in Farming, Foraging and Mining to access this feature!'
+			// in order to cancel the function in the event that the User is not yet level 10.
+			//  'BUILDER'               : SkyBlock Hub => Builder NPC
+			//  'MAD_REDSTONE_ENGINEER' : SkyBlock Hub => Builder NPC => Downstairs Redstone NPC (alt. strings: 'REDSTONE_ENGINEER', 'REDSTONE_MERCHANT')
+			//  'BITS'                  : SkyBlock Hub => Elizabeth NPC (Community Center)
+			//  'ALCHEMIST'             : SkyBlock Hub => Alchemist NPC
+			//  'AUCTION'               : SkyBlock Hub => Auction NPC
+			//  'JACOB'                 : SkyBlock Hub => Jacob NPC 
+			//  Note that in order to use the 'JACOB' term, Chat Filter must be setup with '\[NPC\] Jacob: You need Farming 10 to participate!' in order to cancel
+			//  the function in the event that the User is not yet level 10.
+			//  'ANITA'                 : SkyBlock Hub => Anita NPC
+			//  'ANVIL'                 : SkyBlock Hub => Anvil (at Blacksmith)
+			//  'REFORGE_ANVIL'         : SkyBlock Hub => Reforge Anvil (at Blacksmith / Smithmonger)
+			//  'ENCHANTMENT_TABLE'     : SkyBlock Hub => Enchantment Table Building (Library)
+			//  'LIBRARIAN'             : SkyBlock Hub => Librarian NPC
+			//  'FREE_COOKIE'           : SkyBlock Hub => Community Center => City Project
+			//  'WHEAT_FIELDS'          : SkyBlock Hub => Wheat Fields
+			//  'COAL_MINE'             : SkyBlock Hub => Coal Mine
+			//  'GOLD_MINE'             : SkyBlock Hub => Coal Mine => Gold Mine
+			//  'FOREST'                : SkyBlock Hub => Forest
+			//  'HUB_SECLUDED'          : SkyBlock Hub => Random secluded location
+			//  'HUB_SELECTOR'          : SkyBlock Hub => Hub Selector NPC (alt. strings              : 'SELECTOR')
+			//  'FARM_MERCHANT'         : SkyBlock Hub => Farm Merchant NPC (alt. strings             : 'FARM', 'FARM MERCHANT', 'FARMER', 'FARMER MERCHANT')
+			//  'MINE_MERCHANT'         : SkyBlock Hub => Mine Merchant NPC (alt. strings             : 'MINE', 'MINE MERCHANT', 'MINER', 'MINER MERCHANT')
+			//  'LUMBER_MERCHANT'       : SkyBlock Hub => Lumber Merchant NPC (alt. strings           : 'LUMBER', 'LUMBER MERCHANT')
+		//      {boolean} [open_gui=false]  Whether or not to open the GUI this Position is bound to once we have
+		//                                  arrived.
+		//      {number} [#timeout_sec=300] Amount of seconds to continue to attempt to execute this movement for before
+		//                                  timing out and returning false. If set to -1, will take it as no timeout, do it
+		//                                  forever until successful completion.
+		//      {string} [&server]          The name of the Server the position exists on. Only required if
+		//                                  [&position] is omitted. Valid values are 'HUB', 'HOME'.
+		//      {string} [&coord_string]    The coordinate string of the position to move to in format X|Y|Z.
+		//                                  Only required if [&position] is omitted and [&server] is provided.
+		//
+		// Returns a boolean indicating whether or not the movement was successful.
+	function goto(&position,open_gui=false,#timeout_sec=300,&server,&coord_string);
+		// Check if need to setup position string indexes
+		if(true);
+			#pos_param_len = arraysize(@&goto_pos_params[]);
+			#last_build    = %@#goto_pos_last_build%;
+			&curr_config   = %CONFIG%;
+			&curr_config   = regexreplace(&curr_config,"-dev$","");
+			#curr_build    = getbuild(%&curr_config%);
+			refresh_index  = ((#pos_param_len == 0) || (#last_build == 0) || ((#last_build != #curr_build) && (#curr_build != -1)));
+			
+			if(%refresh_index%);
+				unset(@&goto_pos_params[]);         // parameters used to select a position to go to 
+				unset(@&goto_pos_min[]);            // min coordinate bound strings
+				unset(@&goto_pos_max[]);            // max coordinate bound strings 
+				unset(@&goto_pos_server[]);         // server type (hub, home)
+				unset(@&goto_pos_entity[]);         // entity name for use in foreach ... entities or NULL if no entity
+				unset(@&goto_pos_container[]);      // name of container if entity or goto_pos_override_look
+				unset(@&goto_pos_override_look[]);  // coordinate string to calcyawto & look at if not entity
+				unset(@&goto_pos_chat_cancel[]);    // pointer to global bool var to unset before actions, if turns true while running, cancel
+				
+				if(true);
+					// Home / Private Island
+						@&goto_pos_params[]        = "HOME";
+						@&goto_pos_min[]           = "NULL";
+						@&goto_pos_max[]           = "NULL";
+						@&goto_pos_server[]        = "SKYBLOCK_HOME";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "NULL";
+						@&goto_pos_override_look[] = "NULL";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Hub Spawnpoint @ Hub
+						@&goto_pos_params[]        = "HUB";
+						@&goto_pos_min[]           = "-4|69|-71";
+						@&goto_pos_max[]           = "-2|71|-69";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "NULL";
+						@&goto_pos_override_look[] = "NULL";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Hub Selector @ Village
+						@&goto_pos_params[]        = "HUB_SELECTOR, SELECTOR, SERVER_SELECTOR, SERVER SELECTOR, HUB SELECTOR";
+						@&goto_pos_min[]           = "-12|69|-70";
+						@&goto_pos_max[]           = "-10|71|-68";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Hub Selector";
+						@&goto_pos_container[]     = "SkyBlock Hub Selector";
+						@&goto_pos_override_look[] = "-10.0|71.5|-67.0";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Banker @ Bank
+						@&goto_pos_params[]        = "BANKER";
+						@&goto_pos_min[]           = "-26|70|-62";
+						@&goto_pos_max[]           = "-24|72|-60";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Banker";
+						@&goto_pos_container[]     = "^(?:Bank|Personal Bank Account)$";
+						@&goto_pos_override_look[] = "-24.5|72.5|-58.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Bazaar @ Bazaar Alley
+						&char_unicode_escaped      = "\u279C"; // bazaar fat arrow
+						@&goto_pos_params[]        = "BAZAAR";
+						@&goto_pos_min[]           = "-32|69|-77";
+						@&goto_pos_max[]           = "-30|71|-75";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Bazaar";
+						@&goto_pos_container[]     = "Bazaar %&char_unicode_escaped% (?:Farming|Mining|Combat|Woods & Fishes|Oddities)";
+						@&goto_pos_override_look[] = "-32.5|72.5|-76.5";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_bazaar";
+					// Lumber Merchant @ Village
+						@&goto_pos_params[]        = "LUMBER_MERCHANT, LUMBER, LUMBER MERCHANT";
+						@&goto_pos_min[]           = "-51|69|-72";
+						@&goto_pos_max[]           = "-49|71|-70";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Lumber Merchant";
+						@&goto_pos_container[]     = "Lumber Merchant";
+						@&goto_pos_override_look[] = "-49.5|71.5|-68.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Builder @ Builder's House
+						@&goto_pos_params[]        = "BUILDER";
+						@&goto_pos_min[]           = "-53|70|-31";
+						@&goto_pos_max[]           = "-51|72|-29";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Builder";
+						@&goto_pos_container[]     = "Builder";
+						@&goto_pos_override_look[] = "-51.0|72.5|-27.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Wool Weaver @ Builder's House
+						@&goto_pos_params[]        = "WOOL_WEAVER, WOOL WEAVER, WOOL";
+						@&goto_pos_min[]           = "-48|73|-34";
+						@&goto_pos_max[]           = "-46|75|-32";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Wool Weaver";
+						@&goto_pos_container[]     = "Wool Weaver";
+						@&goto_pos_override_look[] = "-47.0|75.5|-30.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Mad Redstone Engineer @ Builder's House
+						@&goto_pos_params[]        = "MAD_REDSTONE_ENGINEER, REDSTONE_ENGINEER, REDSTONE_MERCHANT, MAD RESTONE ENGINEER, REDSTONE ENGINEER, REDSTONE MERCHANT, REDSTONE";
+						@&goto_pos_min[]           = "-54|64|-32";
+						@&goto_pos_max[]           = "-52|66|-30";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Mad Redstone Engineer";
+						@&goto_pos_container[]     = "Mad Redstone Engineer";
+						@&goto_pos_override_look[] = "-52.0|66.5|-29.0";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Lumberjack @ Forest
+						@&goto_pos_params[]        = "LUMBERJACK, FOREST";
+						@&goto_pos_min[]           = "-113|73|-37";
+						@&goto_pos_max[]           = "-111|75|-35";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Lumberjack";
+						@&goto_pos_container[]     = "NULL";
+						@&goto_pos_override_look[] = "-112.5|75.5|-36.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Adventurer @ Village
+						@&goto_pos_params[]        = "ADVENTURER, ADVENTURER_MERCHANT";
+						@&goto_pos_min[]           = "-43|69|-68";
+						@&goto_pos_max[]           = "-41|71|-66";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Adventurer";
+						@&goto_pos_container[]     = "Adventurer";
+						@&goto_pos_override_look[] = "-41.5|71.5|-64.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Bazaar Agent @ Bazaar Alley
+						&char_unicode_escaped      = "\u279C"; // bazaar fat arrow
+						@&goto_pos_params[]        = "BAZAAR_AGENT";
+						@&goto_pos_min[]           = "-41|69|-79";
+						@&goto_pos_max[]           = "-39|71|-77";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Bazaar Agent";
+						@&goto_pos_container[]     = "Bazaar %&char_unicode_escaped% (?:Farming|Mining|Combat|Woods & Fishes|Oddities)";
+						@&goto_pos_override_look[] = "-39.5|71.5|-78.90625";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_bazaar";
+					// Vault @ Bank
+						@&goto_pos_params[]        = "VAULT";
+						@&goto_pos_min[]           = "-29|70|-63";
+						@&goto_pos_max[]           = "-27|72|-61";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Vault";
+						@&goto_pos_container[]     = "^(?:Unlock Bank|Personal) Vault\??$";
+						@&goto_pos_override_look[] = "-28.5|72.8125|-61.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Alchemist @ Village
+						@&goto_pos_params[]        = "ALCHEMIST";
+						@&goto_pos_min[]           = "41|69|-63";
+						@&goto_pos_max[]           = "43|71|-61";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Alchemist";
+						@&goto_pos_container[]     = "Alchemist";
+						@&goto_pos_override_look[] = "41.5|71.5|-63.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Fish Merchant @ Village
+						@&goto_pos_params[]        = "FISH_MERCHANT, FISH MERCHANT, FISH";
+						@&goto_pos_min[]           = "49|67|-84";
+						@&goto_pos_max[]           = "51|69|-82";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Fish Merchant";
+						@&goto_pos_container[]     = "Fish Merchant";
+						@&goto_pos_override_look[] = "52.5|69.5|-82.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Plumber Joe @ Village
+						@&goto_pos_params[]        = "PLUMBER_JOE, PLUMBER JOE, PLUMBER";
+						@&goto_pos_min[]           = "56|69|-80";
+						@&goto_pos_max[]           = "58|71|-78";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Plumber Joe";
+						@&goto_pos_container[]     = "Plumber Joe";
+						@&goto_pos_override_look[] = "56.5|71.59375|-77.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Kat @ Village
+						@&goto_pos_params[]        = "KAT";
+						@&goto_pos_min[]           = "32|70|-102";
+						@&goto_pos_max[]           = "34|72|-100";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Kat";
+						@&goto_pos_container[]     = "Pet Sitter";
+						@&goto_pos_override_look[] = "34.5|72.59375|-100.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Zog @ Village
+						@&goto_pos_params[]        = "ZOG";
+						@&goto_pos_min[]           = "32|69|-95";
+						@&goto_pos_max[]           = "34|71|-93";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Zog";
+						@&goto_pos_container[]     = "Zog";
+						@&goto_pos_override_look[] = "33.5|71.5|-95.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Bea @ Village
+						@&goto_pos_params[]        = "BEA";
+						@&goto_pos_min[]           = "27|69|-92";
+						@&goto_pos_max[]           = "29|71|-90";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Bea";
+						@&goto_pos_container[]     = "Bea";
+						@&goto_pos_override_look[] = "30.5|71.5|-90.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// George @ Village
+						@&goto_pos_params[]        = "GEORGE";
+						@&goto_pos_min[]           = "31|76|-93";
+						@&goto_pos_max[]           = "33|78|-91";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "George";
+						@&goto_pos_container[]     = "Offer Pets";
+						@&goto_pos_override_look[] = "32.5|78.5|-93.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Jacob @ Farmhouse
+						@&goto_pos_params[]        = "JACOB";
+						@&goto_pos_min[]           = "21|70|-69";
+						@&goto_pos_max[]           = "23|72|-67";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Jacob";
+						@&goto_pos_container[]     = "Jacob's Farming Contests";
+						@&goto_pos_override_look[] = "23.0|72.5|-69.0";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_jacob";
+					// Anita @ Farmhouse
+						@&goto_pos_params[]        = "ANITA";
+						@&goto_pos_min[]           = "23|76|-71";
+						@&goto_pos_max[]           = "25|78|-69";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Anita";
+						@&goto_pos_container[]     = "Anita";
+						@&goto_pos_override_look[] = "23.0|78.5|-69.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Farm Merchant @ Village
+						@&goto_pos_params[]        = "FARM_MERCHANT, FARM MERCHANT, FARMER_MERCHANT, FARMER MERCHANT, FARMER, FARM";
+						@&goto_pos_min[]           = "13|69|-73";
+						@&goto_pos_max[]           = "15|71|-71";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Farm Merchant";
+						@&goto_pos_container[]     = "Farm Merchant";
+						@&goto_pos_override_look[] = "15.5|71.5|-71.78125";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Elizabeth @ Community Center
+						@&goto_pos_params[]        = "ELIZABETH, BITS";
+						@&goto_pos_min[]           = "0|70|-103";
+						@&goto_pos_max[]           = "2|72|-101";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Elizabeth";
+						@&goto_pos_container[]     = "Community Shop";
+						@&goto_pos_override_look[] = "0.0|72.5|-101.0";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_elizabeth";
+					// City Project @ Community Center
+						@&goto_pos_params[]        = "FREE_COOKIE, CITY_PROJECT";
+						@&goto_pos_min[]           = "8|72|-110";
+						@&goto_pos_max[]           = "10|74|-108";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "CITY PROJECT";
+						@&goto_pos_container[]     = "Project";
+						@&goto_pos_override_look[] = "12.0|73.53125|-108.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Auction Agent @ Auction House
+						@&goto_pos_params[]        = "AUCTIONS, AUCTION, AUCTION_HOUSE, AUCTION HOUSE, AH";
+						@&goto_pos_min[]           = "-32|71|-89";
+						@&goto_pos_max[]           = "-30|73|-87";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Auction Agent";
+						@&goto_pos_container[]     = "(?:Co-op )?Auction House";
+						@&goto_pos_override_look[] = "-31.0|74.5|-85.5";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_ah";
+					// Librarian @ Library
+						@&goto_pos_params[]        = "LIBRARIAN, LIBRARY, LIBRARIAN_MERCHANT, LIBRARY_MERCHANT, LIBRARIAN MERCHANT, LIBRARY MERCHANT";
+						@&goto_pos_min[]           = "-36|68|-113";
+						@&goto_pos_max[]           = "-34|70|-111";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Librarian";
+						@&goto_pos_container[]     = "Librarian";
+						@&goto_pos_override_look[] = "-35.5|70.59375|-112.5";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Enchanting Table @ Library
+						@&goto_pos_params[]        = "ENCHANTMENT_TABLE, ENCHANTMENT TABLE, ENCHANTMENT, ENCHANTING_TABLE, ENCHANTING TABLE, ENCHANTING, ENCHANT_TABLE, ENCHANT TABLE, ENCHANT";
+						@&goto_pos_min[]           = "-36|68|-113";
+						@&goto_pos_max[]           = "-34|70|-111";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "Enchant Item";
+						@&goto_pos_override_look[] = "-37|69|-111";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Mine Merchant @ Coal Mine
+						@&goto_pos_params[]        = "MINE_MERCHANT, MINE MERCHANT, MINER_MERCHANT, MINER MERCHANT, MINE, MINER";
+						@&goto_pos_min[]           = "-10|67|-124";
+						@&goto_pos_max[]           = "-8|69|-122";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Mine Merchant";
+						@&goto_pos_container[]     = "Mine Merchant";
+						@&goto_pos_override_look[] = "-9.0|69.5|-125.0";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Blacksmith @ Blacksmith
+						@&goto_pos_params[]        = "ANVIL";
+						@&goto_pos_min[]           = "-29|68|-128";
+						@&goto_pos_max[]           = "-27|70|-126";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "Anvil";
+						@&goto_pos_override_look[] = "-28|69|-129";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Smithmonger @ Blacksmith
+						@&goto_pos_params[]        = "SMITHMONGER";
+						@&goto_pos_min[]           = "-32|68|-137";
+						@&goto_pos_max[]           = "-30|70|-135";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "Smithmonger";
+						@&goto_pos_container[]     = "Smithmonger";
+						@&goto_pos_override_look[] = "-32.5|70.59375|-135.5";
+						@&goto_pos_chat_cancel[]   = "@cannot_use_smithmonger";
+					// Reforge Anvil @ Blacksmith/Smithmonger
+						@&goto_pos_params[]        = "REFORGE_ANVIL, REFORGE ANVIL, REFORGE";
+						@&goto_pos_min[]           = "-32|68|-137";
+						@&goto_pos_max[]           = "-30|70|-135";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "Reforge Item \(Advanced\)";
+						@&goto_pos_override_look[] = "-29|69|-137";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Wheat Fields @ Farm in Hub
+						@&goto_pos_params[]        = "WHEAT_FIELDS, WHEAT FIELDS, WHEAT, FIELDS";
+						@&goto_pos_min[]           = "42|70|-144";
+						@&goto_pos_max[]           = "44|72|-142";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "NULL";
+						@&goto_pos_override_look[] = "NULL";
+						@&goto_pos_chat_cancel[]   = "NULL";
+					// Coal Mine @ Coal Mine in Hub
+						@&goto_pos_params[]        = "COAL_MINE, COAL MINE, COAL";
+						@&goto_pos_min[]           = "-21|70|-166";
+						@&goto_pos_max[]           = "-19|72|-164";
+						@&goto_pos_server[]        = "SKYBLOCK_HUB";
+						@&goto_pos_entity[]        = "NULL";
+						@&goto_pos_container[]     = "NULL";
+						@&goto_pos_override_look[] = "NULL";
+						@&goto_pos_chat_cancel[]   = "NULL";
+				endif;
+				
+				@#goto_pos_last_build = %#curr_build%;
+			endif;
+		endif;
+		
+		// Find the position we are going to need to go to.
+		if(true);
+			#position_index = -1;
+			if(%&position% != "");
+				foreach(@&goto_pos_params[],&goto_pos_params,#gpi);
+					&goto_pos_params[] = split(", ",%&goto_pos_params%);
+					#goto_pos_index    = indexof(&goto_pos_params[],,%&position%);
+					if(#goto_pos_index != -1);
+						debug_log(%@fn_debug%,%&script_debug_name%,"goto > pos found in %&goto_pos_params% (%&goto_pos_params[%#goto_pos_index%]%)");
+						#position_index = #gpi;
+						break;
+					endif;
+				next;
+			endif;
+			if(#position_index != -1);
+				#auction_index          = indexof(&goto_pos_params[],,"AUCTION");
+				if(#auction_index != -1);
+					#auction_y      =  72;
+					#auction_min_x  = -39;
+					#auction_max_x  = -29;
+					#auction_row_z1 = -88;
+					#auction_row_z2 = -94;
+					
+					
+				else;
+					&goto_pos_min = %@&goto_pos_min[%#position_index%]%;
+					&goto_pos_max = %@&goto_pos_max[%#position_index%]%;
+				endif;
+				&goto_pos_server        = %@&goto_pos_server[%#position_index%]%;
+				&goto_pos_entity        = %@&goto_pos_entity[%#position_index%]%;
+				&goto_pos_container     = %@&goto_pos_container[%#position_index%]%;
+				&goto_pos_override_look = %@&goto_pos_override_look[%#position_index%]%;
+				&goto_pos_chat_cancel   = %@&goto_pos_chat_cancel[%#position_index%]%;
+			elseif((%&server% != "") && (%&coord_string% != ""));
+				&goto_pos_arr[]         = expandCoordStringToRange(%&coord_string%);
+				&goto_pos_min           = %&goto_pos_arr[0]%;
+				&goto_pos_max           = %&goto_pos_arr[1]%;
+				&goto_pos_server        = %&server%;
+				&goto_pos_entity        = "NULL";
+				&goto_pos_container     = "NULL";
+				&goto_pos_override_look = "NULL";
+				&goto_pos_chat_cancel   = "NULL";
+			endif;
+		endif;
+		
+		// Start moving towards the position we need to go to.
+		if(true);
+			// Setup loop variables
+			if(true);
+				do_timeout      = #timeout_sec != -1;
+				#start_time     = %TIMESTAMP%;
+				#fn_timeout     = -1
+				do_open_gui     = ((%open_gui%) && (%&goto_pos_container% != "") && (%&goto_pos_container% != "NULL"));
+				log("do_open_gui : %do_open_gui%")
+				do_coord_bound  = ((%&goto_pos_min% != "NULL") && (%&goto_pos_max% != "NULL"));
+				if(%do_coord_bound%);
+					log("goto_pos_min %&goto_pos_min%, goto_pos_max %&goto_pos_max%")
+					#goto_pos_avg[] = getMiddlePointCoordRange(%&goto_pos_min%,%&goto_pos_max%);
+					#goto_pos_min[] = splitCoordString(%&goto_pos_min%);
+					#goto_pos_max[] = splitCoordString(%&goto_pos_max%);
+					
+					// Setup coordinate position points
+					if(true);
+						#goto_pos_min_x = %#goto_pos_min[0]%;
+						#goto_pos_min_y = %#goto_pos_min[1]%;
+						#goto_pos_min_z = %#goto_pos_min[2]%;
+						
+						#goto_pos_max_x = %#goto_pos_max[0]%;
+						#goto_pos_max_y = %#goto_pos_max[1]%;
+						#goto_pos_max_z = %#goto_pos_max[2]%;
+						
+						#goto_pos_avg_x = %#goto_pos_avg[0]%;
+						#goto_pos_avg_y = %#goto_pos_avg[1]%;
+						#goto_pos_avg_z = %#goto_pos_avg[2]%;
+						&goto_pos_avg   = "%#goto_pos_avg_x%|%#goto_pos_avg_y%|%#goto_pos_avg_z%";
+					endif;
+				endif;
+				
+				use_override_look = ((%do_open_gui%) && (%&goto_pos_override_look% != "NULL"));
+				if(%use_override_look%);
+					&override_look_pos[] = splitCoordString(%&goto_pos_override_look%);
+					&calc_look_x         = %&override_look_pos[0]%;
+					&calc_look_y         = %&override_look_pos[1]%;
+					&calc_look_z         = %&override_look_pos[2]%;
+				endif;
+				
+				use_chat_cancel = ((%do_open_gui%) && (%&goto_pos_chat_cancel% != "NULL"));
+				if(%use_chat_cancel%);
+					unset(%&goto_pos_chat_cancel%);
+				endif;
+				
+				#static_hub_x = -3;
+				#static_hub_y = 70;
+				#static_hub_z = -70;
+			endif;
+			do;
+				// Check if we should timeout and exit early
+				if(true);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						break;
+					elseif(%do_timeout%);
+						#elapsed_sec = %TIMESTAMP% - #start_time;
+						#fn_timeout  = #timeout_sec - #elapsed_sec;
+					endif;
+				endif;
+				
+				on_server = gotoServer(%&goto_pos_server%,100,%#fn_timeout%);
+				if(%on_server%);
+					// If we are on the correct server, check to see if we can exit now, or if we need to do more stuff.
+					pos_condition = !%do_coord_bound%;
+					if(%do_coord_bound%);
+						in_bounds_x   = withinBounds(%XPOS%,%#goto_pos_min_x%,%#goto_pos_max_x%);
+						in_bounds_y   = withinBounds(%YPOS%,%#goto_pos_min_y%,%#goto_pos_max_y%);
+						in_bounds_z   = withinBounds(%ZPOS%,%#goto_pos_min_z%,%#goto_pos_max_z%);
+						pos_condition = ((%in_bounds_x%) && (%in_bounds_y%) && (%in_bounds_z%));
+						debug_log(%@fn_debug%,%&script_debug_name%,"goto > in_bounds_x : %in_bounds_x%, in_bounds_y = %in_bounds_y%, in_bounds_z = %in_bounds_z%");
+					endif;
+					
+					gui_condition = !%do_open_gui%;
+					if(%do_open_gui%);
+						gui_condition = regexTest(%CONTAINERNAME%,%&goto_pos_container%);
+						log("gui_condition : %gui_condition% (%CONTAINERNAME%, %&goto_pos_container%)");
+						if(%use_chat_cancel%);
+							chat_cancel_val := "%%&goto_pos_chat_cancel%%";
+							if(%chat_cancel_val%);
+								log("chat cancelled")
+								break;
+							endif;
+						endif;
+					endif;
+					
+					return_boolean = ((%pos_condition%) && (%gui_condition%));
+					log("return_boolean: %return_boolean%")
+					if(!%return_boolean%);
+						if(!%pos_condition%);
+							use_baritone = %&goto_pos_server% != "SKYBLOCK_HUB";
+							
+							// If the server is HUB, check to see if it would be faster for us to /warp hub => navigate instead of just going there using Baritone.
+							if(%&goto_pos_server% == "SKYBLOCK_HUB");
+								#curr_dist_x   = absDiff(%#goto_pos_avg_x%,%XPOS%);
+								#curr_dist_y   = absDiff(%#goto_pos_avg_y%,%YPOS%);
+								#curr_dist_z   = absDiff(%#goto_pos_avg_z%,%ZPOS%);
+								#curr_sum_dist = #curr_dist_x + #curr_dist_y + #curr_dist_z;
+								#hub_dist_x    = absDiff(%#goto_pos_avg_x%,%#static_hub_x%);
+								#hub_dist_y    = absDiff(%#goto_pos_avg_y%,%#static_hub_y%);
+								#hub_dist_z    = absDiff(%#goto_pos_avg_z%,%#static_hub_z%);
+								#hub_sum_dist  = #hub_dist_x + #hub_dist_y + #hub_dist_z;
+								use_baritone   = #hub_sum_dist >= #curr_sum_dist;
+								
+								&log_vars[] = split(", ","#curr_dist_x, #curr_dist_y, #curr_dist_z, #curr_sum_dist, #hub_dist_x, #hub_dist_y, #hub_dist_z, #hub_sum_dist, use_baritone");
+								foreach(&log_vars[],&log_var,#lvi);
+									&log_val = "%%&log_var%%";
+									log("&7%#lvi% > %&log_var% : &d%&log_val%");
+								next;
+								
+								if(!%use_baritone%);
+									if(%do_timeout%);
+										#elapsed_sec = %TIMESTAMP% - #start_time;
+										#fn_timeout  = #timeout_sec - #elapsed_sec;
+									endif;
+									on_server = gotoServer("SKYBLOCK_HUB",100,%#fn_timeout%,true);
+								endif;
+							endif;
+							
+							if(%use_baritone%);
+								// Use Baritone to navigate to the "average" position.
+								log("goto > 2154 goto_pos_avg : %&goto_pos_avg%")
+								baritone_outcome = baritoneGoto(%&goto_pos_avg%,,%#fn_timeout%);
+								if((%gui_condition%) && (%baritone_outcome%));
+									return_boolean = true;
+									break;
+								endif;
+							endif;
+						elseif(!%gui_condition%);
+							// Attempt to open the correct Container.
+							if(!%use_override_look%);
+								&entity_pos[] = getEntityPos(".*%&goto_pos_entity%",,5,true);
+								&calc_look_x  = %&entity_pos[0]%;
+								if(%&calc_look_x% == "");
+									log("&4Unexpected Error in movement/index.txt fn#Goto: Cannot find entity with name &e%&goto_pos_entity%&4!")
+									break;
+								endif;
+								&calc_look_y  = %&entity_pos[1]%;
+								&calc_look_z  = %&entity_pos[2]%;
+							endif;
+							#calc_vars[] = fnCalcYawTo(%&calc_look_x%,%&calc_look_y%,%&calc_look_z%);
+							#calc_yaw    = %#calc_vars[0]%;
+							#calc_dist   = %#calc_vars[1]%;
+							#calc_pitch  = %#calc_vars[2]%;
+							localGUI("NONE");
+							
+							looks(%#calc_yaw%,%#calc_pitch%,"0.500");
+							key("use");
+							&init_container_string = getContainerString();
+							do(20);
+								new_gui = enteredNewGUI(%&init_container_string%);
+								wait("1t");
+							until(%new_gui%);
+						endif;
+					endif;
+				else;
+					// Not on Server, not really sure how to fix this ...
+					log("&4Unexpected Error in movement/index.txt fn#Goto: Not on correct Hypixel Server after attempting fn#GotoServer")
+					break;
+				endif;
+			until((%return_boolean%) || (%func_timeout%));
+		endif;
+		
+		return(%return_boolean%);
+	endfunction;
+	
+	// Swaps the Server we are currently connected to by switching to the Hub if we are at Home, or Home if we are at Hub.
+	// REQUIRES CHATFILTER LINES:
+		// ifmatches(%CHATCLEAN%,"^You are currently connected to server (.+)$",@&current_server_id);
+		// Params:
+			// {number} [#timeout_sec=30]	Amount of Seconds Function can run for before timing out.
+			// {number} [#wait_ticks=100]	Amount of Ticks to wait in between calling Commands.
+			//
+		// Returns a String ENUM:
+			// SUCCESS      	Successfully swapped Servers.
+			// ERROR_TIMEOUT	Function timed out.
+			// ERROR_SERVER 	Could not get onto a SkyBlock Server.
+	function swapServers(#wait_ticks=100,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9swapServers&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&enum_success      = "SUCCESS";
+			&enum_timeout      = "ERROR_TIMEOUT";
+			&enum_server       = "ERROR_SERVER";
+			&enum_unknown      = "ERROR_UNKNOWN";
+		endif;
+		
+		// Loop getting the Initial Server ID and Type followed by switching to the opposing Server until we are on a Server with a different Server ID, or an Error is encountered.
+		if(true);
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out. (err code &&enum_timeout: '&4%&enum_timeout%&7'.)");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Get Initial Server ID and Type
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&init_server_id    = getServerID(%#wait_ticks%,%#recursive_timeout%);
+					ifmatches(%&init_server_id%,"^ERROR_");
+						debug_error(%debug%,%&script_debug_name%,"(INIT) Got an ERROR response from &9getServerID&7: '&4%&init_server_id%&7'.");
+						if((%&init_server_id% == %&enum_unknown%) || (%&init_server_id% == %&enum_server%) || (%&init_server_id% == %&enum_timeout%));
+							debug_error(%debug%,%&script_debug_name%,"Err code &&init_server_id: '&4%&init_server_id%&7'.");
+							&return_string = %&init_server_id%;
+						else;
+							debug_error(%debug%,%&script_debug_name%,"Err code &&enum_unknown: '&4%&enum_unknown%&7'.");
+							&return_string = %&enum_unknown%;
+						endif;
+						break;
+					endif;
+				
+					// Make sure we are on a SkyBlock Server to begin with.
+					if(true);
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						on_skyblock        = gotoServer("SKYBLOCK",%#wait_ticks%,%#recursive_timeout%);
+						if(!%on_skyblock%);
+							debug_error(%debug%,%&script_debug_name%,"Could not get onto a valid SkyBlock Server! (err code &&enum_server: '&4%&enum_server%&7'.)");
+							&return_string = %&enum_server%;
+							break;
+						endif;
+					endif;
+					
+					&init_server_type = getSkyBlockArea();
+				endif;
+				
+				// 3. Swap Servers to the Opposite of our Current Server, then check if the Server ID is different.
+				if(true);
+					if(%&init_server_type% == "SKYBLOCK_HUB");
+						&goto_server_type = "SKYBLOCK_HOME";
+					elseif(%&init_server_type% == "SKYBLOCK_HOME");
+						&goto_server_type = "SKYBLOCK_HUB";
+					else;
+						debug_error(%debug%,%&script_debug_name%,"&9getSkyBlockArea&7 returned '&4%&init_server_type%&7'! (err code &&enum_server: '&4%&enum_server%&7'.)");
+						&return_string = %&enum_server%;
+						break;
+					endif;
+					
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					on_skyblock        = gotoServer(%&goto_server_type%,%#wait_ticks%,%#recursive_timeout%);
+					if(!%on_skyblock%);
+						debug_error(%debug%,%&script_debug_name%,"Could not get onto the &&goto_server_type: '&4%&goto_server_type%&c' Server Type! (err code &&enum_server: '&4%&enum_server%&7'.)");
+						&return_string = %&enum_server%;
+						break;
+					endif;
+					
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&post_server_id    = getServerID(%#wait_ticks%,%#recursive_timeout%);
+					ifmatches(%&post_server_id%,"^ERROR_");
+						debug_error(%debug%,%&script_debug_name%,"(POST) Got an ERROR response from &9getServerID&7: '&4%&post_server_id%&7'.");
+						if((%&post_server_id% == %&enum_unknown%) || (%&post_server_id% == %&enum_server%) || (%&post_server_id% == %&enum_timeout%));
+							&return_string = %&post_server_id%;
+						else;
+							&return_string = %&enum_unknown%;
+						endif;
+						break;
+					endif;
+					
+					if(%&post_server_id% != %&init_server_id%);
+						debug_log(%debug%,%&script_debug_name%,"Updated Server ID from (init) &8%&init_server_id%&7 to (post) &e%&post_server_id%&7.");
+						&return_string = %&enum_success%;
+						break;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"Init Server ID (init: '&8%&init_server_id%&7') is the same as Post Server ID (post: '&e%&post_server_id%&7'). Trying again...");
+					endif;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning &&return_string: '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;

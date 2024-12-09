@@ -1,0 +1,254 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // info/index/hasTimeExceeded
+        // Used to determine whether to timeout a function.
+            // Params:
+                // {number} <#start_time>        The start timestamp to subtract from current timestamp
+                // {number} <#timeout_sec>       The amount of seconds to check if difference between now & start is >=.
+                // {number} [do_timeout=true]    If false, will always return false (used as shorthand for functions that
+                //                               use this function to determine whether or not they have timed out).
+            // Returns a boolean indicating whether or not <#start_timestamp> was >= <#seconds> ago.
+            // Example:
+                //    func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function hasTimeExceeded(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:10
+            #elapsed_sec   = %TIMESTAMP% - #start_time;
+            return_boolean = ((%do_timeout%) && (#elapsed_sec >= #timeout_sec));
+            return(%return_boolean%);
+        endfunction;
+    // info/index/getSkyblockAreaFromWTFMAP
+        // Attempts to read the SkyBlock Area from the /wtfmap command + chatfilter.
+            // Params:
+            //      {number} [#timeout_sec=30]  Max amount of seconds to wait for Chat Filter to read the wtfmap output.
+            //                                  Set to -1 to disable timeout.
+            //      {number} [#wait_ticks=60]   Amount of ticks to wait between attempts to issue the command.
+            //
+            // Returns the String returned from the Command (i.e. "SkyBlock Dynamic"), or "-1" if cannot be found/timed out.
+        function getSkyblockAreaFromWTFMAP(#timeout_sec=30,#wait_ticks=30);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:422
+            debug              = true;
+            &script_debug_name = "&3getSkyBlockAreaFromWTFMAP&7";
+            
+            @cannot_use_wtfmap = false;
+            @&wtfmap           = "";
+            #start_time        = %TIMESTAMP%;
+            do_timeout         = #timeout_sec != -1;
+            &return_string     = "-1";
+            do;
+                func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+                if(%func_timeout%);
+                    break;
+                endif;
+                    
+                debug_log(%debug%,%&script_debug_name%,"echoing '/wtfmap'...");
+                echo("/wtfmap");
+                do(%#wait_ticks%);
+                    wait("1t");
+                    got_response   = ((%@&wtfmap% != "") || (%@cannot_use_wtfmap%));
+                until(%got_response%);
+                if((%got_response%) && (%@&wtfmap% != ""));
+                    &return_string = %@&wtfmap%;
+                    break;
+                endif;
+            until((%got_response%) || (%func_timeout%));
+            return(%&return_string%);
+        endfunction;
+    // info/index/getScoreboardSkyBlockArea
+        // Attempts to read the Scoreboard to find the Player's AREA on Hypixel SkyBlock (i.e. 'Private Island', 'Hub', 'Bank', etc).
+            // Params:
+            //      None
+            //
+            // Returns the string found on the Scoreboard following the Gem Character, or "-1" if not able to be parsed.
+        function getScoreboardSkyBlockArea();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:456
+            &return_string = -1;
+            foreach("teams");
+                &joint_team = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                &joint_team = trim(%&joint_team%);
+                &joint_team = regexreplace(&joint_team,"^\s*","");
+                ifmatches(%&joint_team%,"\u23E3 (.+)",&found_area,1);
+                    &return_string = %&found_area%;
+                endif;
+            next;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getSkyBlockPlayerListInfo
+        // Returns an Array of information extracted from the Hypixel SkyBlock PlayerList.
+            // Params:
+            //      {string} [...&extract_vars[]]   The variables to extract from the Player List. Valid values are:
+            //                                      'AREA', 'SERVER', 'PROFILE', 'BANK', 'SKILLS', 'SPEED', 'STRENGTH',
+            //                                      'CRIT_CHANCE', 'CRIT_DAMAGE', 'ATTACK_SPEED'. If no values are provided,
+            //                                      will return variables 'AREA', and 'PROFILE' by default.
+            //
+            // Returns an Array of the extracted variables indexed in the order they were passed to the Function,
+            // or if no variables were able to be extracted, the first element of this Array will be -1.
+        function getSkyBlockPlayerListInfo(...&extract_vars[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:258
+            // Setup valid variables
+            if(true);
+                &valid_vars[]  = split(", ","AREA, SERVER, PROFILE, BANK, SKILLS, SPEED, STRENGTH, CRIT_CHANCE, CRIT_DAMAGE, ATTACK_SPEED");
+                #extract_len   = arraysize(&extract_vars[]);
+                assign_default = #extract_len == 0;
+                if(!%assign_default%);
+                    foreach(&valid_vars[],&valid_var);
+                        #extract_idx = indexof(&extract_vars[],,%&valid_var%);
+                        if(#extract_idx != -1);
+                            &use_out_vars[] = %&valid_var%;
+                            #use_out_idxs[] = %#extract_idx%;
+                            matched[]       = false;
+                        endif;
+                    next;
+                    #use_out_len   = arraysize(&use_out_vars[]);
+                    assign_default = #use_out_len == 0;
+                endif;
+                
+                if(!%assign_default%);
+                    sort("ASC",#use_out_idxs[],&use_out_vars[]);
+                else;
+                    &use_out_vars[] = split(", ","AREA, PROFILE");
+                    matched[]       = split(", ","false, false");
+                endif;
+            endif;
+            
+            // Compile matches
+            if(true);
+                #return_index = indexof(&use_out_vars[],,"AREA");
+                if(#index_area != -1);
+                    &match_names[] = "!C-b";
+                    &match_exprs[] = "Area: (.+)"; // Area: Private Island
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SERVER");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!C-c";
+                    &match_exprs[%#return_index%] = "Server: (.+)"; // Server: mini787Q
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"PROFILE");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-b";
+                    &match_exprs[%#return_index%] = "Profile: (.+)"; // Profile: Pineapple
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"BANK");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-d";
+                    &match_exprs[%#return_index%] = "Bank: (.+)"; // Bank: 50/50
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SKILLS");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-g";
+                    &match_exprs[%#return_index%] = "Skills: (.+)"; // Skills: Foraging 17: 24.1%
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10022");
+                    &match_names[%#return_index%] = "!D-h";
+                    &match_exprs[%#return_index%] = "Speed: %&tmp_expr_char%(.+)"; // Speed: ✦220
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"STRENGTH");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10049");
+                    &match_names[%#return_index%] = "!D-i";
+                    &match_exprs[%#return_index%] = "Strength: %&tmp_expr_char%(.+)"; // Strength: ❁149
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"CRIT_CHANCE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9763");
+                    &match_names[%#return_index%] = "!D-j";
+                    &match_exprs[%#return_index%] = "Crit Chance: %&tmp_expr_char%(.+)"; // Crit Chance: ☣64
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"CRIT_DAMAGE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9760");
+                    &match_names[%#return_index%] = "!D-k";
+                    &match_exprs[%#return_index%] = "Crit Damage: %&tmp_expr_char%(.+)"; // Crit Damage: ☠130
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"ATTACK_SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9876");
+                    &match_names[%#return_index%] = "!D-l";
+                    &match_exprs[%#return_index%] = "Attack Speed: %&tmp_expr_char%(.+)"; // Attack Speed: ⚔0
+                endif;
+            endif;
+            
+            foreach("players");
+                #line_index = indexof(&match_names[],,%PLAYERNAME%);
+                if(#line_index != -1);
+                    matched[%#line_index%] = true;
+                    &line_text             = strip(%PLAYERDISPLAYNAME%);
+                    &line_text             = trim(%&line_text%);
+                    ifmatches(%&line_text%,%&match_exprs[%#line_index%]%,&capture_group,1);
+                        &return_array[%#line_index%] = %&capture_group%;
+                        #non_matched_var_index       = indexof(matched[],,false);
+                        if(#non_matched_var_index == -1);
+                            break;
+                        endif;
+                    endif;
+                endif;
+            next;
+            
+            #return_len = arraysize(&return_array[]);
+            if(#return_len == 0);
+                &return_array[] = -1;
+            endif;
+            return(&return_array[]);
+        endfunction;
+    // info/index/getSkyBlockArea
+        // Gets the SkyBlock Server Type that we are currently connected to. Returns SKYBLOCK_HUB, SKYBLOCK_HOME, or OTHER. OTHER is only returned if
+        // the Function cannot determine whether it is on a SkyBlock Server, or if it is not on a SkyBlock Server.
+            // Params:
+            //      None
+            //
+            // Returns one of the following strings: 'SKYBLOCK_HUB', 'SKYBLOCK_HOME', 'OTHER'. 'OTHER' is returned if none of the functions return any
+            // parseable values.
+        function getSkyBlockArea();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:577
+            &playerlist_area = getSkyBlockPlayerListInfo("AREA");
+            if(%&playerlist_area% == "-1");
+                &scoreboard_area = getScoreboardSkyBlockArea();
+                if(%&scoreboard_area% == "-1");
+                    &wtfmap_area = getSkyBlockAreaFromWTFMAP();
+                    if(%&wtfmap_area% == "SkyBlock Hub");
+                        return("SKYBLOCK_HUB");
+                    elseif(%&wtfmap_area% == "SkyBlock Dynamic");
+                        return("SKYBLOCK_HOME");
+                    endif;
+                    return("OTHER");
+                elseif(%&playerlist_area% == "Your Island");
+                    return("SKYBLOCK_HOME");
+                else;
+                    return("SKYBLOCK_HUB");
+                endif;
+            elseif(%&playerlist_area% == "Private Island");
+                return("SKYBLOCK_HOME");
+            else;
+                return("SKYBLOCK_HUB");
+            endif;
+        endfunction;
+//! @mkb-import-end

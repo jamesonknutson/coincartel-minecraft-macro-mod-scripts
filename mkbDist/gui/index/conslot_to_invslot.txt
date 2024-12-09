@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // gui/index/conslot_to_invslot
+        // Takes input of a dynamic indexed inventory/container slot (i.e. 9 = in the container instead of in the inventory)
+        // and converts it to it's static position in the inventory.
+            // Params:
+            //      {number} <#slot>    The dynamic indexed inventory/container slot to convert
+            //
+            // Returns <#slot>'s static slot ID in the Inventory, or -1 if no container with CONTAINERSLOTS is opened.
+        function conslot_to_invslot(#slot);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:77
+            if(%CONTAINERSLOTS% >= 1);
+                #invslot = (45 - %CONTAINERSLOTS%) + %#slot%;
+                return(%#invslot%);
+            else;
+                return(-1);
+            endif;
+        endfunction;
+//! @mkb-import-end

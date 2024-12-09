@@ -1,0 +1,23 @@
+//! @mkb-import-begin
+    // tablist/index/getGodPotionExpiryTimestamp
+        // Reads the Tab List to find whether or not the Player has a God Potion effect enabled. If so,
+        // returns the Seconds Timestamp of when that God Potion will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getGodPotionExpiryTimestamp();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:26
+            &time_expression = "You have a God Potion active! (?:(\d+):)?(?:(\d+):)?(?:(\d+))";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,%&time_expression%);
+                    match(%CLEANLINE%,%&time_expression%,{#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    log("%#hours% hours, %#minutes% minutes, %#seconds% seconds")
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+//! @mkb-import-end

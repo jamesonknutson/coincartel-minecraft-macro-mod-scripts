@@ -1,0 +1,352 @@
+	// Opens the Manage Orders GUI.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not we want to allow the usage of the /bz command.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait in between Actions (clicks).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns a Boolean indicating whether or not the Function was successful.
+	function bazaarOpenOrders(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bazaarOpenOrders";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+		endif;
+		
+		// Start looping until we get into the Manage Orders GUI, or we encounter an Error that cannot be remedied.
+		if(true);
+			debug_log(%debug%,%&script_debug_name%,"attempting to index bazaar orders...");
+			&order_enums[]  = split(", ","CATEGORY, SUBCATEGORY, PRODUCT, BUY_ORDER_MANAGE, BUY_ORDER_FLIP, SELL_ORDER_MANAGE");
+			&order_mcids[]  = split(", ","book, book, book, arrow, NULL, arrow");
+			&order_names[]  = split(", ","Manage Orders, Manage Orders, Manage Orders, Go Back, NULL, Go Back");
+			&order_action[] = split(", ","CLICK, CLICK, CLICK, CLICK, EXIT, CLICK");
+			&target_gui     = "ORDER_MANAGE";
+			
+			do;
+				// 1. Check if the Function has timed out
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					exit_condition_reached = true;
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+				
+				// 2. Check what Bazaar GUI we are in. If we are in a GUI that has access to the Manage Orders Button, progress to it.
+				if(true);
+					&bazaar_gui[] = getBazaarGUIType();
+					&bazaar_enum  = %&bazaar_gui[0]%;
+					&bazaar_path  = %&bazaar_gui[1]%;
+					#enum_index   = indexof(&order_enums[],,%&bazaar_enum%);
+					if(%&bazaar_enum% == %&target_gui%);
+						return_boolean         = true;
+						exit_condition_reached = true;
+						break;
+					elseif(%#enum_index% != -1);
+						&order_action = %&order_action[%#enum_index%]%;
+						if(%&order_action% == "EXIT");
+							localGUI("NONE");
+						elseif(%&order_action% == "CLICK");
+							&find_mcid  = "MCID: %&order_mcids[%#enum_index%]%";
+							&find_name  = "NAME: %&order_names[%#enum_index%]%";
+							#found_slot = findItemContainer(false,%&find_mcid%,%&find_name%);
+							if(%#found_slot% != -1);
+								&init_gui     = getContainerString(true);
+								#waited_ticks = 0;
+								do;
+									// 1. Check if the Function has timed out
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										exit_condition_reached = true;
+										debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+										break;
+									endif;
+									
+									// 2. Check if the GUI has Updated
+									gui_updated = enteredNewGUI(%&init_gui%,true);
+									if(%gui_updated%);
+										break;
+									endif;
+									
+									// 3. Click, if we can click.
+									can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+									if(%can_click%);
+										slotclick(%#found_slot%);
+									endif;
+									
+									wait("1t");
+									inc(#waited_ticks);
+								until((%gui_updated%) || (%exit_condition_reached%));
+							endif;
+						endif;
+					else;
+						if(%GUI% != "NONE");
+							localGUI("NONE");
+						endif;
+						
+						#recurse_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						bazaar_opened    = openBazaarTo("",%allow_command%,%#tick_wait%,%#recurse_timeout%);
+						if(!%bazaar_opened%);
+							debug_error(%debug%,%&script_debug_name%,"Could not open the Bazaar!");
+							exit_condition_reached = true;
+							break;
+						else;
+							debug_log(%debug%,%&script_debug_name%,"&aSuccessfully entered the Bazaar.");
+						endif;
+					endif;
+				endif;
+			until(%exit_condition_reached%);
+		endif;
+		
+		return(%exit_condition_reached%);
+	endfunction;
+
+	// Indexes all active Bazaar Orders.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not we want to allow the usage of the /bz command.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait in between Actions (clicks).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns an Tunnel Joint Array Strings of Elements in Format:
+			// 0 {string} &sbid            	The Order Item's SBID.
+			// 1 {string} &type            	Indicates whether the Order is a Buy or Sell Order. String ENUM of BUY, SELL.
+			// 2 {string} &price_per_unit  	Price per unit of the Order (float, 1 decimal point precision).
+			// 3 {number} #items_filled    	Amount of Items in this Order that have been matched to a 3rd Party.
+			// 4 {number} #items_total     	Total Amount of Items in this Order
+			// 5 {number} #amount_claimable	Amount of Items or Coins that are claimable in this Order
+			// 6 {boolean} expired         	Whether or not this Order is expired (older than 1 week, will no longer be matched to 3rd parties).
+		// Example:
+			//	&bazaar_orders[] = bazaarIndexOrders();
+			//	foreach(&bazaar_orders[],&bazaar_order,#boi);
+			//		&order_data[]      = split("|",%&bazaar_order%);
+			//		&order_sbid        = %&order_data[0]%;
+			//		&order_type        = %&order_data[1]%;
+			//		&price_per_unit    = %&order_data[2]%;
+			//		#items_filled     := %&order_data[3]%;
+			//		#items_total      := %&order_data[4]%;
+			//		#amount_claimable := %&order_data[5]%;
+			//		order_expired     := %&order_data[6]%;
+			//	next;
+	function bazaarIndexOrders(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bazaarIndexOrders";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			
+			// Expressions to Extract Data from the NBT of a Manage Order Slot Item, depending on whether it is a Buy or Sell Order.
+			if(true);
+				&number_regex         = "[0-9,.-]+";
+				&string_regex         = "(.+?)\"";
+				&items_filled_regex   = "Filled: (%&number_regex%)";
+				&items_total_regex    = "(?:Order|Offer) amount: (%&number_regex%)x";
+				&price_per_unit_regex = "Price per unit: (%&number_regex%) coins";				
+				&amount_claimable     = "You have (%&number_regex%) (?:coins|items) to claim";
+			endif;
+		endif;
+		
+		// Start looping until we get into the Manage Orders GUI, or we encounter an Error that cannot be remedied.
+		if(true);
+			debug_log(%debug%,%&script_debug_name%,"attempting to index bazaar orders...");
+			&order_enums[]  = split(", ","CATEGORY, SUBCATEGORY, PRODUCT, BUY_ORDER_MANAGE, BUY_ORDER_FLIP, SELL_ORDER_MANAGE");
+			&order_mcids[]  = split(", ","book, book, book, arrow, NULL, arrow");
+			&order_names[]  = split(", ","Manage Orders, Manage Orders, Manage Orders, Go Back, NULL, Go Back");
+			&order_action[] = split(", ","CLICK, CLICK, CLICK, CLICK, EXIT, CLICK");
+			&target_gui     = "ORDER_MANAGE";
+			
+			do;
+				// 1. Check if the Function has timed out
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					exit_condition_reached = true;
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+				
+				// 2. Check what Bazaar GUI we are in. If we are in a GUI that has access to the Manage Orders Button, progress to it.
+				if(true);
+					&bazaar_gui[] = getBazaarGUIType();
+					&bazaar_enum  = %&bazaar_gui[0]%;
+					&bazaar_path  = %&bazaar_gui[1]%;
+					#enum_index   = indexof(&order_enums[],,%&bazaar_enum%);
+					if(%&bazaar_enum% == %&target_gui%);
+						#r_start  = 0;
+						#r_end    = %CONTAINERSLOTS% - 37;
+						for(#f_slot,%#r_start%,%#r_end%);
+							&f_item = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+							&f_nbt  = strip(%&f_nbt%);
+							if((%&f_item% != "air") && (%&f_item% != "stained_glass_pane") && (%&f_item% != "arrow"));
+								&f_name = getItemName(%&f_nbt%,%&f_item%);
+								ifmatches(%&f_name%,"^(BUY|SELL)",&order_type,1);
+									match(%&f_nbt%,%&price_per_unit_regex%,&price_per_unit,1,"0");
+									match(%&f_nbt%,%&items_filled_regex%,&items_filled,1,"0");
+									match(%&f_nbt%,%&items_total_regex%,&items_total,1,"0");
+									match(%&f_nbt%,%&amount_claimable%,&amount_claimable,1,"0");
+									&order_name       = _matchExpressionNBT(%&f_name%,"^%&order_type%: (.+)");
+									#order_index      = getBazaarIndex(%&order_name%);
+									&order_sbid       = %@&mkb_baz_sbids[%#order_index%]%;
+									#items_filled     = stringToNumber(%&items_filled%);
+									#items_total      = stringToNumber(%&items_total%);
+									#amount_claimable = stringToNumber(%&amount_claimable%);
+									&output_array[]   = "%&order_sbid%|%&order_type%|%&price_per_unit%|%#items_filled%|%#items_total%|%#amount_claimable%";
+								endif;
+							endif;
+						next;
+						exit_condition_reached = true;
+					elseif(%#enum_index% != -1);
+						&order_action = %&order_action[%#enum_index%]%;
+						if(%&order_action% == "EXIT");
+							localGUI("NONE");
+						elseif(%&order_action% == "CLICK");
+							&find_mcid  = "MCID: %&order_mcids[%#enum_index%]%";
+							&find_name  = "NAME: %&order_names[%#enum_index%]%";
+							#found_slot = findItemContainer(false,%&find_mcid%,%&find_name%);
+							if(%#found_slot% != -1);
+								&init_gui     = getContainerString(true);
+								#waited_ticks = 0;
+								do;
+									// 1. Check if the Function has timed out
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										exit_condition_reached = true;
+										debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+										break;
+									endif;
+									
+									// 2. Check if the GUI has Updated
+									gui_updated = enteredNewGUI(%&init_gui%,true);
+									if(%gui_updated%);
+										break;
+									endif;
+									
+									// 3. Click, if we can click.
+									can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+									if(%can_click%);
+										slotclick(%#found_slot%);
+									endif;
+									
+									wait("1t");
+									inc(#waited_ticks);
+								until((%gui_updated%) || (%exit_condition_reached%));
+							endif;
+						endif;
+					else;
+						if(%GUI% != "NONE");
+							localGUI("NONE");
+						endif;
+						
+						#recurse_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						bazaar_opened    = openBazaarTo("",%allow_command%,%#tick_wait%,%#recurse_timeout%);
+						if(!%bazaar_opened%);
+							debug_error(%debug%,%&script_debug_name%,"Could not open the Bazaar!");
+							exit_condition_reached = true;
+							break;
+						else;
+							debug_log(%debug%,%&script_debug_name%,"&aSuccessfully entered the Bazaar.");
+						endif;
+					endif;
+				endif;
+			until(%exit_condition_reached%);
+		endif;
+		
+		return(&output_array[]);
+	endfunction;
+	
+	// Gets a quick Summary of active Bazaar Orders.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not we want to allow the usage of the /bz command.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait in between Actions (clicks).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns an Array:
+			// 0 {number} #order_amount	Amount of Active Orders
+			// 1 {number} #order_items 	Amount of Items ready to be claimed
+			// 2 {number} #order_coins 	Amount of Coins ready to be claimed
+	function bazaarQuickOrders(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9bazaarQuickOrders";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+		endif;
+		
+		// Begin Looping until we have found our outcome.
+		if(true);
+			&target_gui   = "CATEGORY";
+			#order_amount = 0;
+			#order_coins  = 0;
+			#order_items  = 0;
+			do;
+				// 1. Check if the Function has timed out
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					exit_condition_reached = true;
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+				
+				// 2. Check what Bazaar GUI we are in. If we are in a GUI that has access to the Manage Orders Button, progress to it.
+				if(true);
+					&bazaar_gui[] = getBazaarGUIType();
+					&bazaar_enum  = %&bazaar_gui[0]%;
+					&bazaar_path  = %&bazaar_gui[1]%;
+					#enum_index   = indexof(&order_enums[],,%&bazaar_enum%);
+					if(%&bazaar_enum% == %&target_gui%);
+						// Iterate over Dynamic Container Slots
+						if(true);
+							#r_start  = 0;
+							#r_end    = %CONTAINERSLOTS% - 37;
+							#r_offset = 0;
+							&r_item   = "book";
+							&r_name   = "Manage Orders";
+							for(#r_slot,%#r_start%,%#r_end%);
+								#f_slot = %#r_slot%;
+								if(%&r_item%);
+									getslot(%&r_item%,#f_slot,%#r_offset%);
+								endif;
+								
+								if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+									#r_offset = %#f_slot% + 1;
+									&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+									&f_nbt    = strip(%&f_nbt%);
+									&f_name   = getItemName(%&f_nbt%,%&f_item%);
+									m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+									m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+									m_sbid    = ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%));
+									m_match   = ((%m_item%) && (%m_name%) && (%m_sbid%));
+									if(%m_match%);
+										match(%&f_nbt%,"Orders: (\d+)",#order_amount,1,0);
+										match(%&f_nbt%,"You have ([0-9,.-]+) items to claim!",&order_items,1,0);
+										match(%&f_nbt%,"You have ([0-9,.-]+) coins to claim!",&order_coins,1,0);
+										#order_items           = stringToNumber(%&order_items%);
+										#order_coins           = stringToNumber(%&order_coins%);
+										exit_condition_reached = true;
+										break;
+									endif;
+								else;
+									break;
+								endif;
+							next;
+						endif;
+					else;
+						if(%GUI% != "NONE");
+							localGUI("NONE");
+						endif;
+						
+						#recurse_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						bazaar_opened    = openBazaarTo("",%allow_command%,%#tick_wait%,%#recurse_timeout%);
+						if(!%bazaar_opened%);
+							debug_error(%debug%,%&script_debug_name%,"Could not open the Bazaar!");
+							exit_condition_reached = true;
+							break;
+						else;
+							debug_log(%debug%,%&script_debug_name%,"&aSuccessfully entered the Bazaar.");
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%exit_condition_reached%);
+		endif;
+		
+		return(%#order_amount%,%#order_items%,%#order_coins%);
+	endfunction;

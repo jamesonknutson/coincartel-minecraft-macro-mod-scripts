@@ -1,0 +1,136 @@
+//! @mkb-import-begin
+    // gui/index/invslot_to_conslot
+        // Takes input of a getslotiteminv indexed inventory slot (static, starts at 9 for top left inv, ends @ 44 bottom right inv)
+        // and converts it to it's dynamic position in whatever GUI is currently opened.
+            // Params:
+            //      {number} <#slot>    The getslotiteminv indexed inventory slot to convert
+            //
+            // Returns <#slot>'s dynamic slot ID in whichever container is currently opened, or -1 if no container with CONTAINERSLOTS is opened.
+        function invslot_to_conslot(#slot);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:62
+            if(%CONTAINERSLOTS% >= 1);
+                #conslot = (%CONTAINERSLOTS% - 45) + %#slot%;
+                return(%#conslot%);
+            else;
+                return(-1);
+            endif;
+        endfunction;
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // gui/containerLog/containerLog
+                // {boolean} [append=false]            Whether or not to append the Data to the specified file.
+                // {string} [...&context_strings[]]    Optional strings that will prepend the Container Data in the logged file.
+                //
+            // Returns the Path to the File where the Data was logged to.
+        function containerLog(&log_path,append=false,...&context_strings[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/containerLog.txt:8
+            if(!%&log_path%);
+                &log_path = "~liteconfig/common/macros/logs/%TIMESTAMP%-containerNbt.txt";
+            endif;
+            
+            &log_strings[] = "--- Begin Metadata ---";
+            &log_strings[] = "";
+            &log_strings[] = "Generation Time: %DATETIME%";
+            &log_strings[] = "GUI: %GUI%";
+            &log_strings[] = "CONTAINERSLOTS: %CONTAINERSLOTS%";
+            &log_strings[] = "CONTAINERNAME: %CONTAINERNAME%";
+            &log_strings[] = "";
+            
+            #context_strings_sz = arraysize(&context_strings[]);
+            if(%#context_strings_sz%);
+                &log_strings[] = "--- Begin Context Strings ---";
+                &log_strings[] = "";
+                push(&log_strings[],&context_strings[*]);
+                &log_strings[] = "";
+            endif;
+            
+            // Iterate over Static Inventory Slots
+            if(true);
+                &log_strings[] = "--- Begin Inventory ---";
+                &log_strings[] = "";
+                #r_start       = 9;
+                #r_end         = 44;
+                for(#f_slot,%#r_start%,%#r_end%);
+                    &f_item        = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                    &f_nbt         = strip(%&f_nbt%);
+                    &f_name        = getItemName(%&f_nbt%,%&f_item%);
+                    &f_sbid        = getItemSBID(%&f_nbt%);
+                    #c_slot        = invslot_to_conslot(%#f_slot%);
+                    &log_strings[] = "Container Slot: %#c_slot% | Static Inventory Slot: %#f_slot%";
+                    &log_strings[] = "MCID: %&f_item%:%#f_data%";
+                    &log_strings[] = "Stack: %#f_stack%";
+                    &log_strings[] = "Name: %&f_name%";
+                    &log_strings[] = "SBID: %&f_sbid%";
+                    &log_strings[] = "NBT: %&f_nbt%";
+                    &log_strings[] = "";
+                next;
+            endif;
+            
+            // Iterate over Dynamic Container Slots
+            if(%CONTAINERSLOTS%);
+                &log_strings[] = "--- Begin Container ---";
+                &log_strings[] = "";
+                #r_start  = 0;
+                #r_end    = %CONTAINERSLOTS% - 37;
+                for(#f_slot,%#r_start%,%#r_end%);
+                    &f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                    &f_nbt    = strip(%&f_nbt%);
+                    &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                    &f_sbid   = getItemSBID(%&f_nbt%);
+                    &log_strings[] = "Container Slot: %#c_slot% | Static Inventory Slot: %#f_slot%";
+                    &log_strings[] = "MCID: %&f_item%:%#f_data%";
+                    &log_strings[] = "Stack: %#f_stack%";
+                    &log_strings[] = "Name: %&f_name%";
+                    &log_strings[] = "SBID: %&f_sbid%";
+                    &log_strings[] = "NBT: %&f_nbt%";
+                    &log_strings[] = "";
+                next;
+            endif;
+            
+            &file_path = writefile(%&log_path%,&log_strings[],%append%);
+        endfunction;
+//! @mkb-import-end

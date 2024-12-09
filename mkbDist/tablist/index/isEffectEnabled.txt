@@ -1,0 +1,98 @@
+//! @mkb-import-begin
+    // tablist/index/getGodPotionExpiryTimestamp
+        // Reads the Tab List to find whether or not the Player has a God Potion effect enabled. If so,
+        // returns the Seconds Timestamp of when that God Potion will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getGodPotionExpiryTimestamp();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:26
+            &time_expression = "You have a God Potion active! (?:(\d+):)?(?:(\d+):)?(?:(\d+))";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,%&time_expression%);
+                    match(%CLEANLINE%,%&time_expression%,{#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    log("%#hours% hours, %#minutes% minutes, %#seconds% seconds")
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+    // tablist/index/getCookieExpiryTimestamp
+        // Reads the Tab List to find whether or not the Player has a Booster Cookie effect enabled. If so,
+        // returns the Seconds Timestamp of when that Booster Cookie will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getCookieExpiryTimestamp();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:7
+            &time_expression = "(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,"Cookie Buff\n(.+)",&cookie_buff_time,1);
+                    match(%&cookie_buff_time%,%&time_expression%,{#days,#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+    // misc/index/miscValidate
+        // Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+        // found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+            // Params:
+            //      {array} <&elements[]>       The Array to search for <&search_term> in.
+            //      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+            //      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+            //                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+            //                                  value should be used.
+            //
+            // Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+            // is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+        function miscValidate(&search_term,#default_idx=0,...&elements[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:12
+            #term_index = indexof(&elements[],,%&search_term%);
+            if(%#term_index% != -1);
+                &return_string = %&elements[%#term_index%]%;
+            elseif(%#default_idx% != -1);
+                &return_string = %&elements[%#default_idx%]%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // tablist/index/getEffectExpiryTimestamp
+        // Wrapper that dynamically calls getCookieExpiryTimestamp or getGodPotionExpiryTimestamp based on input.
+            // Params:
+            //      {string} [&type="COOKIE"]   The Effect Type to get the Expiry Timestamp of. One of: 'COOKIE', 'GODPOT'.
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getEffectExpiryTimestamp(&type="COOKIE");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:73
+            &type      = miscValidate(%&type%,0,"COOKIE","GODPOT");
+            #expiry_ts = -1;
+            if(%&type% == "COOKIE");
+                #expiry_ts = getCookieExpiryTimestamp();
+            elseif(%&type% == "GODPOT");
+                #expiry_ts = getGodPotionExpiryTimestamp();
+            endif;
+            return(%#expiry_ts%);
+        endfunction;
+    // tablist/index/isEffectEnabled
+        // Wrapper that dynamically calls isCookieEnabled or isGodPotionEnabled based on input.
+            // Params:
+            //      {string} [&type="COOKIE"]       The Effect Type to get the Expiry Timestamp of. One of: 'COOKIE', 'GODPOT'.
+            //      {number} [#expiry_offset_sec=0] An offset in seconds to apply to the real expiry timestamp used
+            //                                      to report whether the effect should be considered 'active' or not.
+            //                                      For example, if set to 300, if the cookie expires within 300 seconds / 5 min,
+            //                                      will return false (when otherwise, it would return true.)
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function isEffectEnabled(&type="COOKIE",#expiry_offset_sec=0);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:93
+            #effect_expiry_ts = getEffectExpiryTimestamp(%&type%);
+            effect_enabled    = %TIMESTAMP% < (#effect_expiry_ts - #expiry_offset_sec);
+            return(%effect_enabled%);
+        endfunction;
+//! @mkb-import-end

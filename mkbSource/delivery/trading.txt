@@ -1,0 +1,532 @@
+// delivery/trading.txt
+	// Gets the Name of the Player we are trading with.
+		// Returns the Name of the Player we are trading with, or an empty string if it could not be found.
+		// Example:
+			//	&trading_partner = tradingGetPartnerName();
+	function tradingGetPartnerName();
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5tradingGetPartnerName";
+		endif;
+		
+		#partner_conf_slot = 41;
+		&partner_conf_expr = "Trading with (?:\[.*?\] )?(\w{3,16})";
+		if(%GUI% == "GUICHEST");
+			#found_conf_slot  = findItemContainer(false,"MCID: dye","SLOT: %#partner_conf_slot%","NBT: r$%&partner_conf_expr%");
+			if(%#found_conf_slot% != -1);
+				&found_conf_item = getslotitemnbt(%#found_conf_slot%,,#found_conf_stack,#found_conf_data,&found_conf_nbt);
+				&found_conf_nbt  = strip(%&found_conf_nbt%);
+				ifmatches(%&found_conf_nbt%,%&partner_conf_expr%,&trade_partner_name,1);
+					debug_log(%debug%,%&script_debug_name%,"In a Trade with User: '&d%&trade_partner_name%&7'.");
+					&return_string = %&trade_partner_name%;
+				endif;
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+	
+	// Gets the current State of the Trade GUI.
+		// Returns a String ENUM of:
+			//	NONE                	Not currently in a Trading GUI.
+			//	NEW                 	Trading GUI is empty.
+			//	DELAY               	Trading GUI recently had a change to it and is currently on cooldown from accepting.
+			//	PENDING_CONF        	Trading GUI is pending our Confirmation.
+			//	PENDING_CONF_PARTNER	Trading GUI is pending Partner's Confirmation.
+			//	COIN_SIGN           	Currently in the 'Coins Transaction' Sign GUI.
+		// Example:
+			//	&trading_state = tradingGetState();
+			//	if(%&trading_state% == "NONE");
+			//	elseif(%&trading_state% == "NEW");
+			//	elseif(%&trading_state% == "DELAY");
+			//	elseif(%&trading_state% == "PENDING_CONF");
+			//	elseif(%&trading_state% == "PENDING_CONF_PARTNER");
+			//	elseif(%&trading_state% == "COIN_SIGN");
+			//	endif;
+	function tradingGetState();
+		// Setup Function Variables
+		if(true);
+			debug                      = true;
+			&script_debug_name         = "&5tradingGetState&7";
+			&enum_none                 = "NONE";
+			&enum_new                  = "NEW";
+			&enum_delay                = "DELAY";
+			&enum_pending_conf         = "PENDING_CONF";
+			&enum_pending_conf_partner = "PENDING_CONF_PARTNER";
+			&enum_coin_sign            = "COIN_SIGN";
+			&return_string             = %&enum_none%;
+		endif;
+		
+		ifmatches(%CONTAINERNAME%,"^You\s+\w+$");
+			if(%GUI% == "GUIEDITSIGN");
+				&return_string = %&enum_coin_sign%;
+			elseif(%GUI% == "GUICHEST");
+				// Wrap Name -> ENUM Map
+				if(true);
+					&trade_conf_names[]   = "Trading!";
+					&trade_conf_enums[]   = %&enum_new%;
+					
+					&trade_conf_names[]   = "Deal Timer! (3)";
+					&trade_conf_enums[]   = %&enum_delay%;
+					
+					&trade_conf_names[]   = "Deal Timer! (2)";
+					&trade_conf_enums[]   = %&enum_delay%;
+					
+					&trade_conf_names[]   = "Deal Timer! (1)";
+					&trade_conf_enums[]   = %&enum_delay%;
+					
+					&trade_conf_names[]   = "Warning!";
+					&trade_conf_enums[]   = %&enum_pending_conf%;
+					
+					&trade_conf_names[]   = "Gift!";
+					&trade_conf_enums[]   = %&enum_pending_conf%;
+					
+					&trade_conf_names[]   = "Deal!";
+					&trade_conf_enums[]   = %&enum_pending_conf%;
+					
+					&trade_conf_names[]   = "Deal accepted!";
+					&trade_conf_enums[]   = %&enum_pending_conf_partner%;
+				endif;
+				
+				#trade_conf_slot      = 39;
+				&trade_conf_mcid      = "stained_hardened_clay";
+				&trade_conf_name_expr = "^(?:Deal Timer! \(\d+\)|(?:Trading|Warning|Gift|Deal(?: accepted)?)!)$";
+				#found_conf_slot      = findItemContainer(false,"MCID: %&trade_conf_mcid%","SLOT: %#trade_conf_slot%","NAME: r$%&trade_conf_name_expr%");
+				if(%#found_conf_slot% != -1);
+					&found_conf_item  = getslotitemnbt(%#found_conf_slot%,,#found_conf_stack,#found_conf_data,&found_conf_nbt);
+					&found_conf_nbt   = strip(%&found_conf_nbt%);
+					&found_conf_name  = getItemName(%&found_conf_nbt%,%&found_conf_item%);
+					#trade_conf_index = indexof(&trade_conf_names[],,%&found_conf_name%);
+					if(%#trade_conf_index% != -1);
+						&return_string = %&trade_conf_enums[%#trade_conf_index%]%;
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning Trading GUI State '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+	
+	// Indexes the Content of <#offer_slot>.
+		// Params:
+			// {number} <#offer_slot>	The Slot to Index in the GUI.
+			//
+		// Returns an Array:
+			// {number} #offer_slot 	0	The Slot this Offer Item is found in.
+			// {string} &offer_mcid 	1	The MCID of this Offer Item.
+			// {number} #offer_stack	2	The Stack Size of this Offer Item.
+			// {number} #offer_data 	3	The Data of this Offer Item.
+			// {string} &offer_name 	4	The Name of this Offer Item.
+			// {string} &offer_sbid 	5	The SBID of this Offer Item (might be '').
+			// {string} &offer_nbt  	6	The NBT of this Offer Item.
+		// Example:
+			//	&offer_slot[]  = tradingIndexOfferSlot(0);
+			//	#offer_slot   := %&offer_slot[0]%;
+			//	&offer_mcid    = %&offer_slot[1]%;
+			//	#offer_stack  := %&offer_slot[2]%;
+			//	#offer_data   := %&offer_slot[3]%;
+			//	&offer_name    = %&offer_slot[4]%;
+			//	&offer_sbid    = %&offer_slot[5]%;
+			//	&offer_nbt     = %&offer_slot[6]%;
+	function tradingIndexOfferSlot(#offer_slot);
+		&offer_item = getslotitemnbt(%#offer_slot%,,#offer_stack,#offer_data,&offer_nbt);
+		&offer_nbt  = strip(%&offer_nbt%);
+		&offer_name = getItemName(%&offer_nbt%,%&offer_item%);
+		&offer_sbid = getItemSBID(%&offer_nbt%);
+		return(%#offer_slot%,%&offer_item%,%#offer_stack%,%#offer_data%,%&offer_name%,%&offer_sbid%,%&offer_nbt%);
+	endfunction;
+	
+	// Indexes the Content of all Offer Slots in the Trade GUI for the given Target.
+		// Params:
+			// {string} [&target="SELF"]	String ENUM of SELF or PARTNER. Defines which side of the Trade GUI
+			//                          	to Index.
+		// Returns an Array of Tunnel Joint Item Strings in the GUI in Format:
+			// {number} #offer_slot 	0	The Slot this Offer Item is found in.
+			// {string} &offer_mcid 	1	The MCID of this Offer Item.
+			// {number} #offer_stack	2	The Stack Size of this Offer Item.
+			// {number} #offer_data 	3	The Data of this Offer Item.
+			// {string} &offer_name 	4	The Name of this Offer Item.
+			// {string} &offer_sbid 	5	The SBID of this Offer Item (might be '').
+			// {string} &offer_nbt  	6	The NBT of this Offer Item.
+	function tradingIndexOffer(&target="SELF");
+		&target        = miscValidate(%&target%,0,"SELF","PARTNER");
+		&trading_state = tradingGetState();
+		if((%&trading_state% != "NONE") && (%&trading_state% != "NEW") && (%&trading_state% != "COIN_SIGN"));
+			if(%&target% == "SELF");
+				#offer_slots[] = split(", ","0, 1, 2, 3, 9, 10, 11, 12, 18, 19, 20, 21, 27, 28, 29, 30");
+			else;
+				#offer_slots[] = split(", ","5, 6, 7, 8, 14, 15, 16, 17, 23, 24, 25, 26, 32, 33, 34, 35");
+			endif;
+			foreach(#offer_slots[],#offer_slot,#os);
+				&offer_slot[]  = tradingIndexOfferSlot(%#offer_slot%);
+				&offer_mcid    = %&offer_slot[1]%;
+				if(%&offer_mcid% != "air");
+					&return_array[] = join("|",&offer_slot[]);
+				else;
+					break;
+				endif;
+			next;
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Gets the Sum amount of Coins present in the Trade Offer for the given Target.
+		// Params:
+			// {string} [&target="SELF"]  	Optional String ENUM of SELF, ARRAY, or PARTNER. Can be omitted or set to ARRAY
+			//                            	if passing in an Array from `tradingIndexOffer()` instead. If passed (and no Array is passed),
+			//                            	will be passed along to `tradingIndexOffer()`.
+			// {string} [&indexed_offer[]]	Optional Array of Indexed Offer Slots returned by `tradingIndexOffer()`. If passed,
+			//                            	will Sum the amount of Coins in this Array instead of using the [&target] Value.
+		// Returns a String Number amount of Coins in the GUI. The amount of Coins will be rounded off according to however Hypixel rounds it.
+		// For example if there are 10.5m Coins in the GUI, the amount reported will be 10,000,000, because Hypixel rounds off the .5m in what
+		// is shown to us.
+		// Example:
+			//	&offering_coins  = tradingSumCoins("SELF");
+			//	&receiving_coins = tradingSumCoins("PARTNER");
+			//	&summed_coins    = tradingSumCoins("ARRAY",&indexed_offer[]);
+	function tradingSumCoins(&target="SELF",&indexed_offer[]);
+		&return_string    = "0";
+		#indexed_offer_sz = arraysize(&indexed_offer[]);
+		if(%#indexed_offer_sz% <= 0);
+			&target          = miscValidate(%&target%,0,"SELF","PARTNER");
+			&indexed_offer[] = tradingIndexOffer(%&target%);
+		endif;
+		&lte_numbers[] = split(", ","999, 999999, 9999999, 999999999");
+		foreach(&indexed_offer[],&indexed_offer_slot,#io);
+			&offer_slot[]  = split("|",%&indexed_offer_slot%);
+			&offer_mcid    = %&offer_slot[1]%;
+			#offer_stack  := %&offer_slot[2]%;
+			&offer_name    = %&offer_slot[4]%;
+			&offer_nbt     = %&offer_slot[6]%;
+			
+			if(%&offer_mcid% == "skull");
+				ifmatches(%&offer_name%,"^([\d.]+(?:k|m|b|t)?) coins",&coin_string,1);
+					ifmatches(%&offer_nbt%,"Total Coins Offered:\",\"([\d.]+(?:k|m|b|t)?)\"",&total_coins_offered,1);
+						&coin_string = %&total_coins_offered%;
+					endif;
+					&return_string = number(%&coin_string%,"F:I");
+					break;
+				endif;
+			endif;
+		next;
+		return(%&return_string%);
+	endfunction;
+	
+	// Adds the specified amount of Coins to our Offer
+		// Params:
+			// {string} <&amount>        	The Amount of Coins to add to the Offer. Can be in any format that is parseable by `number()`,
+			//                           	but will be rounded to an Integer.
+			// {number} [#timeout_sec=30]	Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable
+			//                           	timeouts and make the Function loop until it encounters a different Error or is successful.
+			// {number} [#tick_wait=20]  	Amount of Ticks to wait between repeating a given Action.
+		// Returns a String ENUM describing the outcome of the Function:
+			// SUCCESS      	Successfully added the specified amount of Coins.
+			// ERROR_TRADE  	Not in a Trading GUI.
+			// ERROR_COINS  	Not enough Coins in Purse to add the specified amount to the Offer.
+			// ERROR_ROOM   	No more slots in the Trading GUI are available, so cannot add more coins.
+			// ERROR_AMOUNT 	Could not parse the <&amount> Parameter, or the <&amount> Parameter was <= 0.
+			// ERROR_TIMEOUT	Function timed out.
+		// Example:
+			//	&offered_coins = tradingOfferCoins("1m");
+			//	if(%&offered_coins% == "SUCCESS");
+			//	elseif(%&offered_coins% == "ERROR_TRADE");
+			//	elseif(%&offered_coins% == "ERROR_COINS");
+			//	elseif(%&offered_coins% == "ERROR_ROOM");
+			//	elseif(%&offered_coins% == "ERROR_AMOUNT");
+			//	elseif(%&offered_coins% == "ERROR_TIMEOUT");
+			//	endif;
+	function tradingOfferCoins(&amount,#timeout_sec=30,#tick_wait=20);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5tradingOfferCoins&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			&enum_success       = "SUCCESS";
+			&enum_error_trade   = "ERROR_TRADE";
+			&enum_error_coins   = "ERROR_COINS";
+			&enum_error_room    = "ERROR_ROOM";
+			&enum_error_amount  = "ERROR_AMOUNT";
+			&enum_error_timeout = "ERROR_TIMEOUT";
+			
+			// Validate Parameters and check for Errors
+			if(true);
+				// Ensure that we are in a valid Trade GUI.
+				if(true);
+					&trading_state = tradingGetState();
+					if(%&trading_state% == "NONE");
+						debug_error(%debug%,%&script_debug_name%,"Not in a Trading GUI! Returning '&4%&enum_error_trade%&7'.");
+						return(%&enum_error_trade%);
+					elseif(%&trading_state% == "COIN_SIGN");
+						localGUI("NONE");
+					endif;
+				endif;
+				
+				// Ensure that we will have enough Room to add these Coins to the Trade Offer.
+				if(true);
+					#final_trade_slot = 30;
+					&final_trade_mcid = getslotitemnbt(%#final_trade_slot%);
+					if(%&final_trade_mcid% != "air");
+						debug_error(%debug%,%&script_debug_name%,"Not enough Room in the Trading GUI to add Coins to the Offer. Returning '&4%&enum_error_room%&7'.");
+						return(%&enum_error_room%);
+					endif;
+				endif;
+				
+				// Validate the Amount Parameter
+				if(true);
+					&offer_amount = number(%&amount%,"F:I");
+					gt_zero       = _gt(%&offer_amount%,"0");
+					if(!%gt_zero%);
+						debug_error(%debug%,%&script_debug_name%,"Parsed number &&offer_amount='&e%&offer_amount%&7' is not > 0 (from input: &&amount='&e%&amount%&7'). Returning '&4%&enum_error_amount%&7'.");
+						return(%&enum_error_amount%);
+					endif;
+					
+					&purse_coins    = getPurse();
+					amount_gt_purse = _gt(%&offer_amount%,%&purse_coins%);
+					if(%amount_gt_purse%);
+						debug_error(%debug%,%&script_debug_name%,"Parsed number &&offer_amount='&e%&offer_amount%&7' is greater than our Purse &&purse_coins='&4%&purse_coins%&7'. Returning '&4%&enum_error_coins%&7'.");
+						return(%&enum_error_coins%);
+					endif;
+					
+					&expect_purse_after = xEval("%&purse_coins% - %&offer_amount%");
+				endif;
+			endif;
+		endif;
+		
+		// Loop until we have offered the Coins.
+		if(true);
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						&return_string = %&enum_error_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if we are in a valid Trading GUI.
+				if(true);
+					&trading_state = tradingGetState();
+					if((!%offer_typed%) && (&trading_state% == "NONE"));
+						debug_error(%debug%,%&script_debug_name%,"Not in a Trading GUI! Returning '&4%&enum_error_trade%&7'.");
+						&return_string = %&enum_error_trade%;
+						break;
+					endif;
+				endif;
+				
+				// 3. Find the 'Coins Transaction' Button.
+				if(!%offer_typed%);
+					#coins_transaction_slot = findItemContainer(false,"MCID: skull","NAME: Coins transaction","SLOT: 36","NBT: r$Click to add gold!");
+					if(%#coins_transaction_slot% != -1);
+						// 3a. Enter the 'COIN_SIGN' GUI.
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						updated_gui        = containerClick(%#coins_transaction_slot%,%#recursive_timeout%,%#tick_wait%);
+						if(%updated_gui%);
+							// 3b. Type the amount of Coins that we want to Offer.
+							offer_typed            = true;
+							#offer_typed_timestamp = %TIMESTAMP%;
+							wait("2t");
+							type(%&offer_amount%);
+							wait("2t");
+							press("escape");
+						endif;
+					endif;
+				else;
+					// 4. If we are waiting for the Offer to update, query our Purse Amount and check if the Amount has been deducted.
+					&purse_after = getPurse();
+					purse_equal  = _eq(%&expect_purse_after%,%&purse_after%);
+					if(%purse_equal%);
+						&return_string = %&enum_success%;
+						break;
+					elseif((%TIMESTAMP% - %#offer_typed_timestamp%) >= 3);
+						offer_typed = false;
+					endif;
+				endif;
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&4%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+	
+	// Handles adding the specified Coins and/or Items to a Trade, then accepting and waiting for our Partner to
+	// accept the Trade as well. Expects that we are already in the Trading GUI before the Function is called. Also
+	// expects that the Trading GUI's State is 'NEW'.
+		// Params:
+			// {string} [&offer_items[]] 	The Items to Offer in the Trade. Each String should be a '~' Joint Array String
+			//                           	that can be passed along to `findItemContainer()` to find the Item in our Inventory.
+			// {string} [&offer_coins=0] 	The Coins to Offer in the Trade. Optional. Will be passed along to `tradingOfferCoins()` if provided.
+			// {number} [#timeout_sec=30]	Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable
+			//                           	timeouts and make the Function loop until it encounters a different Error or is successful.
+			// {number} [#tick_wait=20]  	Amount of Ticks to wait between repeating a given Action.
+		// Returns a String ENUM:
+			// SUCCESS           	Successfully completed the Trade with our Partner.
+			// ERROR_TIMEOUT     	Function timed out.
+			// ERROR_TRADE       	Not in a Trading GUI or the Partner cancelled or we left the GUI in some other fashion.
+			// ERROR_COINS       	Not enough Coins in Purse to add the specified amount to the Offer.
+			// ERROR_ROOM        	No more slots in the Trading GUI are available, so cannot add more coins.
+			// ERROR_AMOUNT      	Could not parse the <&offer_coins> Parameter, or the <&offer_coins> Parameter was < 0.
+			// ERROR_ITEM_<INDEX>	Could not find the Item defined at <INDEX> in the [&offer_items[]] Array.
+		// Example:
+			//	&offer_items[]   = "SBID: ENCHANTED_DIAMOND_BLOCK~STACK: 32";
+			//	&offer_items[]   = "MCID: DIRT";
+			//	&trade_completed = tradingHandleOffer(&offer_items[]);
+			//	if(%&trade_completed% == "SUCCESS");
+			//	elseif(%&trade_completed% == "ERROR_TIMEOUT");
+			//	elseif(%&trade_completed% == "ERROR_TRADE");
+			//	elseif(%&trade_completed% == "ERROR_COINS");
+			//	elseif(%&trade_completed% == "ERROR_ROOM");
+			//	elseif(%&trade_completed% == "ERROR_AMOUNT");
+			//	elseifmatches(%&trade_completed%,"ERROR_ITEM_(\d+)",#item_index,1);
+			//	endif;
+	function tradingHandleOffer(&offer_items[],&offer_coins=0,#timeout_sec=30,#tick_wait=30);
+		// Setup Function Variables
+		if(true);
+			debug                  = true;
+			&script_debug_name     = "&6tradingHandleOffer&7";
+			#start_time            = %TIMESTAMP%;
+			do_timeout             = %#timeout_sec% > 0;
+			&enum_success          = "SUCCESS";
+			&enum_error_timeout    = "ERROR_TIMEOUT";
+			&enum_error_trade      = "ERROR_TRADE";
+			&enum_error_coins      = "ERROR_COINS";
+			&enum_error_room       = "ERROR_ROOM";
+			&enum_error_amount     = "ERROR_AMOUNT";
+			&enum_error_item_index = "ERROR_ITEM";
+			
+			// Validate Parameters and check for Errors
+			if(true);
+				// Validate that we are in a Valid Trading GUI.
+				if(true);
+					&trading_state = tradingGetState();
+					if(%&trading_state% != "NEW");
+						debug_error(%debug%,%&script_debug_name%,"&btradingGetState()&7 returned an invalid &&trading_state='&4%&trading_state%&7'. Returning '&4%&enum_error_trade%&7'.");
+						return(%&enum_error_trade%);
+					endif;
+				endif;
+				
+				// Validate that we have all of the Items in &offer_items[] Array
+				if(true);
+					#offer_items_sz = arraysize(&offer_items[]);
+					if(%#offer_items_sz% > 0);
+						foreach(&offer_items[],&offer_item_string,#oi);
+							&find_parameters[] = split("~",%&offer_item_string%);
+							#found_inv_slot    = findItemInv(false,...&find_parameters[]);
+							if(%#found_inv_slot% == -1);
+								&find_parameters = join("&7', '&4",&find_parameters[]);
+								&return_string   = "%&enum_error_item_index%_%#oi%";
+								debug_error(%debug%,%&script_debug_name%,"Could not find Item with Parameters: '&4%&find_parameters%&7' (index: &4%#oi%&7). Returning '&4%&return_string%&7'.");
+								break;
+							endif;
+							#offer_slots[%#oi%] = %#found_inv_slot%;
+							offer_placed[%#oi%] = false;
+						next;
+						if(%&return_string% != "");
+							return(%&return_string%);
+						endif;
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		// Add any Coins we are offering before any Items
+		if(true);
+			#available_item_slots = 16;
+			#recursive_timeout    = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+			&coins_offered        = tradingOfferCoins(%&offer_coins%,%#recursive_timeout%,%#tick_wait%);
+			if((%&coins_offered% != "SUCCESS") && (%&coins_offered% != "ERROR_AMOUNT"));
+				debug_error(%debug%,%&script_debug_name%,"&btradingOfferCoins(%&offer_coins%,%#recursive_timeout%,%#tick_wait%);&7 returned Error: '&4%&coins_offered%&7'. Returning this Error.");
+				return(%&coins_offered%);
+			elseif(%&coins_offered% == "SUCCESS");
+				&used_item_slots[]    = tradingIndexOffer("SELF");
+				#used_item_slots_sz   = arraysize(&used_item_slots[]);
+				#available_item_slots = %#available_item_slots% - %#used_item_slots_sz%;
+			endif;
+		endif;
+		
+		// Check if we have enough Room in the Container to add all the Items we are offering.
+		if((%#offer_items_sz% > %#available_item_slots%) && (%#offer_items_sz% > 0));
+			debug_error(%debug%,%&script_debug_name%,"Do not have enough room for all of the Items we are offering (we want to offer &d%#offer_items_sz%&7 items, but we only have room for &d%#available_item_slots%&7 items). Returning '&4%&enum_error_room%&7'.");
+			return(%&enum_error_room%);
+		endif;
+		
+		// Iterate over each Item we are trying to Offer and add each of them to the Trade Offer GUI.
+		if(%#offer_items_sz% > 0);
+			do;
+				foreach(&offer_items[],&offer_item,#oi);
+					if(!%offer_placed[%#oi%]%);
+						&find_parameters[] = split("~",%&offer_item%);
+						&inv_parameters[]  = split("~",%&offer_item%);
+						&inv_parameters[]  = "SLOT: %#offer_slots[%#oi%]%";
+						do;
+							// 1. Check for Function Timeout
+							if(%do_timeout%);
+								func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+								if(%func_timeout%);
+									debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+									&return_string = %&enum_error_timeout%;
+									break;
+								endif;
+							endif;
+							
+							// 2. Check if we are still in the correct GUI.
+							if(true);
+								&trading_state = tradingGetState();
+								if((%&trading_state% == "NONE") || (%&trading_state% == "COIN_SIGN"));
+									debug_error(%debug%,%&script_debug_name%,"&btradingGetState()&7 returned an invalid &&trading_state='&4%&trading_state%&7'. Returning '&4%&enum_error_trade%&7'.");
+									&return_string = %&enum_error_trade%;
+									break;
+								endif;
+							endif;
+							
+							// 3. Check to see if we can find the Item in our Inventory (or Container, if we have already clicked it in).
+							if(true);
+								#item_slot_inv = findItemInv(false,...&inv_parameters[]);
+								if(%#item_slot_inv% != -1);
+									can_do_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+									if(%can_do_click%);
+										#item_slot_con = invslot_to_conslot(%#item_slot_inv%);
+										slotclick(%#item_slot_con%,"left","false");
+									endif;
+								else;
+									#item_slot_con = findItemContainer(false,...&find_parameters[]);
+									if(%#item_slot_con% == -1);
+										&find_parameters = join("&7', '&4",&find_parameters[]);
+										&return_string   = "%&enum_error_item_index%_%#oi%";
+										debug_error(%debug%,%&script_debug_name%,"[%#oi%] > Cannot find Item with Parameters '&4%&find_parameters%&7' anywhere in the Container nor the Inventory. Will return '&4%&return_string%&7'.");
+									else;
+										offer_placed[%#oi%] = true;
+									endif;
+									break;
+								endif;
+							endif;
+							
+							wait("1t");
+							inc(#waited_ticks);
+						until((%offer_placed[%#oi%]%) || (%&return_string% != ""));
+						if(%&return_string% != "");
+							break;
+						endif;
+					endif;
+				next;
+				#not_placed_index = indexof(offer_placed[],,false);
+				inc(#waited_ticks);
+				wait("1t");
+			until((%#not_placed_index% == -1) || (%&return_string% != ""));
+		endif;
+		
+		// If we haven't already set an ERROR Return Code, set the Success Code.
+		if(%&return_string% == "");
+			&return_string = %&enum_success%;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;

@@ -1,0 +1,39 @@
+function tmpClear();
+	do;
+		#tnt_slots[]  = findItemContainer(true,"MCID: tnt");
+		#tnt_slots_sz = arraysize(#tnt_slots[]);
+		if((%#tnt_slots_sz% == 0) || (%INVENTORYFULL%));
+			break;
+		endif;
+		
+		foreach(#tnt_slots[],#tnt_slot,#ts);
+			#tick_wait = random(1,2);
+			wait("%#tick_wait%t");
+			slotclick(%#tnt_slot%,"left",true);
+			if(%INVENTORYFULL%);
+				break;
+			endif;
+		next;
+		
+		wait("1t");
+	while(%CONTAINERNAME% == "Builder's Wand");
+	
+	localGUI("GUIINVENTORY");
+	do;
+		#tnt_slots[]  = findItemInv(true,"MCID: tnt");
+		#tnt_slots_sz = arraysize(#tnt_slots[]);
+		if(%#tnt_slots_sz% == 0);
+			break;
+		endif;
+		
+		foreach(#tnt_slots[],#tnt_slot,#ts);
+			#tick_wait = random(1,2);
+			wait("%#tick_wait%t");
+			slotclick(%#tnt_slot%,"left",false);
+			wait("%#tick_wait%t");
+			slotclick(-999,"left",false);
+		next;
+		
+		wait("1t");
+	loop;
+endfunction;

@@ -1,0 +1,1261 @@
+// gui/index.txt
+	// Default amount of ticks to wait between action executions shared across all GUI functions.
+	@#def_wait_ticks = 20;
+
+	// Changes the current GUI to a local GUI.
+		// Params:
+		//      {string} [&target_gui="NONE"]         - The Target GUI to switch to. Can be any of the following strings:
+		//                                              "NONE", "GUIINVENTORY", "GUICHAT".
+		//      {number} [#wait_ticks=@#def_wait_ticks]- Amount of ticks (1t = 50ms) to wait between each action (press/GUI).
+		//
+		// Returns a boolean indicating whether or not GUI == <&target_gui> at end of function.
+	function localGUI(&target_gui="NONE",#wait_ticks=20);
+		&valid_guis[] = split(", ","NONE, GUIINVENTORY, GUICHAT");
+		#valid_gui    = indexof(&valid_guis[],,%&target_gui%);
+		if(#valid_gui == -1);
+			#valid_gui = 0;
+		endif;
+		&target_gui = ucase(%&valid_guis[%#valid_gui%]%);
+		
+		do;
+			if(%GUI% == %&target_gui%);
+				break;
+			elseif(%GUI% != "NONE");
+				press("escape");
+				do(%#wait_ticks%);
+					wait("1t");
+				until(%GUI% == "NONE");
+			else;
+				if(%&target_gui% == "GUIINVENTORY");
+					gui("inventory");
+				elseif(%&target_gui% == "GUICHAT");
+					gui("chat");
+				endif;
+				
+				do(%#wait_ticks%);
+					wait("1t");
+				until(%GUI% != "NONE");
+			endif;
+		until(%GUI% == %&target_gui%);
+		return_boolean = %GUI% == %&target_gui%;
+		return(%return_boolean%);
+	endfunction;
+
+	// Tests if the regular expression <&expression> matches against <&input_string>.
+		// Params:
+		//      {string} <&input_string>    The input string to test against <&expression>.
+		//      {string} <&expression>      The regular expression to test against <&input_string>.
+		//
+		// Returns a boolean indicating whether or not the <&expression> matches against the <&input_string>.
+	function regexTest(&input_string,&expression);
+		ifmatches(%&input_string%,%&expression%);
+			return_bool = true;
+		endif;
+		return(%return_bool%);
+	endfunction;
+
+	// Takes input of a getslotiteminv indexed inventory slot (static, starts at 9 for top left inv, ends @ 44 bottom right inv)
+	// and converts it to it's dynamic position in whatever GUI is currently opened.
+		// Params:
+		//      {number} <#slot>    The getslotiteminv indexed inventory slot to convert
+		//
+		// Returns <#slot>'s dynamic slot ID in whichever container is currently opened, or -1 if no container with CONTAINERSLOTS is opened.
+	function invslot_to_conslot(#slot);
+		if(%CONTAINERSLOTS% >= 1);
+			#conslot = (%CONTAINERSLOTS% - 45) + %#slot%;
+			return(%#conslot%);
+		else;
+			return(-1);
+		endif;
+	endfunction;
+
+	// Takes input of a dynamic indexed inventory/container slot (i.e. 9 = in the container instead of in the inventory)
+	// and converts it to it's static position in the inventory.
+		// Params:
+		//      {number} <#slot>    The dynamic indexed inventory/container slot to convert
+		//
+		// Returns <#slot>'s static slot ID in the Inventory, or -1 if no container with CONTAINERSLOTS is opened.
+	function conslot_to_invslot(#slot);
+		if(%CONTAINERSLOTS% >= 1);
+			#invslot = (45 - %CONTAINERSLOTS%) + %#slot%;
+			return(%#invslot%);
+		else;
+			return(-1);
+		endif;
+	endfunction;
+
+	// Indexes the Items in the specified GUI type ("ALL", "INVENTORY", "HOTBAR", "CONTAINER"), optionally only indexing
+	// certain Items that match all provided parameters of [&base], [&name], [&sbid], [&uuid], [&data], and [&stack], as well
+	// as supporting custom return variables. Default return type is an Array where each element is: '<slot>|<stack>|<base>|<name>'.
+	// All filter parameters are optional.
+		// Params:
+		//      {string} [&type]                    The type of Container to index. Must be one of: 'ALL', 'INVENTORY', 'HOTBAR', or 'CONTAINER'.
+		//      {string} [&base]                    The base item to filter for. If provided, will only index items found in the slot range that
+		//                                          match this base item.
+		//      {string} [&name]                    The item name to filter for. If provided, will only index items found in the slot range that
+		//                                          match this item name.
+		//      {string} [&sbid]                    The SkyBlock Item ID to filter for. If provided, will only index items found in the slot range that
+		//                                          match this SkyBlock Item ID.
+		//      {string} [&uuid]                    The Item UUID to filter for. If provided, will only index items found in the slot range that match this UUID.
+		//      {string} [&data]                    The Item Damage/Data value to filter for. If provided, will only index items found in the slot range that match this Data
+		//                                          value.
+		//      {string} [&stack]                   The Item Stack Size to filter for. If provided, will only index items found in the slot range that match this Stack Size.
+		//                                          Can be used in conjunction with [&base], [&name], [&uuid], [&sbid], and [&data] to create a precise filter of items to index.
+		//      {boolean} [use_inv_methods=false]   Whether or not to use static inventory slot methods (getslotiteminv, getslotinv). Only has some effect if the
+		//                                          [&type] parameter is "INVENTORY" or "HOTBAR". Defaults to false.
+		//      {string} [...&return_vars[]]        The return variables to extract. If omitted, will return an Array where each element matches format:
+		//                                          '<slot>|<stack>|<base>|<name>'. If provided, each element will hold the specified variable in the order they
+		//                                          are passed in the array. Valid values to provide are: 'slot', 'stack', 'base', 'name', 'sbid', 'uuid', 'damage', and 'nbt'.
+		//                                          If 'nbt' is being returned, the NBT data will be encoded using encode() (use decode() to decode it) in the Array.
+		//
+	function indexGUI(&type="ALL",&base="",&name="",&sbid="",&uuid="",&data="",&stack="",use_inv_methods=false,...&return_vars[]);
+		// Validate input parameters and setup method variables
+		if(true);
+			// Validate input parameters
+			if(true);
+				&default_return_vars[] = split(", ","slot, stack, base, name");
+				&valid_return_vars[]   = split(", ","slot, stack, base, name, sbid, uuid, nbt, damage");
+				foreach(&valid_return_vars[],&r_var);
+					#r_idx = indexof(&return_vars[],,%&r_var%);
+					if(%#r_idx% != -1);
+						&use_return_vars[] = %&r_var%;
+						#use_return_idxs[] = %#r_idx%;
+					endif;
+				next;
+				#array_size = arraysize(&use_return_vars[]);
+				if(%#array_size% == 0);
+					push(&use_return_vars[],&default_return_vars[*]);
+				else;
+					sort("ASC",#use_return_idxs[],&use_return_vars[]);
+				endif;
+				&type = miscValidate(%&type%,0,"ALL","INVENTORY","HOTBAR","CONTAINER");
+			endif;
+			
+			// Setup method variables
+			if(true);
+				use_inv_methods = ((%use_inv_methods%) && ((%&type% == "INVENTORY") || (%&type% == "HOTBAR")));
+				
+				// Setup the slot ranges to index.
+				if(true);
+					#static_inv_start  = 9;
+					#static_inv_end    = 43;
+					#static_hb_start   = 36;
+					#static_hb_end     = 43;
+					#dynamic_inv_start = %CONTAINERSLOTS% - 36;
+					#dynamic_inv_end   = %CONTAINERSLOTS% - 1;
+					#dynamic_hb_start  = %CONTAINERSLOTS% - 8;
+					#dynamic_hb_end    = %CONTAINERSLOTS% - 1;
+					#dynamic_con_start = 0;
+					#dynamic_con_end   = %CONTAINERSLOTS% - 37;
+					
+					if(%&type% == "ALL");
+						#range_start = %#dynamic_con_start%;
+						#range_end   = %#dynamic_inv_end%;
+					elseif(%&type% == "INVENTORY");
+						if(%use_inv_methods%);
+							#range_start = %#static_inv_start%;
+							#range_end   = %#static_inv_end%;
+						else;
+							#range_start = %#dynamic_inv_start%;
+							#range_end   = %#dynamic_inv_end%;
+						endif;
+					elseif(%&type% == "HOTBAR");
+						if(%use_inv_methods%);
+							#range_start = %#static_hb_start%;
+							#range_end   = %#static_hb_end%;
+						else;
+							#range_start = %#dynamic_hb_start%;
+							#range_end   = %#dynamic_hb_end%;
+						endif;
+					elseif(%&type% == "CONTAINER");
+						#range_start = %#dynamic_con_start%;
+						#range_end   = %#dynamic_con_end%;
+					endif;
+				endif;
+				
+				// Setup the search strings.
+				if(true);
+					// Setup item filters.
+					if(true);
+						filter_base  = %&base% != "";
+						filter_name  = %&name% != "";
+						filter_sbid  = %&sbid% != "";
+						filter_uuid  = %&uuid% != "";
+						filter_data  = %&data% != "";
+						filter_stack = %&stack% != "";
+					endif;
+					
+					// Setup return variables.
+					if(true);
+						#return_slot  = indexof(&use_return_vars[],,"slot");
+						#return_stack = indexof(&use_return_vars[],,"stack");
+						#return_base  = indexof(&use_return_vars[],,"base");
+						#return_name  = indexof(&use_return_vars[],,"name");
+						#return_sbid  = indexof(&use_return_vars[],,"sbid");
+						#return_uuid  = indexof(&use_return_vars[],,"uuid");
+						#return_nbt   = indexof(&use_return_vars[],,"nbt");
+						#return_data  = indexof(&use_return_vars[],,"data");
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		// Begin indexing the slot range.
+		if(true);
+			#slot_offset = %#range_start%;
+			for(#slot,%#range_start%,%#range_end%);
+				#found_slot = %#slot%;
+				if(%filter_base%);
+					getslot(%&base%,#found_slot,%#slot_offset%);
+				endif;
+				
+				if((%#found_slot% >= %#range_start%) && (%#found_slot% <= %#range_end%));
+					#slot_offset = %#found_slot% + 1;
+					&found_base  = getslotitemnbt(%#found_slot%,,&found_stack,&found_data,&found_nbt);
+					&fount_nbt   = strip(%&found_nbt%);
+					slot_match   = (((!%filter_base) || (%&found_base% == %&base%)) && ((!%filter_data%) || (%&found_data% == %&data%)) && ((!%filter_stack%) || (%&found_stack% == %&stack%)));
+					
+					if((%slot_match%) && ((%filter_name%) || (%#return_name% != -1)));
+						&found_name = getItemName(%&found_nbt%,%&found_base%);
+						slot_match  = ((!%filter_name%) || (%&found_name% == %&name%));
+					endif;
+					if((%slot_match%) && ((%filter_sbid%) || (%#return_sbid% != -1)));
+						&found_sbid = getItemSBID(%&found_nbt%);
+						slot_match  = ((!%filter_sbid%) || (%&found_sbid% == %&sbid%));
+					endif;
+					if((%slot_match%) && ((%filter_uuid%) || (%#return_uuid% != -1)));
+						&found_uuid = getItemUUID(%&found_nbt%);
+						slot_match  = ((!%filter_uuid%) || (%&found_uuid% == %&uuid%));
+					endif;
+					
+					if(%slot_match%);
+						unset(&join_data[]);
+						if(#return_slot != -1);
+							&join_data[%#return_slot%] = %#found_slot%;
+						endif;
+						if(#return_base != -1);
+							&join_data[%#return_base%] = %&found_base%;
+						endif;
+						if(#return_name != -1);
+							&join_data[%#return_name%] = %&found_name%;
+						endif;
+						if(#return_sbid != -1);
+							&join_data[%#return_sbid%] = %&found_sbid%;
+						endif;
+						if(#return_uuid != -1);
+							&join_data[%#return_uuid%] = %&found_uuid%;
+						endif;
+						if(#return_data != -1);
+							&join_data[%#return_data%] = %&found_data%;
+						endif;
+						if(#return_stack != -1);
+							&join_data[%#return_stack%] = %&found_stack%;
+						endif;
+						if(#return_nbt != -1);
+							&join_data[%#return_nbt%] = encode(%&found_nbt%);
+						endif;
+						&return_array[] = join("|",&join_data[]);
+					endif;
+				else;
+					break;
+				endif;
+			next;
+		endif;
+		
+		return(&return_array[]);
+	endfunction;
+	
+	// Encodes the current values of GUI, CONTAINERNAME, CONTAINERSLOTS, and optionally Slot Data from each slot in the Container
+	// into a string using encode(). Used to check if the GUI has updated.
+		// Params:
+		//      {boolean} [include_items=false] If true, will call indexGUI and append it's data to the Container String.
+		//
+		// Returns a string encoded with encode() in format 'GUI|CONTAINERNAME|CONTAINERSLOTS[$<slot_nbt>~<slot_nbt>~<...>]'.
+		// The [$<slot_nbt>~<slot_nbt>~<...>] portion is only included if [include_items] is true.
+	function getContainerString(include_items=false);
+		&env_var_str = "%GUI%|%CONTAINERNAME%|%CONTAINERSLOTS%";
+		if(%include_items%);
+			if(%CONTAINERSLOTS% > 0);
+				#container_start = 0;
+				#container_end   = %CONTAINERSLOTS% - 37;
+				#inventory_start = %CONTAINERSLOTS% - 36;
+				#inventory_end   = %CONTAINERSLOTS% - 1;
+				#range_start     = %#container_start%;
+				#range_end       = %#inventory_end%;
+				for(#slot,%#range_start%,%#range_end%);
+					&f_item     = getslotitemnbt(%#slot%,,#f_stack,#f_data,&f_nbt);
+					&f_nbt      = strip(%&f_nbt%);
+					&f_nbt      = encode(%&f_nbt%);
+					&out_data[] = "%&f_item%|%#f_stack%|%#f_data%|%&f_nbt%";
+				next;
+			endif;
+			&gui_items   = join("~",&out_data[]);
+			&env_var_str = "%&env_var_str%$%&gui_items%";
+		endif;
+		&return_string = encode(%&env_var_str%);
+		return(%&return_string%);
+	endfunction;
+
+	// Checks if we are in a new GUI by comparing the <&init_container_string> to the current Container String returned by getContainerString.
+		// Params:
+		//      {string} <&init_container_string>   A Container String generated when we were on the Initial GUI that we want to check for an Update from.
+		//      {boolean} [include_items=false]     Set this to true if [include_items] was used on the Initial call to getContainerString.
+		//
+		// Returns a boolean indicating whether or not the GUI has changed.
+	function enteredNewGUI(&init_container_string,include_items=false,allow_mouse_full=false);
+		&mouse_item = getmouseitem(,#mouse_stack,#mouse_data,&mouse_nbt);
+		if((%&mouse_item% != "air") && (!%allow_mouse_full%));
+			return(False);
+		endif;
+		
+		&mouse_nbt             = strip(%&mouse_nbt%);
+		&mouse_nbt             = encode(%&mouse_nbt%);
+		&curr_container_string = getContainerString(%include_items%);
+		if(&curr_container_string != &init_container_string);
+			if(%include_items%);
+				&init_data[] = call("decodeContainerString",%&init_container_string%);
+				&curr_data[] = call("decodeContainerString",%&curr_container_string%);
+				foreach(&init_data[],&init_data,#dei);
+					&curr_data = %&curr_data[%#dei%]%;
+					if(%&curr_data% != %&init_data%);
+						if(%#dei% <= 2);
+							return_boolean = True;
+							break;
+						else;
+							&init_data_arr[] = split("|",%&init_data%);
+							&init_data_item  = %&init_data_arr[0]%;
+							&init_data_nbt   = %&init_data_arr[3]%;
+							&curr_data_arr[] = split("|",%&curr_data%);
+							&curr_data_item  = %&curr_data_arr[0]%;
+							&curr_data_nbt   = %&curr_data_arr[3]%;
+							mouse_match      = (((%&init_data_item% == "air") && (%&mouse_nbt% == %&curr_data_nbt%)) || ((%&curr_data_item% == "air") && (%&mouse_nbt% == %&init_data_nbt%)));
+							
+							if(!%mouse_match%);
+								return_boolean = True;
+								break;
+							endif;
+						endif;
+					endif;
+				next;
+				return(%return_boolean%);
+			endif;
+			
+			return(True);
+		endif;
+		return(False);
+	endfunction;
+
+	// Decodes a Container String into an Array of it's components.
+		// Params:
+		//      {string} <&container_string>    A container string generated by getContainerString
+		//
+		// Returns an Array:
+		//  0 {string} &container_gui   The string value of "%GUI%" from the Container String
+		//  1 {string} &container_name  The string value of "%CONTAINERNAME%" from the Container String
+		//  2 {number} #container_slots The number value of "%CONTAINERSLOTS%" from the Container String
+		//
+		// If the Container String holds NBT Item Data, elements 3, ... are the ENCODED NBT strings.
+		// 
+	function decodeContainerString(&container_string);
+		&decoded_string = decode(%&container_string%);
+		&decoded_vars[] = split("$",%&decoded_string%);
+		#decoded_length = arraysize(&decoded_vars[]);
+		
+		&decoded_data[] = split("|",%&decoded_vars[0]%);
+		if(%#decoded_length% > 1);
+			&encoded_nbt[] = split("~",%&decoded_vars[1]%);
+			push(&decoded_data[],&encoded_nbt[*]);
+		endif;
+		return(&decoded_data[]);
+	endfunction;
+
+	// Changes the current GUI to a remote GUI.
+	// NOTE: For /viewcollection commands to work, CHATFILTER must include:
+		// Expression:
+			//	ifmatches(%CHATCLEAN%,"^You haven't found this item yet!$");
+			//		@remote_gui_collection_unlock_exception = true;
+			//	endif;
+		// Params:
+			// {string}	<&target_gui>                 	String ENUM. List of available GUIs below.
+			// {number}	[#wait_ticks=@#def_wait_ticks]	Amount of time to wait for in ticks (1t = 50ms)
+			// {number}	[#timeout_sec=60]             	Maximum amount of seconds to spend attempting to enter the specified
+			//         	                              	GUI. If this function takes more than or equal to this amount of seconds
+			//         	                              	to complete, the function will exit and return False. Set to -1 for infinite.
+		// Returns a Boolean indicating whether or not we were able to enter the specified GUI.
+		// Example                       : in_gui = remoteGUI("SB_MENU");
+		// Valid ENUMs for <&target_gui> :
+			//  'SB_MENU'              : /sbmenu
+			//  'TRADES'               : /sbmenu => emerald item
+			//  'BOOSTER'              : /sbmenu => cookie item
+			//  'STATS'                : /sbmenu => skull item (stats menu)
+			//	'ACCESSORY_BAG'        : /sbmenu => accessory bag item (slot 53)
+			//  'CALENDAR'             : /calendar
+			//  'STORAGE'              : /storage
+			//  'ENDERCHEST'           : /enderchest
+			//  'PROFILES'             : /profiles
+			//  'EFFECTS'              : /effects (note; cannot disable effects from this GUI)
+			//  'CRAFT_ITEM'           : /craft
+			//  'ANVIL'                : /anvil (only works if booster cookie effect is applied)
+			//  'BAZAAR'               : /bazaar (only works if booster cookie effect is applied)
+			//  'AUCTION_HOUSE'        : /auctions (only works if booster cookie effect is applied)
+			//  'ENCHANTING'           : /enchantingtable (only works if booster cookie effect is applied)
+			//  'SKILLS'               : /skills
+				//  'SKILLS_FARMING'       : /skills => farming
+				//  'SKILLS_MINING'        : /skills => mining
+				//  'SKILLS_COMBAT'        : /skills => combat
+				//  'SKILLS_FORAGING'      : /skills => foraging
+				//  'SKILLS_FISHING'       : /skills => fishing
+				//  'SKILLS_ENCHANTING'    : /skills => enchanting
+				//  'SKILLS_ALCHEMY'       : /skills => alchemy
+				//  'SKILLS_RUNECRAFTING'  : /skills => runecrafting
+				//  'SKILLS_SOCIAL'        : /skills => social
+				//  'SKILLS_TAMING'        : /skills => taming
+				//  'SKILLS_DUNGEONEERING' : /skills => dungeoneering
+			//  'SB_SETTINGS'          : /viewsettings
+				//  'SB_SETTINGS_PERSONAL' : /viewsettings => personal
+				//  'SB_SETTINGS_COMMS'    : /viewsettings => comms
+				//  'SB_SETTINGS_IS'       : /viewsettings => island
+				//  'SB_SETTINGS_API'      : /viewsettings => api
+				//  'SB_SETTINGS_IS_MGMT'  : /viewsettings => island management
+			//  'HY_SETTINGS'          : /settings
+				//  'HY_SETTINGS_GAME'     : /settings => game
+				//  'HY_SETTINGS_CHAT'     : /settings => chat
+				//  'HY_SETTINGS_SOCIAL'   : /settings => social
+				//  'HY_SETTINGS_LOBBY'    : /settings => lobby
+				//  'HY_SETTINGS_API'      : /settings => api
+				//  'HY_SETTINGS_GUILD'    : /settings => guild
+			//  'COLLECTIONS'          : /collections
+				//  'COLLECTIONS_INK_SACK:3'         	: /viewcollection INK_SACK:3         	(Cocoa Beans)
+				//  'COLLECTIONS_CARROT_ITEM'        	: /viewcollection CARROT_ITEM        	(Carrot)
+				//  'COLLECTIONS_CACTUS'             	: /viewcollection CACTUS             	(Cactus)
+				//  'COLLECTIONS_RAW_CHICKEN'        	: /viewcollection RAW_CHICKEN        	(Raw Chicken)
+				//  'COLLECTIONS_SUGAR_CANE'         	: /viewcollection SUGAR_CANE         	(Sugar Cane)
+				//  'COLLECTIONS_PUMPKIN'            	: /viewcollection PUMPKIN            	(Pumpkin)
+				//  'COLLECTIONS_WHEAT'              	: /viewcollection WHEAT              	(Wheat)
+				//  'COLLECTIONS_SEEDS'              	: /viewcollection SEEDS              	(Seeds)
+				//  'COLLECTIONS_MUSHROOM_COLLECTION'	: /viewcollection MUSHROOM_COLLECTION	(Mushroom)
+				//  'COLLECTIONS_RABBIT'             	: /viewcollection RABBIT             	(Raw Rabbit)
+				//  'COLLECTIONS_NETHER_STALK'       	: /viewcollection NETHER_STALK       	(Nether Wart)
+				//  'COLLECTIONS_MUTTON'             	: /viewcollection MUTTON             	(Mutton)
+				//  'COLLECTIONS_MELON'              	: /viewcollection MELON              	(Melon)
+				//  'COLLECTIONS_POTATO_ITEM'        	: /viewcollection POTATO_ITEM        	(Potato)
+				//  'COLLECTIONS_LEATHER'            	: /viewcollection LEATHER            	(Leather)
+				//  'COLLECTIONS_PORK'               	: /viewcollection PORK               	(Raw Porkchop)
+				//  'COLLECTIONS_FEATHER'            	: /viewcollection FEATHER            	(Feather)
+				//  'COLLECTIONS_INK_SACK:4'         	: /viewcollection INK_SACK:4         	(Lapis Lazuli)
+				//  'COLLECTIONS_REDSTONE'           	: /viewcollection REDSTONE           	(Redstone)
+				//  'COLLECTIONS_COAL'               	: /viewcollection COAL               	(Coal)
+				//  'COLLECTIONS_ENDER_STONE'        	: /viewcollection ENDER_STONE        	(End Stone)
+				//  'COLLECTIONS_QUARTZ'             	: /viewcollection QUARTZ             	(Nether Quartz)
+				//  'COLLECTIONS_SAND'               	: /viewcollection SAND               	(Sand)
+				//  'COLLECTIONS_IRON_INGOT'         	: /viewcollection IRON_INGOT         	(Iron Ingot)
+				//  'COLLECTIONS_GEMSTONE_COLLECTION'	: /viewcollection GEMSTONE_COLLECTION	(Gemstone)
+				//  'COLLECTIONS_OBSIDIAN'           	: /viewcollection OBSIDIAN           	(Obsidian)
+				//  'COLLECTIONS_DIAMOND'            	: /viewcollection DIAMOND            	(Diamond)
+				//  'COLLECTIONS_COBBLESTONE'        	: /viewcollection COBBLESTONE        	(Cobblestone)
+				//  'COLLECTIONS_GLOWSTONE_DUST'     	: /viewcollection GLOWSTONE_DUST     	(Glowstone Dust)
+				//  'COLLECTIONS_GOLD_INGOT'         	: /viewcollection GOLD_INGOT         	(Gold Ingot)
+				//  'COLLECTIONS_GRAVEL'             	: /viewcollection GRAVEL             	(Gravel)
+				//  'COLLECTIONS_HARD_STONE'         	: /viewcollection HARD_STONE         	(Hard Stone)
+				//  'COLLECTIONS_MITHRIL_ORE'        	: /viewcollection MITHRIL_ORE        	(Mithril)
+				//  'COLLECTIONS_EMERALD'            	: /viewcollection EMERALD            	(Emerald)
+				//  'COLLECTIONS_ICE'                	: /viewcollection ICE                	(Ice)
+				//  'COLLECTIONS_NETHERRACK'         	: /viewcollection NETHERRACK         	(Netherrack)
+				//  'COLLECTIONS_ENDER_PEARL'        	: /viewcollection ENDER_PEARL        	(Ender Pearl)
+				//  'COLLECTIONS_SLIME_BALL'         	: /viewcollection SLIME_BALL         	(Slimeball)
+				//  'COLLECTIONS_MAGMA_CREAM'        	: /viewcollection MAGMA_CREAM        	(Magma Cream)
+				//  'COLLECTIONS_GHAST_TEAR'         	: /viewcollection GHAST_TEAR         	(Ghast Tear)
+				//  'COLLECTIONS_SULPHUR'            	: /viewcollection SULPHUR            	(Gunpowder)
+				//  'COLLECTIONS_ROTTEN_FLESH'       	: /viewcollection ROTTEN_FLESH       	(Rotten Flesh)
+				//  'COLLECTIONS_SPIDER_EYE'         	: /viewcollection SPIDER_EYE         	(Spider Eye)
+				//  'COLLECTIONS_BONE'               	: /viewcollection BONE               	(Bone)
+				//  'COLLECTIONS_BLAZE_ROD'          	: /viewcollection BLAZE_ROD          	(Blaze Rod)
+				//  'COLLECTIONS_STRING'             	: /viewcollection STRING             	(String)
+				//  'COLLECTIONS_LOG_2'              	: /viewcollection LOG_2              	(Acacia Wood)
+				//  'COLLECTIONS_LOG:1'              	: /viewcollection LOG:1              	(Spruce Wood)
+				//  'COLLECTIONS_LOG:3'              	: /viewcollection LOG:3              	(Jungle Wood)
+				//  'COLLECTIONS_LOG:2'              	: /viewcollection LOG:2              	(Birch Wood)
+				//  'COLLECTIONS_LOG'                	: /viewcollection LOG                	(Oak Wood)
+				//  'COLLECTIONS_LOG_2:1'            	: /viewcollection LOG_2:1            	(Dark Oak Wood)
+				//  'COLLECTIONS_WATER_LILY'         	: /viewcollection WATER_LILY         	(Lily Pad)
+				//  'COLLECTIONS_PRISMARINE_SHARD'   	: /viewcollection PRISMARINE_SHARD   	(Prismarine Shard)
+				//  'COLLECTIONS_INK_SACK'           	: /viewcollection INK_SACK           	(Ink Sack)
+				//  'COLLECTIONS_RAW_FISH'           	: /viewcollection RAW_FISH           	(Raw Fish)
+				//  'COLLECTIONS_RAW_FISH:3'         	: /viewcollection RAW_FISH:3         	(Pufferfish)
+				//  'COLLECTIONS_RAW_FISH:2'         	: /viewcollection RAW_FISH:2         	(Clownfish)
+				//  'COLLECTIONS_RAW_FISH:1'         	: /viewcollection RAW_FISH:1         	(Raw Salmon)
+				//  'COLLECTIONS_PRISMARINE_CRYSTALS'	: /viewcollection PRISMARINE_CRYSTALS	(Prismarine Crystals)
+				//  'COLLECTIONS_CLAY'               	: /viewcollection CLAY               	(Clay)
+				//  'COLLECTIONS_SPONGE'             	: /viewcollection SPONGE             	(Sponge)
+	function remoteGUI(&target_gui,#tick_wait=20,#timeout_sec=60);
+		&script_debug_name = "&9remoteGUI";
+		debug              = true;
+		do_timeout         = #timeout_sec > 0;
+		#start_time        = %TIMESTAMP%;
+		
+		// Validate input
+		if(true);
+			&valid_guis[] = split(", ","SB_MENU, TRADES, ACCESSORY_BAG, BOOSTER, STATS, CALENDAR, STORAGE, ENDERCHEST, PROFILES, EFFECTS, CRAFT_ITEM, ANVIL, BAZAAR, AUCTION_HOUSE, ENCHANTING, SKILLS, SKILLS_FARMING, SKILLS_MINING, SKILLS_COMBAT, SKILLS_FORAGING, SKILLS_FISHING, SKILLS_ENCHANTING, SKILLS_ALCHEMY, SKILLS_RUNECRAFTING, SKILLS_SOCIAL, SKILLS_TAMING, SKILLS_DUNGEONEERING, SB_SETTINGS, SB_SETTINGS_PERSONAL, SB_SETTINGS_COMMS, SB_SETTINGS_IS, SB_SETTINGS_API, SB_SETTINGS_IS_MGMT, HY_SETTINGS, HY_SETTINGS_GAME, HY_SETTINGS_CHAT, HY_SETTINGS_SOCIAL, HY_SETTINGS_LOBBY, HY_SETTINGS_API, HY_SETTINGS_GUILD, COLLECTIONS, COLLECTIONS_INK_SACK:3, COLLECTIONS_CARROT_ITEM, COLLECTIONS_CACTUS, COLLECTIONS_RAW_CHICKEN, COLLECTIONS_SUGAR_CANE, COLLECTIONS_PUMPKIN, COLLECTIONS_WHEAT, COLLECTIONS_SEEDS, COLLECTIONS_MUSHROOM_COLLECTION, COLLECTIONS_RABBIT, COLLECTIONS_NETHER_STALK, COLLECTIONS_MUTTON, COLLECTIONS_MELON, COLLECTIONS_POTATO_ITEM, COLLECTIONS_LEATHER, COLLECTIONS_PORK, COLLECTIONS_FEATHER, COLLECTIONS_INK_SACK:4, COLLECTIONS_REDSTONE, COLLECTIONS_COAL, COLLECTIONS_ENDER_STONE, COLLECTIONS_QUARTZ, COLLECTIONS_SAND, COLLECTIONS_IRON_INGOT, COLLECTIONS_GEMSTONE_COLLECTION, COLLECTIONS_OBSIDIAN, COLLECTIONS_DIAMOND, COLLECTIONS_COBBLESTONE, COLLECTIONS_GLOWSTONE_DUST, COLLECTIONS_GOLD_INGOT, COLLECTIONS_GRAVEL, COLLECTIONS_HARD_STONE, COLLECTIONS_MITHRIL_ORE, COLLECTIONS_EMERALD, COLLECTIONS_ICE, COLLECTIONS_NETHERRACK, COLLECTIONS_ENDER_PEARL, COLLECTIONS_SLIME_BALL, COLLECTIONS_MAGMA_CREAM, COLLECTIONS_GHAST_TEAR, COLLECTIONS_SULPHUR, COLLECTIONS_ROTTEN_FLESH, COLLECTIONS_SPIDER_EYE, COLLECTIONS_BONE, COLLECTIONS_BLAZE_ROD, COLLECTIONS_STRING, COLLECTIONS_LOG_2, COLLECTIONS_LOG:1, COLLECTIONS_LOG:3, COLLECTIONS_LOG:2, COLLECTIONS_LOG, COLLECTIONS_LOG_2:1, COLLECTIONS_WATER_LILY, COLLECTIONS_PRISMARINE_SHARD, COLLECTIONS_INK_SACK, COLLECTIONS_RAW_FISH, COLLECTIONS_RAW_FISH:3, COLLECTIONS_RAW_FISH:2, COLLECTIONS_RAW_FISH:1, COLLECTIONS_PRISMARINE_CRYSTALS, COLLECTIONS_CLAY, COLLECTIONS_SPONGE");
+			#valid_index  = indexof(&valid_guis[],,%&target_gui%);
+			&target_gui   = ucase(%&valid_guis[%#valid_index%]%);
+			if(%#valid_index% == -1);
+				debug_error(%debug%,%&script_debug_name%,"Invalid TargetGUI &4%&target_gui%&7 passed.");
+				return(False);
+			endif;
+			debug_log(%debug%,%&script_debug_name%,"TargetGUI: %&target_gui%");
+		endif;
+		
+		// Define different GUI types.
+		if(true);
+			// SkyBlock Command GUIs (has a shortcut command, no caveats as to when the command can be used).
+			if(true);
+				// GUI Parameter Terms
+				&command_guis[] = split(", ","HY_SETTINGS, SB_SETTINGS, SB_MENU, CALENDAR, STORAGE, ENDERCHEST, PROFILES, EFFECTS, CRAFT_ITEM, SKILLS, COLLECTIONS, COLLECTIONS_INK_SACK:3, COLLECTIONS_CARROT_ITEM, COLLECTIONS_CACTUS, COLLECTIONS_RAW_CHICKEN, COLLECTIONS_SUGAR_CANE, COLLECTIONS_PUMPKIN, COLLECTIONS_WHEAT, COLLECTIONS_SEEDS, COLLECTIONS_MUSHROOM_COLLECTION, COLLECTIONS_RABBIT, COLLECTIONS_NETHER_STALK, COLLECTIONS_MUTTON, COLLECTIONS_MELON, COLLECTIONS_POTATO_ITEM, COLLECTIONS_LEATHER, COLLECTIONS_PORK, COLLECTIONS_FEATHER, COLLECTIONS_INK_SACK:4, COLLECTIONS_REDSTONE, COLLECTIONS_COAL, COLLECTIONS_ENDER_STONE, COLLECTIONS_QUARTZ, COLLECTIONS_SAND, COLLECTIONS_IRON_INGOT, COLLECTIONS_GEMSTONE_COLLECTION, COLLECTIONS_OBSIDIAN, COLLECTIONS_DIAMOND, COLLECTIONS_COBBLESTONE, COLLECTIONS_GLOWSTONE_DUST, COLLECTIONS_GOLD_INGOT, COLLECTIONS_GRAVEL, COLLECTIONS_HARD_STONE, COLLECTIONS_MITHRIL_ORE, COLLECTIONS_EMERALD, COLLECTIONS_ICE, COLLECTIONS_NETHERRACK, COLLECTIONS_ENDER_PEARL, COLLECTIONS_SLIME_BALL, COLLECTIONS_MAGMA_CREAM, COLLECTIONS_GHAST_TEAR, COLLECTIONS_SULPHUR, COLLECTIONS_ROTTEN_FLESH, COLLECTIONS_SPIDER_EYE, COLLECTIONS_BONE, COLLECTIONS_BLAZE_ROD, COLLECTIONS_STRING, COLLECTIONS_LOG_2, COLLECTIONS_LOG:1, COLLECTIONS_LOG:3, COLLECTIONS_LOG:2, COLLECTIONS_LOG, COLLECTIONS_LOG_2:1, COLLECTIONS_WATER_LILY, COLLECTIONS_PRISMARINE_SHARD, COLLECTIONS_INK_SACK, COLLECTIONS_RAW_FISH, COLLECTIONS_RAW_FISH:3, COLLECTIONS_RAW_FISH:2, COLLECTIONS_RAW_FISH:1, COLLECTIONS_PRISMARINE_CRYSTALS, COLLECTIONS_CLAY, COLLECTIONS_SPONGE");
+				
+				// Commands to issue to enter the correct GUI while on SkyBlock.
+				&command_text[] = split(", ","/settings, /viewsettings, /sbmenu, /calendar, /storage, /enderchest, /profiles, /effects, /craft, /skills, /collections, /viewcollection INK_SACK:3, /viewcollection CARROT_ITEM, /viewcollection CACTUS, /viewcollection RAW_CHICKEN, /viewcollection SUGAR_CANE, /viewcollection PUMPKIN, /viewcollection WHEAT, /viewcollection SEEDS, /viewcollection MUSHROOM_COLLECTION, /viewcollection RABBIT, /viewcollection NETHER_STALK, /viewcollection MUTTON, /viewcollection MELON, /viewcollection POTATO_ITEM, /viewcollection LEATHER, /viewcollection PORK, /viewcollection FEATHER, /viewcollection INK_SACK:4, /viewcollection REDSTONE, /viewcollection COAL, /viewcollection ENDER_STONE, /viewcollection QUARTZ, /viewcollection SAND, /viewcollection IRON_INGOT, /viewcollection GEMSTONE_COLLECTION, /viewcollection OBSIDIAN, /viewcollection DIAMOND, /viewcollection COBBLESTONE, /viewcollection GLOWSTONE_DUST, /viewcollection GOLD_INGOT, /viewcollection GRAVEL, /viewcollection HARD_STONE, /viewcollection MITHRIL_ORE, /viewcollection EMERALD, /viewcollection ICE, /viewcollection NETHERRACK, /viewcollection ENDER_PEARL, /viewcollection SLIME_BALL, /viewcollection MAGMA_CREAM, /viewcollection GHAST_TEAR, /viewcollection SULPHUR, /viewcollection ROTTEN_FLESH, /viewcollection SPIDER_EYE, /viewcollection BONE, /viewcollection BLAZE_ROD, /viewcollection STRING, /viewcollection LOG_2, /viewcollection LOG:1, /viewcollection LOG:3, /viewcollection LOG:2, /viewcollection LOG, /viewcollection LOG_2:1, /viewcollection WATER_LILY, /viewcollection PRISMARINE_SHARD, /viewcollection INK_SACK, /viewcollection RAW_FISH, /viewcollection RAW_FISH:3, /viewcollection RAW_FISH:2, /viewcollection RAW_FISH:1, /viewcollection PRISMARINE_CRYSTALS, /viewcollection CLAY, /viewcollection SPONGE");
+				
+				// Regular Expression to match against CONTAINERNAME to determine whether we are in the correct GUI.
+				&command_expr[] = split(", ","Game Settings, Settings, SkyBlock Menu, Calendar and Events, Storage, Ender Chest, Profile Management, Active Effects, Craft Item, Your Skills, ^Collection$, ^Cocoa Beans Collection$, ^Carrot Collection$, ^Cactus Collection$, ^Raw Chicken Collection$, ^Sugar Cane Collection$, ^Pumpkin Collection$, ^Wheat Collection$, ^Seeds Collection$, ^Mushroom Collection$, ^Raw Rabbit Collection$, ^Nether Wart Collection$, ^Mutton Collection$, ^Melon Collection$, ^Potato Collection$, ^Leather Collection$, ^Raw Porkchop Collection$, ^Feather Collection$, ^Lapis Lazuli Collection$, ^Redstone Collection$, ^Coal Collection$, ^End Stone Collection$, ^Nether Quartz Collection$, ^Sand Collection$, ^Iron Ingot Collection$, ^Gemstone Collection$, ^Obsidian Collection$, ^Diamond Collection$, ^Cobblestone Collection$, ^Glowstone Dust Collection$, ^Gold Ingot Collection$, ^Gravel Collection$, ^Hard Stone Collection$, ^Mithril Collection$, ^Emerald Collection$, ^Ice Collection$, ^Netherrack Collection$, ^Ender Pearl Collection$, ^Slimeball Collection$, ^Magma Cream Collection$, ^Ghast Tear Collection$, ^Gunpowder Collection$, ^Rotten Flesh Collection$, ^Spider Eye Collection$, ^Bone Collection$, ^Blaze Rod Collection$, ^String Collection$, ^Acacia Wood Collection$, ^Spruce Wood Collection$, ^Jungle Wood Collection$, ^Birch Wood Collection$, ^Oak Wood Collection$, ^Dark Oak Wood Collection$, ^Lily Pad Collection$, ^Prismarine Shard Collection$, ^Ink Sack Collection$, ^Raw Fish Collection$, ^Pufferfish Collection$, ^Clownfish Collection$, ^Raw Salmon Collection$, ^Prismarine Crystals Collection$, ^Clay Collection$, ^Sponge Collection$");
+				
+				// SkyBlock Skill GUIs
+				if(true);
+					// GUI Parameter Terms
+					&sb_skill_guis[] = split(", ","SKILLS_FARMING, SKILLS_MINING, SKILLS_COMBAT, SKILLS_FORAGING, SKILLS_FISHING, SKILLS_ENCHANTING, SKILLS_ALCHEMY, SKILLS_RUNECRAFTING, SKILLS_SOCIAL, SKILLS_TAMING, SKILLS_DUNGEONEERING");
+					
+					// Commands to issue to enter the correct GUI while on SkyBlock.
+					&sb_skill_text[] = split(", ","/viewskill FARMING, /viewskill MINING, /viewskill COMBAT, /viewskill FORAGING, /viewskill FISHING, /viewskill ENCHANTING, /viewskill ALCHEMY, /viewskill RUNECRAFTING, /viewskill SOCIAL, /viewskill TAMING, /viewskill DUNGEONEERING");
+					
+					// Regular Expression to match against CONTAINERNAME to determine whether we are in the correct GUI.
+					&sb_skill_expr[] = split(", ","Farming Skill, Mining Skill, Combat Skill, Foraging Skill, Fishing Skill, Enchanting Skill, Alchemy Skill, Runecrafting Skill, Social Skill, Taming Skill, Dungeoneering");
+					
+					push(&command_guis[],&sb_skill_guis[*]);
+					push(&command_text[],&sb_skill_text[*]);
+					push(&command_expr[],&sb_skill_expr[*]);
+				endif;
+			endif;
+			
+			// SBMENU GUIs (must type /sbmenu before continuing).
+			if(true);
+				// GUI Parameter Terms
+				&sbmenu_guis[] = split(", ","TRADES, BOOSTER, STATS, ACCESSORY_BAG");
+				
+				// Item Base Items to look for in SBMENU to click on to progress
+				&sbmenu_item[] = split(", ","emerald, cookie, skull, skull");
+				
+				// Item Display Names to look for in SBMENU to click on to progress
+				&sbmenu_name[] = split(", ","Trades, Booster Cookie, Your SkyBlock Profile, Accessory Bag");
+				
+				// Regular Expressions to match against CONTAINERNAME to determine whether we are in the correct GUI.
+				&sbmenu_expr[] = split(", ","Trades, Booster Cookie, Your SkyBlock Profile, Accessory Bag");
+			endif;
+			
+			// SkyBlock Setting GUIs (must type /viewsettings before continuing).
+			if(true);
+				// GUI Parameter Terms
+				&sbsetting_guis[] = split(", ","SB_SETTINGS_PERSONAL, SB_SETTINGS_COMMS, SB_SETTINGS_IS, SB_SETTINGS_API, SB_SETTINGS_IS_MGMT");
+				
+				// Item Base Items to look for in SB_SETTINGS to click on to progress
+				&sbsetting_item[] = split(", ","skull, sign, repeater, comparator, grass");
+				
+				// Item Display Names to look for in SB_SETTINGS to click on to progress
+				&sbsetting_name[] = split(", ","Personal, Comms, Island Settings, API Settings, Island Management");
+				
+				// Regular Expressions to match against CONTAINERNAME to determine whether we are in the correct GUI.
+				&sbsetting_expr[] = split(", ","Settings - Personal, Settings - Comms, Settings - Island Settings, Settings - API, Island Management");
+			endif;
+			
+			// Hypixel Setting GUIs (must type /settings before continuing).
+			if(true);
+				// GUI Parameter Terms
+				&hysetting_guis[] = split(", ","HY_SETTINGS_GAME, HY_SETTINGS_CHAT, HY_SETTINGS_SOCIAL, HY_SETTINGS_LOBBY, HY_SETTINGS_API, HY_SETTINGS_GUILD");
+				
+				// Item Base Items to look for in HY_SETTINGS to click on to progress
+				&hysetting_item[] = split(", ","comparator, paper, iron_bars, nether_star, web, dye");
+				
+				// Item Display Names to look for in HY_SETTINGS to click on to progress
+				&hysetting_name[] = split(", ","Game Settings, Chat Settings, Social Settings, Lobby Settings, API Settings, Personal Guild Settings");
+				
+				// Regular Expressions to match against CONTAINERNAME to determine whether we are in the correct GUI.
+				&hysetting_expr[] = split(", ","Game Settings, Chat Settings, Social Settings, Lobby Settings, API Settings, Personal Guild Settings");
+			endif;
+			
+			// Booster Cookie Effect GUIs (must have Booster Cookie Effect enabled).
+			if(true);
+				// GUI Parameter Terms
+				&booster_guis[] = split(", ","BOOSTER, ANVIL, BAZAAR, AUCTION_HOUSE, ENCHANTING");
+				
+				// Commands to issue to enter the correct GUI while on SkyBlock.
+				&booster_text[] = split(", ","/sbmenu, /av, /bz, /ah, /et");
+				
+				// Item Base Items to look for in SBMENU to Progress (only required for 'BOOSTER' exception)
+				&booster_item[] = split(", ","cookie");
+				
+				// Item Display Names to look for in SBMENU to click on to progress (only required for 'BOOSTER' exception)
+				&booster_name[] = split(", ","Booster Cookie");
+				
+				&baz_strings = "(?:Farming|Mining|Combat|Woods & Fishes|Oddities)";
+				
+				// Regular Expression to match against CONTAINERNAME to determine whether we are in the correct GUI.
+				&booster_expr[] = split(", ","Booster Cookie, Anvil, Bazaar \u279C %&baz_strings%, ^(?:Co-op )?Auction House$, ^Enchant Item$");
+			endif;
+		endif;
+		
+		// Find the type of GUI we are entering.
+		if(true);
+			#command_index    = indexof(&command_guis[],,%&target_gui%);
+			#sbmenu_index     = indexof(&sbmenu_guis[],,%&target_gui%);
+			#sbsetting_index  = indexof(&sbsetting_guis[],,%&target_gui%);
+			#hysetting_index  = indexof(&hysetting_guis[],,%&target_gui%);
+			#booster_index    = indexof(&booster_guis[],,%&target_gui%);
+			#collection_index = indexof(&collection_guis[],,%&target_gui%);
+			
+			// For any of the GUIs categorized under command_guis, sbmenu_guis, sbsetting_guis, and booster_guis,
+			// we have to be on some sort of SkyBlock Server for them to work. So, if we are entering a GUI found
+			// in any of those arrays, get onto a SkyBlock Server beforehand.
+			if((#collection_index != -1) || (#command_index != -1) || (#sbmenu_index != -1) || (#sbsetting_index != -1) || (#booster_index != -1));
+				debug_log(%debug%,%&script_debug_name%,"Using a SkyBlock Only command, making sure we are on SkyBlock before command execution...");
+				#goto_server_timeout = -1;
+				do;
+					if(%do_timeout%);
+						#goto_server_timeout = %#timeout_sec% - (%TIMESTAMP% - %#start_time%);
+					endif;
+					on_server = call("gotoServer","SKYBLOCK",100,%#goto_server_timeout%);
+					if(%on_server%);
+						break;
+					endif;
+					wait("1t");
+					
+					func_timeout = ((%do_timeout%) && ((%TIMESTAMP% - %#start_time%) >= %#timeout_sec%));
+				until((%func_timeout%) || (%on_server%));
+				if(%func_timeout%);
+					#elapsed_sec  = %TIMESTAMP% - %#start_time%;
+					&elapsed_time = sectotime(%#elapsed_sec%);
+					debug_error(%debug%,%&script_debug_name%,"Function timed out during gotoServer calls (elapsed time: &4%&elapsed_time%&7).");
+					return(False);
+				endif;
+				debug_log(%debug%,%&script_debug_name%,"On a valid SkyBlock Server, continuing on...");
+			endif;
+			
+			// Handle Booster stuff beforehand if needed (check if effect is applied).
+			if(%#booster_index% != -1);
+				debug_log(%debug%,%&script_debug_name%,"Using a Booster Cookie function");
+				booster_enabled = isEffectEnabled("COOKIE");
+				if(!%booster_enabled%);
+					debug_error(%debug%,%&script_debug_name%,"Booster Cookie effect required for TargetGUI: &4%&target_gui%&7.");
+					return(False);
+				endif;
+			endif;
+			
+			// Handle the unique actions required of each remote GUI type.
+			if(true);
+				if((%#booster_index% != -1) || (%#command_index% != -1));
+					// Can just issue commands, no need to open GUIs beforehand.
+					if(%#booster_index% != -1);
+						&command_text     = %&booster_text[%#booster_index%]%;
+						&exit_expr        = %&booster_expr[%#booster_index%]%;
+						booster_exception = %&target_gui% == "BOOSTER";
+						if(%booster_exception%);
+							init_gui   = true;
+							&init_gui  = "SB_MENU";
+							&next_item = %&booster_item[%#booster_index%]%;
+							&next_name = %&booster_name[%#booster_index%]%;
+						endif;
+					elseif(%#command_index% != -1);
+						&command_text     = %&command_text[%#command_index%]%;
+						&exit_expr        = %&command_expr[%#command_index%]%;
+					endif;
+				else;
+					init_gui = true;
+					// Must enter some holding menu before continuing.
+					if(%#sbmenu_index% != -1);
+						// Must enter the 'SkyBlock Menu' (SB_MENU) GUI before continuing.
+						&init_gui  = "SB_MENU";
+						&next_item = %&sbmenu_item[%#sbmenu_index%]%;
+						&next_name = %&sbmenu_name[%#sbmenu_index%]%;
+						&exit_expr = %&sbmenu_expr[%#sbmenu_index%]%;
+					elseif(%#sbsetting_index% != -1);
+						// Must enter the 'SkyBlock Settings' (SB_SETTINGS) GUI before continuing.
+						&init_gui  = "SB_SETTINGS";
+						&next_item = %&sbsetting_item[%#sbsetting_index%]%;
+						&next_name = %&sbsetting_name[%#sbsetting_index%]%;
+						&exit_expr = %&sbsetting_expr[%#sbsetting_index%]%;
+					elseif(%#hysetting_index% != -1);
+						// Must enter the 'Hypixel Settings' (HY_SETTINGS) GUI before continuing.
+						&init_gui  = "HY_SETTINGS";
+						&next_item = %&hysetting_item[%#hysetting_index%]%;
+						&next_name = %&hysetting_name[%#hysetting_index%]%;
+						&exit_expr = %&hysetting_expr[%#hysetting_index%]%;
+					endif;
+				endif;
+				
+				do;
+					ifmatches(%CONTAINERNAME%,%&exit_expr%);
+						debug_log(%debug%,%&script_debug_name%,"Breaking, containername matches exit expr (%CONTAINERNAME%, %&exit_expr%)");
+						break;
+					endif;
+					
+					// Check for function timeout
+					if(%do_timeout%);
+						func_timeout = ((%TIMESTAMP% - %#start_time%) >= %#timeout_sec%);
+						if(%func_timeout%);
+							debug_error(%debug%,%&script_debug_name%,"Function timed out while attempting to open a GUI Container.");
+							break;
+						endif;
+					endif;
+					
+					// Execute GUI actions depending on what type of GUI we are currently in and where we need to go.
+					if(true);
+						// Enter the "pre-requisite" GUI, or echo the Command needed to enter the GUI we want to enter.
+						if(%GUI% == "NONE");
+							in_init_gui = false;
+							// Enter the "pre-requisite" GUI.
+							if(%init_gui%);
+								in_init_gui = call("remoteGUI",%&init_gui%,%#tick_wait%);
+							else;
+								// Echo the Command needed to enter the GUI we want to enter.
+								debug_log(%debug%,%&script_debug_name%,"echoing command %&command_text%...");
+								unset(@remote_gui_collection_unlock_exception);
+								echo("%&command_text%");
+								do(%#tick_wait%);
+									wait("1t");
+								while((%GUI% == "NONE") && (!%@remote_gui_collection_unlock_exception%));
+								if(%@remote_gui_collection_unlock_exception%);
+									debug_error(%debug%,%&script_debug_name%,"Do not have collection '%&target_gui%' unlocked yet!");
+									break;
+								endif;
+							endif;
+						elseif((%init_gui%) && (%in_init_gui%));
+							// In the "pre-requisite" GUI, find the item we want to click.
+							if(true);
+								// Iterate over Dynamic Container Slots
+								if(true);
+									#found_slot = -1;
+									#r_start    = 0;
+									#r_end      = %CONTAINERSLOTS% - 37;
+									&r_item     = "%&next_item%";
+									&r_name     = "%&next_name%";
+									for(#r_slot,%#r_start%,%#r_end%);
+										#f_slot = %#r_slot%;
+										if(%&r_item%);
+											getslot(%&r_item%,#f_slot,%#r_offset%);
+										endif;
+										
+										if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+											#r_offset = %#f_slot% + 1;
+											&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+											&f_nbt    = strip(%&f_nbt%);
+											&f_name   = getItemName(%&f_nbt%,%&f_item%);
+											&f_sbid   = getItemSBID(%&f_nbt%);
+											m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+											m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+											m_sbid    = ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%));
+											m_match   = ((%m_item%) && (%m_name%) && (%m_sbid%));
+											if(%m_match%);
+												#found_slot = %#f_slot%;
+												break;
+											endif;
+										else;
+											break;
+										endif;
+									next;
+								endif;
+								
+								if(%#found_slot% != -1);
+									&init_gui_string = getContainerString();
+									entered_new_gui  = false;
+									do;
+										slotclick(%#found_slot%);
+										do(%#tick_wait%);
+											wait("1t");
+											entered_new_gui = enteredNewGUI(%&init_gui_string%);
+										while(!%entered_new_gui%);
+									while(!%entered_new_gui%);
+									in_init_gui = !%entered_new_gui%;
+								else;
+									debug_error(%debug%,%&script_debug_name%,"Cannot find 'next' item (base: %&next_item%, name: %&next_name%). GUI: %GUI%, CONTAINERNAME: %CONTAINERNAME%, CONTAINERSLOTS: %CONTAINERSLOTS%.");
+									break;
+								endif;
+							endif;
+						else;
+							// In a GUI that is not "NONE", have to leave it.
+							exited_gui = localGUI("NONE",%#tick_wait%);
+						endif;
+					endif;
+				untilmatches(%CONTAINERNAME%,%&exit_expr%);
+			endif;
+		endif;
+		
+		ifmatches(%CONTAINERNAME%,%&exit_expr%);
+			debug_log(%debug%,%&script_debug_name%,"Success!");
+			return_boolean = true;
+		else;
+			debug_log(%debug%,%&script_debug_name%,"Failure!");
+		endif;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Finds the most 'empty' hotbar slot on the hotbar and returns the slot it was found in.
+		// Params:
+			// {boolean} [allow_not_empty=false]	Whether or not to accept the lowest rarity and stacksize item
+			//                                  	on the Hotbar in lieu of an actually empty slot in the event that the
+			//                                  	hotbar contains zero air slots.
+		// Returns the static slot number (36 - 44, where 36 = slot 1, 44 = slot 9) that the air slot is found at,
+		// or -1 if no good slot is found.
+	function getEmptyHotbarSlot(allow_not_empty=false);
+		// Iterate over Static Hotbar slots
+		if(true);
+			#r_start  = 36;
+			#r_end    = 44;
+			for(#r_slot,%#r_start%,%#r_end%);
+				#f_slot = %#r_slot%;
+				if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+					#r_offset     = %#r_offset% + 1;
+					&f_item       = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&t_nbt);
+					if(%&f_item% == "air");
+						#return_number = %#f_slot%;
+						break;
+					endif;
+					#item_rarity = getItemRarity(%&t_nbt%);
+					&f_nbt       = strip(%&t_nbt%);
+					&f_name      = getItemName(%&f_nbt%,%&f_item%);
+					
+				else;
+					break;
+				endif;
+			next;
+			if((%#return_number% >= %#r_start%) && (%#return_number% >= %#r_end%));
+				return(%#return_number%);
+			endif;
+		endif;
+	endfunction;
+	
+	// Enters an NPC Sell GUI of some sort.
+		// Params:
+			// {boolean} [allow_booster_commands=true]	Whether or not to allow the usage of the /sbmenu => Trades GUI, if we have
+			//                                        	a Booster Cookie active.
+			// {number} [#wait_ticks=20]              	Amount of Ticks to wait between GUI Interactions of any sort. If set to -1, will not
+			//                                        	impose a minimum amount of time to wait between Interactions, and will just execute the
+			//                                        	next interaction immediately following the last successful one.
+			// {number} [#timeout_sec=60]             	Maximum amount of Seconds this Function can run for. If time elapsed exceeds this
+			//                                        	number, function will timeout and return False. If set to -1, will not impose a time limit.
+		// Returns a Boolean indicating whether or not the Function was able to enter an NPC Sell GUI.
+	function enterNPCSellGUI(allow_booster_commands=true,#wait_ticks=20,#timeout_sec=60);
+		do_timeout  = %#timeout_sec% > 0;
+		#start_time = %TIMESTAMP%;
+		#sell_slot  = 49;
+		do;
+			// 1. Check if the Function has timed out.
+			if(%func_timeout%);
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					break;
+				endif;
+				
+				#remain_sec = (%TIMESTAMP% - %#start_time%) - %#timeout_sec%;
+			else;
+				#remain_sec = -1;
+			endif;
+			
+			// 2. Check if we are already in a GUI where we can sell stuff.
+			if(%GUI% == "GUICHEST");
+				&f_item = getslotitemnbt(%#sell_slot%,,#f_stack,#f_data,&f_nbt);
+				&f_nbt  = strip(%&f_nbt%);
+				&f_name = getItemName(%&f_nbt%,%&f_item%);
+				&f_sbid = getItemSBID(%&f_nbt%);
+				if(%&f_name% == "Sell Item");
+					return_boolean = true;
+				elseifmatches(%&f_nbt%,"Click to buyback!");
+					return_boolean = true;
+				endif;
+				
+				if(%return_boolean%);
+					break;
+				endif;
+			endif;
+			
+			// 3. Enter the Correct GUI if we have not already entered a valid GUI.
+			if(true);
+				localGUI("NONE");
+				
+				allow_trades = false;
+				if(%allow_booster_commands%);
+					allow_trades = isEffectEnabled("COOKIE",60);
+				endif;
+				
+				if(%allow_trades%);
+					remoteGUI("TRADES",%#wait_ticks%,%#remain_sec%);
+				else;
+					goto("FARM_MERCHANT",true,%#remain_sec%);
+				endif;
+			endif;
+		until((%return_boolean%) || (%func_timeout%));
+		return(%return_boolean%);
+	endfunction;
+	
+	// Given any (or all, or any mix of) an Item's MCID, Name, SBID, and/or UUID, finds the Item(s) in the Container and returns their Slot(s).
+		// Params:
+			// {boolean} [return_arr=false]  	If set to True, will return an Array of Slots matching the specified Filters. If set to False, will
+			//                               	return the first Slot ID found that matches the Filters.
+			// {string} [...&filter_params[]]	An Array of Strings in format: [<PARAM_ENUM>: <FILTER>], where PARAM_ENUM can be any of:
+			//                               	MCID|ITEM, DATA, STACK, NAME, SBID, NBT, or UUID. <FILTER> can be a Regular Expression or an Exact String.
+			//                               	If Passing an Expression, prefix the Filter with 'r$'. All characters following the 'r$' will be used
+			//                               	as the Expression. Finally, the ENUM 'SLOT' can be passed, and if this is passed, we will preferentially
+			//                               	attempt to check if the Item exists in that slot. If it does not, the remainder of the slots will be checked.
+			//                               	Can be effectively used to try and speed up a check by checking if it is where we think it is before checking
+			//                               	if it is anywhere else in the Container/Inventory.
+		// Returns the Slot ID(s) of the Item(s) found, or -1 if no Item(s) could be found.
+	function findItemInv(return_arr=false,...&filter_params[]);
+		#return_val = -1;
+		
+		// Setup Filter Parameters
+		if(true);
+			&valid_enums[] = split(", ","MCID, ITEM, DATA, STACK, NAME, SBID, UUID, NBT, SLOT");
+			foreach(&filter_params[],&filter_param,#fpi);
+				ifmatches(%&filter_param%,"^(.+?):\s*(.+)$");
+					match(%&filter_param%,"^(.+?):\s*(.+)$",{&param_enum,&param_filter});
+					#enum_index = indexof(&valid_enums[],,%&param_enum%);
+					if(%#enum_index% != -1);
+						&param_enum = %&valid_enums[%#enum_index%]%;
+						if(%&param_enum% == "SLOT");
+							#prioritize_slot   = coerceNumber(%&param_filter%);
+							#prioritized_index = indexof(#prioritized_slots[],,%#prioritize_slot%);
+							if(%#prioritized_index% == -1);
+								#prioritized_slots[] = %#prioritize_slot%;
+							endif;
+						else;
+							if(%&param_enum% == "ITEM");
+								&param_enum = "MCID";
+							endif;
+							
+							ifmatches(%&param_filter%,"^r\$(.+)",&param_expression,1);
+								&param_filter = %&param_expression%;
+							else;
+								&param_filter = regexEscape(%&param_filter%);
+								&param_filter = "^%&param_filter%$";
+							endif;
+							
+							&enum_array = lcase("&%&param_enum%_regex[]");
+							&enum_bool  = lcase("do_%&param_enum%");
+							push(%&enum_array%,%&param_filter%);
+							set(%&enum_bool%);
+						endif;
+					endif;
+				endif;
+			next;
+			
+			foreach(&valid_enums[],&valid_enum);
+				if((%&valid_enum% != "SLOT") && (&valid_enum% != "ITEM"));
+					&enum_bool = lcase("do_%&valid_enum%");
+					enum_bool := "%%&enum_bool%%";
+					if(%enum_bool%);
+						&enum_array = lcase("&%&valid_enum%_regex[]");
+						&enum_value = join("|",%&enum_array%);
+						&enum_value = "(?:%&enum_value%)";
+						&enum_regex = lcase("&%&valid_enum%_regex");
+						set(%&enum_regex%,%&enum_value%);
+					endif;
+				endif;
+			next;
+			
+			//	Array Name    	|	Boolean Name	|	Regex String
+			//	&mcid_regex[] 	|	do_mcid     	|	&mcid_regex
+			//	&data_regex[] 	|	do_data     	|	&data_regex
+			//	&stack_regex[]	|	do_stack    	|	&stack_regex
+			//	&name_regex[] 	|	do_name     	|	&name_regex
+			//	&sbid_regex[] 	|	do_sbid     	|	&sbid_regex
+			//	&uuid_regex[] 	|	do_uuid     	|	&uuid_regex
+			//	&nbt_regex[]  	|	do_nbt      	|	&nbt_regex
+		endif;
+		
+		// Iterate over Inventory Slots
+		if(true);
+			#r_start            = 9;
+			#r_end              = 44;
+			&r_filter[]         = split(", ","mcid, data, stack, name, sbid, uuid, nbt");
+			#prioritize_slot_sz = arraysize(#prioritize_slot[]);
+			if(%#prioritize_slot_sz% >= 1);
+				foreach(#prioritize_slot[],#prioritize_slot,#ps);
+					&f_mcid = getslotiteminv(%#prioritize_slot%,,&f_stack,&f_data,&f_nbt);
+					&f_nbt  = strip(%&f_nbt%);
+					f_valid = true;
+					foreach(&r_filter[],&r_term,#rti);
+						&f_bool  = "do_%&r_term%";
+						f_bool  := "%%&f_bool%%";
+						if(%f_bool%);
+							if(%#rti% >= 3);
+								if(%&r_term% == "name");
+									&f_value = getItemName(%&f_nbt%,%&f_mcid%);
+								elseif(%&r_term% == "sbid");
+									&f_value = getItemSBID(%&f_nbt%);
+								elseif(%&r_term% == "uuid");
+									&f_value = getItemUUID(%&f_nbt%);
+								elseif(%&r_term% == "nbt");
+									&f_value = %&f_nbt%;
+								endif;
+							else;
+								&f_value = "&f_%&r_term%";
+								&f_value = "%%&f_value%%";
+							endif;
+							&f_regex = "&%&r_term%_regex";
+							&f_regex = "%%&f_regex%%";
+							ifnotmatches(%&f_value%,%&f_regex%);
+								// log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+								f_valid = false;
+								break;
+							endif;
+						endif;
+					next;
+					
+					if(%f_valid%);
+						// log("Match at slot %#f_slot%");
+						if(!%return_arr%);
+							#return_val = %#f_slot%;
+							// log("Breaking!");
+							break;
+						else;
+							// log("Added to array")
+							#return_val[] = %#f_slot%;
+						endif;
+					endif;
+				next;
+			endif;
+			
+			for(#f_slot,%#r_start%,%#r_end%);
+				&f_mcid = getslotiteminv(%#f_slot%,,&f_stack,&f_data,&f_nbt);
+				&f_nbt  = strip(%&f_nbt%);
+				f_valid = true;
+				foreach(&r_filter[],&r_term,#rti);
+					&f_bool  = "do_%&r_term%";
+					f_bool  := "%%&f_bool%%";
+					if(%f_bool%);
+						if(%#rti% >= 3);
+							if(%&r_term% == "name");
+								&f_value = getItemName(%&f_nbt%,%&f_mcid%);
+							elseif(%&r_term% == "sbid");
+								&f_value = getItemSBID(%&f_nbt%);
+							elseif(%&r_term% == "uuid");
+								&f_value = getItemUUID(%&f_nbt%);
+							elseif(%&r_term% == "nbt");
+								&f_value = %&f_nbt%;
+							endif;
+						else;
+							&f_value = "&f_%&r_term%";
+							&f_value = "%%&f_value%%";
+						endif;
+						&f_regex = "&%&r_term%_regex";
+						&f_regex = "%%&f_regex%%";
+						ifnotmatches(%&f_value%,%&f_regex%);
+							// log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+							f_valid = false;
+							break;
+						endif;
+					endif;
+				next;
+				
+				if(%f_valid%);
+					if(!%return_arr%);
+						#return_val = %#f_slot%;
+						break;
+					elseif(%#prioritize_slot_sz% <= 0);
+						#return_val[] = %#f_slot%;
+					else;
+						#return_index = indexof(#return_val[],,%#f_slot%);
+						if(%#return_index% == -1);
+							#return_val[] = %#f_slot%;
+						endif;
+					endif;
+				endif;
+			next;
+		endif;
+		
+		if(%return_arr%);
+			#return_val_sz = arraysize(#return_val[]);
+			if(%#return_val_sz% == 0);
+				#return_val[] = -1;
+			endif;
+			// log("Returning return_val array (size: %#return_val_sz%");
+			return(#return_val[]);
+		endif;
+		// log("Returning return_val %#return_val%");
+		return(%#return_val%);
+	endfunction;
+	
+	// Given any (or all, or any mix of) an Item's MCID, Name, SBID, and/or UUID, finds the Item in the Container and returns it's Slot.
+		// Params:
+			// {string} [...&filter_params[]]	An Array of Strings in format: [<PARAM_ENUM>: <FILTER>], where PARAM_ENUM can be any of:
+			//                               	MCID|ITEM, DATA, STACK, NAME, SBID, NBT, or UUID. <FILTER> can be a Regular Expression or an Exact String.
+			//                               	If Passing an Expression, prefix the Filter with 'r$'. All characters following the 'r$' will be used
+			//                               	as the Expression.
+			// {boolean} [return_arr=false]  	If set to True, will return an Array of Slots matching the specified Filters. If set to False, will
+			//                               	return the first Slot ID found that matches the Filters.
+		// Returns the Slot ID(s) of the Item(s) found, or -1 if no Item(s) could be found. Will return -1 if CONTAINERSLOTS <= 0.
+	function findItemContainer(return_arr=false,...&filter_params[]);
+		#return_val = -1;
+		
+		// Setup Filter Parameters
+		if(true);
+			&valid_enums[] = split(", ","MCID, ITEM, DATA, STACK, NAME, SBID, UUID, NBT, SLOT");
+			foreach(&filter_params[],&filter_param,#fpi);
+				ifmatches(%&filter_param%,"^(.+?):\s*(.+)$");
+					match(%&filter_param%,"^(.+?):\s*(.+)$",{&param_enum,&param_filter});
+					#enum_index = indexof(&valid_enums[],,%&param_enum%);
+					if(%#enum_index% != -1);
+						&param_enum = %&valid_enums[%#enum_index%]%;
+						if(%&param_enum% == "SLOT");
+							#prioritize_slot   = coerceNumber(%&param_filter%);
+							#prioritized_index = indexof(#prioritized_slots[],,%#prioritize_slot%);
+							if(%#prioritized_index% == -1);
+								#prioritized_slots[] = %#prioritize_slot%;
+							endif;
+						else;
+							if(%&param_enum% == "ITEM");
+								&param_enum = "MCID";
+							endif;
+							
+							ifmatches(%&param_filter%,"^r\$(.+)",&param_expression,1);
+								&param_filter = %&param_expression%;
+							else;
+								&param_filter = regexEscape(%&param_filter%);
+								&param_filter = "^%&param_filter%$";
+							endif;
+							
+							&enum_array = lcase("&%&param_enum%_regex[]");
+							&enum_bool  = lcase("do_%&param_enum%");
+							push(%&enum_array%,%&param_filter%);
+							set(%&enum_bool%);
+						endif;
+					endif;
+				endif;
+			next;
+			
+			foreach(&valid_enums[],&valid_enum);
+				if((%&valid_enum% != "SLOT") && (&valid_enum% != "ITEM"));
+					&enum_bool = lcase("do_%&valid_enum%");
+					enum_bool := "%%&enum_bool%%";
+					if(%enum_bool%);
+						&enum_array = lcase("&%&valid_enum%_regex[]");
+						&enum_value = join("|",%&enum_array%);
+						&enum_value = "(?:%&enum_value%)";
+						&enum_regex = lcase("&%&valid_enum%_regex");
+						set(%&enum_regex%,%&enum_value%);
+					endif;
+				endif;
+			next;
+			
+			//	Array Name    	|	Boolean Name	|	Regex String
+			//	&mcid_regex[] 	|	do_mcid     	|	&mcid_regex
+			//	&data_regex[] 	|	do_data     	|	&data_regex
+			//	&stack_regex[]	|	do_stack    	|	&stack_regex
+			//	&name_regex[] 	|	do_name     	|	&name_regex
+			//	&sbid_regex[] 	|	do_sbid     	|	&sbid_regex
+			//	&uuid_regex[] 	|	do_uuid     	|	&uuid_regex
+			//	&nbt_regex[]  	|	do_nbt      	|	&nbt_regex
+		endif;
+		
+		// Iterate over Inventory Slots
+		if(%CONTAINERSLOTS% >= 1);
+			#r_start            = 0;
+			#r_end              = %CONTAINERSLOTS% - 37;
+			&r_filter[]         = split(", ","mcid, data, stack, name, sbid, uuid, nbt");
+			
+			#prioritize_slot_sz = arraysize(#prioritize_slot[]);
+			if(%#prioritize_slot_sz% >= 1);
+				foreach(#prioritize_slot[],#prioritize_slot,#ps);
+					&f_mcid = getslotitemnbt(%#prioritize_slot%,,&f_stack,&f_data,&f_nbt);
+					&f_nbt  = strip(%&f_nbt%);
+					f_valid = true;
+					foreach(&r_filter[],&r_term,#rti);
+						&f_bool  = "do_%&r_term%";
+						f_bool  := "%%&f_bool%%";
+						if(%f_bool%);
+							if(%#rti% >= 3);
+								if(%&r_term% == "name");
+									&f_value = getItemName(%&f_nbt%,%&f_mcid%);
+								elseif(%&r_term% == "sbid");
+									&f_value = getItemSBID(%&f_nbt%);
+								elseif(%&r_term% == "uuid");
+									&f_value = getItemUUID(%&f_nbt%);
+								elseif(%&r_term% == "nbt");
+									&f_value = %&f_nbt%;
+								endif;
+							else;
+								&f_value = "&f_%&r_term%";
+								&f_value = "%%&f_value%%";
+							endif;
+							&f_regex = "&%&r_term%_regex";
+							&f_regex = "%%&f_regex%%";
+							ifnotmatches(%&f_value%,%&f_regex%);
+								// log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+								f_valid = false;
+								break;
+							endif;
+						endif;
+					next;
+					
+					if(%f_valid%);
+						if(!%return_arr%);
+							#return_val = %#f_slot%;
+							break;
+						endif;
+						#return_val[] = %#f_slot%;
+					endif;
+				next;
+			endif;
+			for(#f_slot,%#r_start%,%#r_end%);
+				&f_mcid = getslotitemnbt(%#f_slot%,,&f_stack,&f_data,&f_nbt);
+				&f_nbt  = strip(%&f_nbt%);
+				f_valid = true;
+				foreach(&r_filter[],&r_term,#rti);
+					&f_bool  = "do_%&r_term%";
+					f_bool  := "%%&f_bool%%";
+					if(%f_bool%);
+						if(%#rti% >= 3);
+							if(%&r_term% == "name");
+								&f_value = getItemName(%&f_nbt%,%&f_mcid%);
+							elseif(%&r_term% == "sbid");
+								&f_value = getItemSBID(%&f_nbt%);
+							elseif(%&r_term% == "uuid");
+								&f_value = getItemUUID(%&f_nbt%);
+							elseif(%&r_term% == "nbt");
+								&f_value = %&f_nbt%;
+							endif;
+						else;
+							&f_value = "&f_%&r_term%";
+							&f_value = "%%&f_value%%";
+						endif;
+						&f_regex = "&%&r_term%_regex";
+						&f_regex = "%%&f_regex%%";
+						ifnotmatches(%&f_value%,%&f_regex%);
+							// log("Term %&r_term% > No match between value %&f_value% and expression %&f_regex%");
+							f_valid = false;
+							break;
+						endif;
+					endif;
+				next;
+				
+				if(%f_valid%);
+					if(!%return_arr%);
+						#return_val = %#f_slot%;
+						break;
+					elseif(%#prioritize_slot_sz% <= 0);
+						#return_val[] = %#f_slot%;
+					else;
+						#return_index = indexof(#return_val[],,%#f_slot%);
+						if(%#return_index% == -1);
+							#return_val[] = %#f_slot%;
+						endif;
+					endif;
+				endif;
+			next;
+		endif;
+		
+		if(%return_arr%);
+			#return_val_sz = arraysize(#return_val[]);
+			if(%#return_val_sz% == 0);
+				#return_val[] = -1;
+			endif;
+			return(#return_val[]);
+		endif;
+		return(%#return_val%);
+	endfunction;

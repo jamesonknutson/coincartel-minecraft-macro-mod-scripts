@@ -1,0 +1,181 @@
+//	1.	Get Bazaar Unlocked
+  	//	a.	Get Farming 7 Unlocked
+  	  	//	i.  	Farm at Wheat Fields until we have at least 10 Coins
+  	  	//	ii. 	Visit the Farm Merchant, purchase a Rookie Hoe
+  	  	//	iii.	Continue to Farm at the Wheat Fields until our Farming Level hits 7
+  	//	b.	Get Foraging 7 Unlocked
+  	  	//	i.  	Go to Mine Merchant, purchase 4x Gold Ingots
+  	  	//	ii. 	Go to Lumber Merchant, purchase 1x Oak Log
+  	  	//	iii.	Craft Log into Planks, Planks into Sticks
+  	  	//	iv. 	Craft 1x Gold Axe, 1x Golden Shovel
+  	  	//	v.  	Go to Forest, farm Trees until Level 7 and at least 6,000 Coins in Purse +
+  	  	//	    	Items in Inventory (count only Logs, Saplings, etc).
+  	//	c.	Get Mining 7 Unlocked
+  	  	//	i.  	Go to Librarian, sell all waste Items (Logs, Saplings, etc), then purchase
+  	  	//	    	as many Bottles of Enchanting as is possible.
+  	  	//	ii. 	Warp back Home, splash them all on ourselves (or until we hit Level 30). Go
+  	  	//	    	back to the Librarian and Enchant the Golden Shovel with Efficiency 5. If we don't
+  	  	//	    	have enough Levels to Enchant it with Efficiency 5 yet, go harvest Crops until we
+  	  	//	    	can purchase however many more Bottles of Enchanting that we will need to get there.
+  	  	//	    	Do this until we have successfully Enchanted the Golden Shovel with Efficiency 5.
+  	  	//	iii.	Repeat the steps above until we are Level 5, then Enchant the Shovel with Telekinesis 1.
+  	  	//	iv. 	Once the Shovel has all the Enchants we need, go through the Farming Island to get to the
+  	  	//	    	Desert Island. Farm Sand there until we hit Level 7 Mining.
+  	//	d.	Continue to Farm Sand until we have enough Coins to afford to build a Farm? (Optional)
+  	  	//	i. 	Farm Sand at the Desert Island, crafting them into stacks of Enchanted Sand whenever we can do so.
+  	  	//	ii.	When we have >= 256 Enchanted Sand, throw it in the Ender Chest or go to Bazaar and sell it.
+
+// bazaarUnlock.txt
+	// Purchases a given quantity of an Item from an NPC.
+		// Params:
+			// {string} <&npc_name>      	The Name of the NPC to Purchase the Item from. Must be a valid ENUM that can
+			//                           	be passed along to `goto()`.
+			// {string} <&purchase_sbid> 	The SBID of the Item to Purchase from the NPC.
+			// {number} [#purchase_qty=1]	The Amount of the Item to Purchase from the NPC.
+			// {number} [#timeout_sec=60]	Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable
+			//                           	timeouts and make the Function loop until it encounters a different Error or is successful.
+			// {number} [#tick_wait=20]  	Amount of Ticks to wait between repeating a given Action.
+		// Returns a String ENUM indicating the outcome of the Action:
+			// SUCCESS             	Function was successful
+			// ERROR_TIMEOUT       	Function exited due to timing out
+			// ERROR_COINS         	Function exited due to not having enough Coins to purchase the Item(s).
+			// ERROR_NPC_NOT_FOUND 	Function exited due to not being able to find the NPC.
+			// ERROR_ITEM_NOT_FOUND	Function exited due to not being able to find the Item in the NPC's Shop.
+			// ERROR_INVENTORY     	Function exited due to not having enough Room in it's Inventory to Purchase the Item(s).
+		// Example:
+			//	&ingot_purchased = npcPurchase("MINE_MERCHANT","gold_ingot","Gold Ingot");
+			//	if(%&ingot_purchased% != "SUCCESS");
+			//		if(%&ingot_purchased% == "ERROR_TIMEOUT");
+			//		elseif(%&ingot_purchased% == "ERROR_COINS");
+			//		elseif(%&ingot_purchased% == "ERROR_NPC_NOT_FOUND");
+			//		elseif(%&ingot_purchased% == "ERROR_ITEM_NOT_FOUND");
+			//		elseif(%&ingot_purchased% == "ERROR_INVENTORY");
+			//		endif;
+			//	endif;
+	function npcPurchase(&npc_name,&purchase_sbid,#purchase_qty=1,#timeout_sec=60,#tick_wait=20);
+		// Setup Function Variables
+		if(true);
+			debug                 = true;
+			&script_debug_name    = "&6npcPurchase&7";
+			do_timeout            = %#timeout_sec% > 0;
+			#start_time           = %TIMESTAMP%;
+			&enum_success         = "SUCCESS";
+			&enum_timeout         = "ERROR_TIMEOUT";
+			&enum_coins           = "ERROR_COINS";
+			&enum_npc_not_found   = "ERROR_NPC_NOT_FOUND";
+			&enum_item_not_found  = "ERROR_ITEM_NOT_FOUND";
+			&enum_inventory       = "ERROR_INVENTORY";
+			debug_log(%debug%,%&script_debug_name%,"Attempting to Purchase &d%#purchase_qty%x&7 of &e%&purchase_sbid%&7 from Merchant NPC &d%&npc_name%&7.");
+		endif;
+		
+		// Check if we will have enough Room in our Inventory to hold the Amount of this Item we are to Purchase.
+		if(true);
+			// The Server will not let us purchase anything from an NPC unless we have at least one Air Slot.
+			// So, to figure out whether or not we will be able to execute this Function successfully, we will
+			// need to determine how many air slot(s) the purchase will take up.
+			//
+			//	Example:
+			//	-	35/36 Inventory Slots are not Air
+			//	-	1 of these Slots holds 32x Gold Ingots
+			//	-	Purchasing 96x Gold Ingots
+			//	-	We *should* be able to just Purchase 64, 32, but since buying 64 would fill up 32 into that
+			//	 	partial stack (and therefore have 32x overflow into the 36th slot, leaving us with no Air Slots),
+			//	 	we need to instead Purchase 32, 64.
+			
+			if(true);
+				&purchase_data[]     = getItemInfoSB(%&purchase_sbid%);
+				#purchase_max_stack := %&purchase_data[5]%;
+				#inventory_room      = getStackRoomInventory(%&purchase_sbid%);
+				#air_slots           = 36 - %SLOTSFULL%;
+				if((%#inventory_room% < %#purchase_qty%) || (%#air_slots% == 0));
+					debug_error(%debug%,%&script_debug_name%,"We need at least &d%#purchase_qty%&7 Room in our Inventory to hold &e%&purchase_sbid%&7, but we only have &4%#inventory_room% room&7. Returning '&4%&enum_inventory%&7'.");
+					&return_string = %&enum_inventory%;
+				elseif(((%#inventory_room% - #purchase_qty%) <= %#purchase_max_stack%) && (%#purchase_max_stack% > 1));
+					calculate_clicks = true;
+				endif;
+			endif;
+		endif;
+		
+		// Loop until we have a Return Value.
+		if(%&return_string% == "");
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Open up the Merchant NPC GUI.
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					in_merchant_gui    = goto(%&npc_name%,true,%#recursive_timeout%);
+					if(!%in_merchant_gui%);
+						debug_error(%debug%,%&script_debug_name%,"Failed to Enter the NPC's GUI (&bgoto(%&npc_name%,true,%#recursive_timeout%);&7 returned FALSE Boolean)!");
+						&return_string = %&enum_npc_not_found%;
+						break;
+					endif;
+				endif;
+				
+				// 3. Find the Item in the Merchant's GUI.
+				if(true);
+					#purchase_slot = findItemContainer(false,"SBID: %&purchase_sbid%");
+					if(%#purchase_slot% == -1);
+						debug_error(%debug%,%&script_debug_name%,"Failed to find any Slot that held an Item with SBID='&e%&purchase_sbid%&7' in CONTAINERNAME &e%CONTAINERNAME%&7, GUI &d%GUI%&7, CONTAINERSLOTS &e%CONTAINERSLOTS%&7.");
+						&return_string = %&enum_item_not_found%;
+						break;
+					endif;
+				endif;
+				
+				// 4. Calculate the minimum amount of Clicks we will need to execute in order to fulfill the Purchase Quantity.
+				if(true);
+					&purchase_item = getslotitemnbt(%#purchase_slot%,,#purchase_stack,#purchase_data,&purchase_nbt);
+					if(%#purchase_max_stack% > 1);
+						#purchase_qty_opts[] = split(", ","%#purchase_stack%, 1, 5, 10, 32, 64");
+						#purchase_qty_opts[] = arraySet(#purchase_qty_opts[]);
+						sort("DSC",#purchase_qty_opts[]);
+						
+						// What we are trying to determine here is basically this:
+						// - What sequence of purchases will result in us filling all the half-finished Stacks in our Inventory with the least
+						//   amount of clicks, without 'overflowing' any Stack into air slots?
+						//
+						// To answer this question, we will need to know the specifics as to how much room is in each unfinished Stack in our Inventory.
+						
+						#sum_vacancy_in_stacks  = %#inventory_room% - (%#purchase_max_stack% * %#air_slots%);
+						#rem_vacancy_in_stacks  = %#sum_vacancy_in_stacks%;
+						#rem_amount_to_purchase = %#purchase_qty%;
+						
+						if(%#rem_vacancy_in_stacks% > 1);
+							do;
+								foreach(#purchase_qty_opts[],#purchase_qty_opt,#pqo);
+									if((%#purchase_qty_opt% <= %#rem_vacancy_in_stacks%) && (%#purchase_qty_opt% <= %#rem_amount_to_purchase%));
+										#rem_vacancy_in_stacks  = %#rem_vacancy_in_stacks% - %#purchase_qty_opt%;
+										#rem_amount_to_purchase = %#rem_amount_to_purchase% - %#purchase_qty_opt%;
+										#purchase_sequence[]    = %#purchase_qty_opt%;
+										break;
+									endif;
+								next;
+							until((%#rem_vacancy_in_stacks% == 0) || (%#rem_amount_to_purchase% == 0));
+							
+							if((%#rem_vacancy_in_stacks% == 0) && (%#rem_amount_to_purchase% > 0));
+								// We only have air slots remaining at this point. Now we have to calculate the clicks we should use to be as conservative
+								// as possible with the air slots we have in our inventory.
+								
+								#rem_air_slots = %#air_slots%;
+								#rem_air_room  = %#air_slots% * %#purchase_max_stack%;
+								do;
+								
+								until((%#rem_air_room% == 0) || (%#rem_amount_to_purchase% == 0));
+							endif;
+						endif;
+					endif;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning String ENUM: '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;

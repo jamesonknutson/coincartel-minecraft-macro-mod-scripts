@@ -1,0 +1,56 @@
+//! @mkb-import-begin
+    // bazaar/record/bazCategoryEnumToData
+        // Opens the Bazaar Main Menu GUI.
+            // Params:
+            //      {boolean} [allow_command=true]  Whether or not to use the /bazaar command if a Booster Cookie effect is enabled.
+            //
+            // Returns a boolean indicating whether or not we are in the Bazaar Main Menu GUI.
+        // Converts a Category Enum to an Array of it's Data.
+            // Params:
+            //        {string} <&category_enum>    One of 'FARMING', 'MINING', 'COMBAT', 'WOODS_AND_FISHES', or 'ODDITIES'.
+            //
+            // Returns an Array (elements 1 through 4 only provided if successful).
+            //    0    {boolean}    success               Whether or not a valid category enum was provided
+            //    1    {string}     &category_enum        The category enum
+            //    2    {string}     &category_name        The category name
+            //    3    {string}     &category_expr        The category expression for CONTAINERNAME to match against
+            //    4    {number}     #category_slot        The category slot to click on in the Main Menu to switch to this GUI.
+            //    5    {string}     &category_item        The base item on the Bazaar GUI to click to enter this Category
+            //    6    {string}     &category_itemname    The displayname of the item on the Bazaar GUI to click to enter this Category.
+                //
+                // Example
+                //    &cat_data[]   = bazCategoryEnumToData(%&category_enum%);
+                //    cat_success  := %&cat_data[0]%;
+                //    &cat_enum     = %&cat_data[1]%;
+                //    &cat_name     = %&cat_data[2]%;
+                //    &cat_expr     = %&cat_data[3]%;
+                //    #cat_slot    := %&cat_data[4]%;
+                //    &cat_item     = %&cat_data[5]%;
+                //    &cat_itemname = %&cat_data[6]%;
+        function bazCategoryEnumToData(&category_enum)
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/record.txt:28
+            &valid_categories[] = split(", ","FARMING, MINING, COMBAT, WOODS_AND_FISHES, ODDITIES");
+            &valid_names[]      = split(", ","Farming, Mining, Combat, Woods & Fishes, Oddities");
+            &category_items[]   = split(", ","golden_hoe, diamond_pickaxe, iron_sword, fishing_rod, enchanting_table");
+            &category_names[]   = split(", ","Farming, Mining, Combat, Woods & Fishes, Oddities");
+            #valid_slots[]      = split(", ","0, 9, 18, 27, 36");
+            &container_string[] = split(", ","Bazaar, \u279C");
+            #valid_index        = indexof(&valid_categories[],,%&category_enum%);
+            #names_valid_index  = indexof(&valid_names[],,%&category_enum%);
+            if((#names_valid_index != -1) || (#valid_index != -1));
+                if(#names_valid_index != -1);
+                    #valid_index = %#names_valid_index%;
+                endif;
+                
+                &category_enum      = %&valid_categories[%#valid_index%]%;
+                &category_name      = %&valid_names[%#valid_index%]%;
+                #category_slot      = %#valid_slots[%#valid_index%]%;
+                &category_item      = %&category_items[%#valid_index%]%;
+                &category_itemname  = %&category_names[%#valid_index%]%;
+                &container_string[] = %&category_name%;
+                &category_expr      = join(" ",&container_string[]);
+                return_boolean      = true;
+            endif;
+            return(%return_boolean%,%&category_enum%,%&category_name%,%&category_expr%,%#category_slot%,%&category_item%,%&category_itemname%);
+        endfunction;
+//! @mkb-import-end

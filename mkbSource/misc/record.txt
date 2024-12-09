@@ -1,0 +1,965 @@
+// misc/record.txt
+	// Records cursor movements, keystrokes, and chat messages until the specified key combination is pressed.
+		// Params:
+			// {string} <...&exit_keys[]>	An Array of Environment Variables (i.e. SHIFT, ALT, KEY_K, etc). When all keys are
+			//                           	pressed simultaneously, the function will exit.
+		// Returns an Array of Tunnel Separated Arrays in Format:
+			// 0 {number}     	#delay_ticks  	Amount of Ticks from first Event to delay this by.
+			// 1 {number}     	#action_yaw   	CARDINALYAW value at time of Event
+			// 2 {string}     	#action_pitch 	PITCH value at time of Event
+			// 3 {string}     	&action_gui   	String ENUM of: CHAT, NONE
+			// 4, ... {string}	&action_keys[]	Array of KEY_ environment variables pressed at time of Event
+	function actionRecord(...&exit_keys[]);
+		// Setup Function Variables
+		if(true);
+			debug                 = true;
+			&script_debug_name    = "&9recordAction&7";
+			&map_toggle_keys[]    = split(", ","KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LSHIFT, LMOUSE, RMOUSE, KEY_CAPITAL");
+			&map_movement_keys[]  = split(", ","KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LSHIFT, LMOUSE, RMOUSE");
+			&map_movement_terms[] = split(", ","forward, left, back, right, jump, sneak, attack, use");
+			&map_record_guis[]    = split(", ","GUICHAT, GUIINVENTORY, NONE");
+			&map_record_terms[]   = split(", ","CHAT, INVENTORY, NONE");
+			
+			// Wrap KEY_<...> to LWJGL Code
+			if(true);
+				&map_key_vars[] = "KEY_0";
+				#map_key_vals[] = 11;
+
+				&map_key_vars[] = "KEY_1";
+				#map_key_vals[] = 2;
+
+				&map_key_vars[] = "KEY_2";
+				#map_key_vals[] = 3;
+
+				&map_key_vars[] = "KEY_3";
+				#map_key_vals[] = 4;
+
+				&map_key_vars[] = "KEY_4";
+				#map_key_vals[] = 5;
+
+				&map_key_vars[] = "KEY_5";
+				#map_key_vals[] = 6;
+
+				&map_key_vars[] = "KEY_6";
+				#map_key_vals[] = 7;
+
+				&map_key_vars[] = "KEY_7";
+				#map_key_vals[] = 8;
+
+				&map_key_vars[] = "KEY_8";
+				#map_key_vals[] = 9;
+
+				&map_key_vars[] = "KEY_9";
+				#map_key_vals[] = 10;
+
+				&map_key_vars[] = "KEY_A";
+				#map_key_vals[] = 30;
+
+				&map_key_vars[] = "KEY_ADD";
+				#map_key_vals[] = 78;
+
+				&map_key_vars[] = "KEY_APOSTROPHE";
+				#map_key_vals[] = 40;
+
+				&map_key_vars[] = "KEY_APPS";
+				#map_key_vals[] = 221;
+
+				&map_key_vars[] = "KEY_AT";
+				#map_key_vals[] = 145;
+
+				&map_key_vars[] = "KEY_AX";
+				#map_key_vals[] = 150;
+
+				&map_key_vars[] = "KEY_B";
+				#map_key_vals[] = 48;
+
+				&map_key_vars[] = "KEY_BACK";
+				#map_key_vals[] = 14;
+
+				&map_key_vars[] = "KEY_BACKSLASH";
+				#map_key_vals[] = 43;
+
+				&map_key_vars[] = "KEY_C";
+				#map_key_vals[] = 46;
+
+				&map_key_vars[] = "KEY_CAPITAL";
+				#map_key_vals[] = 58;
+
+				&map_key_vars[] = "KEY_CIRCUMFLEX";
+				#map_key_vals[] = 144;
+
+				&map_key_vars[] = "KEY_CLEAR";
+				#map_key_vals[] = 218;
+
+				&map_key_vars[] = "KEY_COLON";
+				#map_key_vals[] = 146;
+
+				&map_key_vars[] = "KEY_COMMA";
+				#map_key_vals[] = 51;
+
+				&map_key_vars[] = "KEY_CONVERT";
+				#map_key_vals[] = 121;
+
+				&map_key_vars[] = "KEY_D";
+				#map_key_vals[] = 32;
+
+				&map_key_vars[] = "KEY_DECIMAL";
+				#map_key_vals[] = 83;
+
+				&map_key_vars[] = "KEY_DELETE";
+				#map_key_vals[] = 211;
+
+				&map_key_vars[] = "KEY_DIVIDE";
+				#map_key_vals[] = 181;
+
+				&map_key_vars[] = "KEY_DOWN";
+				#map_key_vals[] = 208;
+
+				&map_key_vars[] = "KEY_E";
+				#map_key_vals[] = 18;
+
+				&map_key_vars[] = "KEY_END";
+				#map_key_vals[] = 207;
+
+				&map_key_vars[] = "KEY_EQUALS";
+				#map_key_vals[] = 13;
+
+				&map_key_vars[] = "KEY_ESCAPE";
+				#map_key_vals[] = 1;
+
+				&map_key_vars[] = "KEY_F";
+				#map_key_vals[] = 33;
+
+				&map_key_vars[] = "KEY_F1";
+				#map_key_vals[] = 59;
+
+				&map_key_vars[] = "KEY_F10";
+				#map_key_vals[] = 68;
+
+				&map_key_vars[] = "KEY_F11";
+				#map_key_vals[] = 87;
+
+				&map_key_vars[] = "KEY_F12";
+				#map_key_vals[] = 88;
+
+				&map_key_vars[] = "KEY_F13";
+				#map_key_vals[] = 100;
+
+				&map_key_vars[] = "KEY_F14";
+				#map_key_vals[] = 101;
+
+				&map_key_vars[] = "KEY_F15";
+				#map_key_vals[] = 102;
+
+				&map_key_vars[] = "KEY_F16";
+				#map_key_vals[] = 103;
+
+				&map_key_vars[] = "KEY_F17";
+				#map_key_vals[] = 104;
+
+				&map_key_vars[] = "KEY_F18";
+				#map_key_vals[] = 105;
+
+				&map_key_vars[] = "KEY_F19";
+				#map_key_vals[] = 113;
+
+				&map_key_vars[] = "KEY_F2";
+				#map_key_vals[] = 60;
+
+				&map_key_vars[] = "KEY_F3";
+				#map_key_vals[] = 61;
+
+				&map_key_vars[] = "KEY_F4";
+				#map_key_vals[] = 62;
+
+				&map_key_vars[] = "KEY_F5";
+				#map_key_vals[] = 63;
+
+				&map_key_vars[] = "KEY_F6";
+				#map_key_vals[] = 64;
+
+				&map_key_vars[] = "KEY_F7";
+				#map_key_vals[] = 65;
+
+				&map_key_vars[] = "KEY_F8";
+				#map_key_vals[] = 66;
+
+				&map_key_vars[] = "KEY_F9";
+				#map_key_vals[] = 67;
+
+				&map_key_vars[] = "KEY_FUNCTION";
+				#map_key_vals[] = 196;
+
+				&map_key_vars[] = "KEY_G";
+				#map_key_vals[] = 34;
+
+				&map_key_vars[] = "KEY_GRAVE";
+				#map_key_vals[] = 41;
+
+				&map_key_vars[] = "KEY_H";
+				#map_key_vals[] = 35;
+
+				&map_key_vars[] = "KEY_HOME";
+				#map_key_vals[] = 199;
+
+				&map_key_vars[] = "KEY_I";
+				#map_key_vals[] = 23;
+
+				&map_key_vars[] = "KEY_INSERT";
+				#map_key_vals[] = 210;
+
+				&map_key_vars[] = "KEY_J";
+				#map_key_vals[] = 36;
+
+				&map_key_vars[] = "KEY_K";
+				#map_key_vals[] = 37;
+
+				&map_key_vars[] = "KEY_KANA";
+				#map_key_vals[] = 112;
+
+				&map_key_vars[] = "KEY_KANJI";
+				#map_key_vals[] = 148;
+
+				&map_key_vars[] = "KEY_L";
+				#map_key_vals[] = 38;
+
+				&map_key_vars[] = "KEY_LBRACKET";
+				#map_key_vals[] = 26;
+
+				&map_key_vars[] = "KEY_LCONTROL";
+				#map_key_vals[] = 29;
+
+				&map_key_vars[] = "KEY_LEFT";
+				#map_key_vals[] = 203;
+
+				&map_key_vars[] = "KEY_LMENU";
+				#map_key_vals[] = 56;
+
+				&map_key_vars[] = "KEY_LMETA";
+				#map_key_vals[] = 219;
+
+				&map_key_vars[] = "KEY_LSHIFT";
+				#map_key_vals[] = 42;
+
+				&map_key_vars[] = "KEY_LWIN";
+				#map_key_vals[] = 219;
+
+				&map_key_vars[] = "KEY_M";
+				#map_key_vals[] = 50;
+
+				&map_key_vars[] = "KEY_MINUS";
+				#map_key_vals[] = 12;
+
+				&map_key_vars[] = "KEY_MULTIPLY";
+				#map_key_vals[] = 55;
+
+				&map_key_vars[] = "KEY_N";
+				#map_key_vals[] = 49;
+
+				&map_key_vars[] = "KEY_NEXT";
+				#map_key_vals[] = 209;
+
+				&map_key_vars[] = "KEY_NOCONVERT";
+				#map_key_vals[] = 123;
+
+				&map_key_vars[] = "KEY_NONE";
+				#map_key_vals[] = 0;
+
+				&map_key_vars[] = "KEY_NUMLOCK";
+				#map_key_vals[] = 69;
+
+				&map_key_vars[] = "KEY_NUMPAD0";
+				#map_key_vals[] = 82;
+
+				&map_key_vars[] = "KEY_NUMPAD1";
+				#map_key_vals[] = 79;
+
+				&map_key_vars[] = "KEY_NUMPAD2";
+				#map_key_vals[] = 80;
+
+				&map_key_vars[] = "KEY_NUMPAD3";
+				#map_key_vals[] = 81;
+
+				&map_key_vars[] = "KEY_NUMPAD4";
+				#map_key_vals[] = 75;
+
+				&map_key_vars[] = "KEY_NUMPAD5";
+				#map_key_vals[] = 76;
+
+				&map_key_vars[] = "KEY_NUMPAD6";
+				#map_key_vals[] = 77;
+
+				&map_key_vars[] = "KEY_NUMPAD7";
+				#map_key_vals[] = 71;
+
+				&map_key_vars[] = "KEY_NUMPAD8";
+				#map_key_vals[] = 72;
+
+				&map_key_vars[] = "KEY_NUMPAD9";
+				#map_key_vals[] = 73;
+
+				&map_key_vars[] = "KEY_NUMPADCOMMA";
+				#map_key_vals[] = 179;
+
+				&map_key_vars[] = "KEY_NUMPADENTER";
+				#map_key_vals[] = 156;
+
+				&map_key_vars[] = "KEY_NUMPADEQUALS";
+				#map_key_vals[] = 141;
+
+				&map_key_vars[] = "KEY_O";
+				#map_key_vals[] = 24;
+
+				&map_key_vars[] = "KEY_P";
+				#map_key_vals[] = 25;
+
+				&map_key_vars[] = "KEY_PAUSE";
+				#map_key_vals[] = 197;
+
+				&map_key_vars[] = "KEY_PERIOD";
+				#map_key_vals[] = 52;
+
+				&map_key_vars[] = "KEY_POWER";
+				#map_key_vals[] = 222;
+
+				&map_key_vars[] = "KEY_PRIOR";
+				#map_key_vals[] = 201;
+
+				&map_key_vars[] = "KEY_Q";
+				#map_key_vals[] = 16;
+
+				&map_key_vars[] = "KEY_R";
+				#map_key_vals[] = 19;
+
+				&map_key_vars[] = "KEY_RBRACKET";
+				#map_key_vals[] = 27;
+
+				&map_key_vars[] = "KEY_RCONTROL";
+				#map_key_vals[] = 157;
+
+				&map_key_vars[] = "KEY_RETURN";
+				#map_key_vals[] = 28;
+
+				&map_key_vars[] = "KEY_RIGHT";
+				#map_key_vals[] = 205;
+
+				&map_key_vars[] = "KEY_RMENU";
+				#map_key_vals[] = 184;
+
+				&map_key_vars[] = "KEY_RMETA";
+				#map_key_vals[] = 220;
+
+				&map_key_vars[] = "KEY_RSHIFT";
+				#map_key_vals[] = 54;
+
+				&map_key_vars[] = "KEY_RWIN";
+				#map_key_vals[] = 220;
+
+				&map_key_vars[] = "KEY_S";
+				#map_key_vals[] = 31;
+
+				&map_key_vars[] = "KEY_SCROLL";
+				#map_key_vals[] = 70;
+
+				&map_key_vars[] = "KEY_SECTION";
+				#map_key_vals[] = 167;
+
+				&map_key_vars[] = "KEY_SEMICOLON";
+				#map_key_vals[] = 39;
+
+				&map_key_vars[] = "KEY_SLASH";
+				#map_key_vals[] = 53;
+
+				&map_key_vars[] = "KEY_SLEEP";
+				#map_key_vals[] = 223;
+
+				&map_key_vars[] = "KEY_SPACE";
+				#map_key_vals[] = 57;
+
+				&map_key_vars[] = "KEY_STOP";
+				#map_key_vals[] = 149;
+
+				&map_key_vars[] = "KEY_SUBTRACT";
+				#map_key_vals[] = 74;
+
+				&map_key_vars[] = "KEY_SYSRQ";
+				#map_key_vals[] = 183;
+
+				&map_key_vars[] = "KEY_T";
+				#map_key_vals[] = 20;
+
+				&map_key_vars[] = "KEY_TAB";
+				#map_key_vals[] = 15;
+
+				&map_key_vars[] = "KEY_U";
+				#map_key_vals[] = 22;
+
+				&map_key_vars[] = "KEY_UNDERLINE";
+				#map_key_vals[] = 147;
+
+				&map_key_vars[] = "KEY_UNLABELED";
+				#map_key_vals[] = 151;
+
+				&map_key_vars[] = "KEY_UP";
+				#map_key_vals[] = 200;
+
+				&map_key_vars[] = "KEY_V";
+				#map_key_vals[] = 47;
+
+				&map_key_vars[] = "KEY_W";
+				#map_key_vals[] = 17;
+
+				&map_key_vars[] = "KEY_X";
+				#map_key_vals[] = 45;
+
+				&map_key_vars[] = "KEY_Y";
+				#map_key_vals[] = 21;
+
+				&map_key_vars[] = "KEY_YEN";
+				#map_key_vals[] = 125;
+
+				&map_key_vars[] = "KEY_Z";
+				#map_key_vals[] = 44;
+
+				&map_key_vars[] = "KEYBOARD_SIZE";
+				#map_key_vals[] = 256;
+			endif;
+			
+			push(&check_vars[],&map_key_vars[*]);
+			push(&check_vars[],"YAW","PITCH");
+			
+			&exit_keys         = join("&7, &d",&exit_keys[]);
+			debug_log(%debug%,%&script_debug_name%,"When ready to record Actions, press and hold ENTER. Once you have finished recording actions, simultaneously press keys: &d%&exit_keys%&7 to exit recording.");
+		endif;
+		
+		// Begin Recording Actions
+		if(true);
+			// Wait for ENTER to be pressed and released before recording Actions
+			if(true);
+				do;wait("1t");until(%KEY_RETURN%);
+				do;wait("1t");while(%KEY_RETURN%);
+				debug_log(%debug%,%&script_debug_name%,"Recording Actions now.");
+			endif;
+			
+			do;
+				&exit_pressed = join("% %",&exit_keys[]);
+				&exit_pressed = "%%&exit_pressed%%";
+				ifnotmatches(%&exit_pressed%,"false");
+					do;
+						wait("1t");
+						&exit_pressed = join("% %",&exit_keys[]);
+						&exit_pressed = "%%&exit_pressed%%";
+					untilmatches(%&exit_pressed%,"false");
+					debug_log(%debug%,%&script_debug_name%,"Finished recording.");
+					break;
+				endif;
+				
+				&curr_key_string = join("% %",&check_vars[]);
+				&curr_key_string = "%%&last_key_string%%";
+				if(%&curr_key_string% != %&last_key_string%);
+					unset(&action_vars[]);
+					unset(#pressed_indices[]);
+					&action_vars[] = %#delay_ticks%;
+					&action_vars[] = %CARDINALYAW%;
+					&action_vars[] = %PITCH%;
+					&action_vars[] = %GUI%;
+					
+					// Get all pressed Keys
+					if(true);
+						// Find the indices of all pressed Keys
+						if(true);
+							&curr_key_value[] = split(" ",%&curr_key_string%);
+							#loop_augment     = 0;
+							#latest_index     = -1;
+							do;
+								unset(&primary_cache_subarray[]);
+								if(%#latest_index% >= 0);
+									#subarray_start = %#pressed_indices[%#latest_index%]% + 1;
+								else;
+									#subarray_start = 0;
+								endif;
+								&subarray_string = "&curr_key_value[%#subarray_start%:]";
+								push(&primary_cache_subarray[],%&subarray_string%);
+								#pressed_index = indexof(&primary_cache_subarray[],,"true");
+								if(%#pressed_index% != -1);
+									#latest_index      = %#latest_index% + 1;
+									#pressed_indices[] = %#pressed_index% + %#subarray_start%;
+								else;
+									break;
+								endif;
+							until(%#pressed_index% == -1);
+						endif;
+						
+						// Record the KEY_<...> value of each pressed Key
+						foreach(#pressed_indices[],#pressed_indice,#pi);
+							&action_vars[] = %&check_vars[%#pressed_indice%]%;
+						next;
+					endif;
+					
+					&return_array[]  = join("|",&action_vars[]);
+					&last_key_string = %&curr_key_string%;
+				endif;
+				
+				wait("1t");
+				inc(#delay_ticks);
+			loop;
+		endif;
+		
+		return(&return_array[]);
+	endfunction;
+	
+	// Plays back a Recorded Action.
+		// Params:
+			// {string} <&recorded_action[]>	The return value from actionRecord.
+			//
+	function actionPlayback(&recorded_action[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9actionPlayback&7";
+			&map_toggle_keys[]    = split(", ","KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LSHIFT, LMOUSE, RMOUSE, KEY_CAPITAL");
+			&map_movement_keys[]  = split(", ","KEY_W, KEY_A, KEY_S, KEY_D, KEY_SPACE, KEY_LSHIFT, LMOUSE, RMOUSE");
+			&map_movement_terms[] = split(", ","forward, left, back, right, jump, sneak, attack, use");
+			&map_record_guis[]    = split(", ","GUICHAT, GUIINVENTORY, NONE");
+			&map_record_terms[]   = split(", ","CHAT, INVENTORY, NONE");
+			
+			// Wrap KEY_<...> to LWJGL Code
+			if(true);
+				&map_key_vars[] = "KEY_0";
+				#map_key_vals[] = 11;
+
+				&map_key_vars[] = "KEY_1";
+				#map_key_vals[] = 2;
+
+				&map_key_vars[] = "KEY_2";
+				#map_key_vals[] = 3;
+
+				&map_key_vars[] = "KEY_3";
+				#map_key_vals[] = 4;
+
+				&map_key_vars[] = "KEY_4";
+				#map_key_vals[] = 5;
+
+				&map_key_vars[] = "KEY_5";
+				#map_key_vals[] = 6;
+
+				&map_key_vars[] = "KEY_6";
+				#map_key_vals[] = 7;
+
+				&map_key_vars[] = "KEY_7";
+				#map_key_vals[] = 8;
+
+				&map_key_vars[] = "KEY_8";
+				#map_key_vals[] = 9;
+
+				&map_key_vars[] = "KEY_9";
+				#map_key_vals[] = 10;
+
+				&map_key_vars[] = "KEY_A";
+				#map_key_vals[] = 30;
+
+				&map_key_vars[] = "KEY_ADD";
+				#map_key_vals[] = 78;
+
+				&map_key_vars[] = "KEY_APOSTROPHE";
+				#map_key_vals[] = 40;
+
+				&map_key_vars[] = "KEY_APPS";
+				#map_key_vals[] = 221;
+
+				&map_key_vars[] = "KEY_AT";
+				#map_key_vals[] = 145;
+
+				&map_key_vars[] = "KEY_AX";
+				#map_key_vals[] = 150;
+
+				&map_key_vars[] = "KEY_B";
+				#map_key_vals[] = 48;
+
+				&map_key_vars[] = "KEY_BACK";
+				#map_key_vals[] = 14;
+
+				&map_key_vars[] = "KEY_BACKSLASH";
+				#map_key_vals[] = 43;
+
+				&map_key_vars[] = "KEY_C";
+				#map_key_vals[] = 46;
+
+				&map_key_vars[] = "KEY_CAPITAL";
+				#map_key_vals[] = 58;
+
+				&map_key_vars[] = "KEY_CIRCUMFLEX";
+				#map_key_vals[] = 144;
+
+				&map_key_vars[] = "KEY_CLEAR";
+				#map_key_vals[] = 218;
+
+				&map_key_vars[] = "KEY_COLON";
+				#map_key_vals[] = 146;
+
+				&map_key_vars[] = "KEY_COMMA";
+				#map_key_vals[] = 51;
+
+				&map_key_vars[] = "KEY_CONVERT";
+				#map_key_vals[] = 121;
+
+				&map_key_vars[] = "KEY_D";
+				#map_key_vals[] = 32;
+
+				&map_key_vars[] = "KEY_DECIMAL";
+				#map_key_vals[] = 83;
+
+				&map_key_vars[] = "KEY_DELETE";
+				#map_key_vals[] = 211;
+
+				&map_key_vars[] = "KEY_DIVIDE";
+				#map_key_vals[] = 181;
+
+				&map_key_vars[] = "KEY_DOWN";
+				#map_key_vals[] = 208;
+
+				&map_key_vars[] = "KEY_E";
+				#map_key_vals[] = 18;
+
+				&map_key_vars[] = "KEY_END";
+				#map_key_vals[] = 207;
+
+				&map_key_vars[] = "KEY_EQUALS";
+				#map_key_vals[] = 13;
+
+				&map_key_vars[] = "KEY_ESCAPE";
+				#map_key_vals[] = 1;
+
+				&map_key_vars[] = "KEY_F";
+				#map_key_vals[] = 33;
+
+				&map_key_vars[] = "KEY_F1";
+				#map_key_vals[] = 59;
+
+				&map_key_vars[] = "KEY_F10";
+				#map_key_vals[] = 68;
+
+				&map_key_vars[] = "KEY_F11";
+				#map_key_vals[] = 87;
+
+				&map_key_vars[] = "KEY_F12";
+				#map_key_vals[] = 88;
+
+				&map_key_vars[] = "KEY_F13";
+				#map_key_vals[] = 100;
+
+				&map_key_vars[] = "KEY_F14";
+				#map_key_vals[] = 101;
+
+				&map_key_vars[] = "KEY_F15";
+				#map_key_vals[] = 102;
+
+				&map_key_vars[] = "KEY_F16";
+				#map_key_vals[] = 103;
+
+				&map_key_vars[] = "KEY_F17";
+				#map_key_vals[] = 104;
+
+				&map_key_vars[] = "KEY_F18";
+				#map_key_vals[] = 105;
+
+				&map_key_vars[] = "KEY_F19";
+				#map_key_vals[] = 113;
+
+				&map_key_vars[] = "KEY_F2";
+				#map_key_vals[] = 60;
+
+				&map_key_vars[] = "KEY_F3";
+				#map_key_vals[] = 61;
+
+				&map_key_vars[] = "KEY_F4";
+				#map_key_vals[] = 62;
+
+				&map_key_vars[] = "KEY_F5";
+				#map_key_vals[] = 63;
+
+				&map_key_vars[] = "KEY_F6";
+				#map_key_vals[] = 64;
+
+				&map_key_vars[] = "KEY_F7";
+				#map_key_vals[] = 65;
+
+				&map_key_vars[] = "KEY_F8";
+				#map_key_vals[] = 66;
+
+				&map_key_vars[] = "KEY_F9";
+				#map_key_vals[] = 67;
+
+				&map_key_vars[] = "KEY_FUNCTION";
+				#map_key_vals[] = 196;
+
+				&map_key_vars[] = "KEY_G";
+				#map_key_vals[] = 34;
+
+				&map_key_vars[] = "KEY_GRAVE";
+				#map_key_vals[] = 41;
+
+				&map_key_vars[] = "KEY_H";
+				#map_key_vals[] = 35;
+
+				&map_key_vars[] = "KEY_HOME";
+				#map_key_vals[] = 199;
+
+				&map_key_vars[] = "KEY_I";
+				#map_key_vals[] = 23;
+
+				&map_key_vars[] = "KEY_INSERT";
+				#map_key_vals[] = 210;
+
+				&map_key_vars[] = "KEY_J";
+				#map_key_vals[] = 36;
+
+				&map_key_vars[] = "KEY_K";
+				#map_key_vals[] = 37;
+
+				&map_key_vars[] = "KEY_KANA";
+				#map_key_vals[] = 112;
+
+				&map_key_vars[] = "KEY_KANJI";
+				#map_key_vals[] = 148;
+
+				&map_key_vars[] = "KEY_L";
+				#map_key_vals[] = 38;
+
+				&map_key_vars[] = "KEY_LBRACKET";
+				#map_key_vals[] = 26;
+
+				&map_key_vars[] = "KEY_LCONTROL";
+				#map_key_vals[] = 29;
+
+				&map_key_vars[] = "KEY_LEFT";
+				#map_key_vals[] = 203;
+
+				&map_key_vars[] = "KEY_LMENU";
+				#map_key_vals[] = 56;
+
+				&map_key_vars[] = "KEY_LMETA";
+				#map_key_vals[] = 219;
+
+				&map_key_vars[] = "KEY_LSHIFT";
+				#map_key_vals[] = 42;
+
+				&map_key_vars[] = "KEY_LWIN";
+				#map_key_vals[] = 219;
+
+				&map_key_vars[] = "KEY_M";
+				#map_key_vals[] = 50;
+
+				&map_key_vars[] = "KEY_MINUS";
+				#map_key_vals[] = 12;
+
+				&map_key_vars[] = "KEY_MULTIPLY";
+				#map_key_vals[] = 55;
+
+				&map_key_vars[] = "KEY_N";
+				#map_key_vals[] = 49;
+
+				&map_key_vars[] = "KEY_NEXT";
+				#map_key_vals[] = 209;
+
+				&map_key_vars[] = "KEY_NOCONVERT";
+				#map_key_vals[] = 123;
+
+				&map_key_vars[] = "KEY_NONE";
+				#map_key_vals[] = 0;
+
+				&map_key_vars[] = "KEY_NUMLOCK";
+				#map_key_vals[] = 69;
+
+				&map_key_vars[] = "KEY_NUMPAD0";
+				#map_key_vals[] = 82;
+
+				&map_key_vars[] = "KEY_NUMPAD1";
+				#map_key_vals[] = 79;
+
+				&map_key_vars[] = "KEY_NUMPAD2";
+				#map_key_vals[] = 80;
+
+				&map_key_vars[] = "KEY_NUMPAD3";
+				#map_key_vals[] = 81;
+
+				&map_key_vars[] = "KEY_NUMPAD4";
+				#map_key_vals[] = 75;
+
+				&map_key_vars[] = "KEY_NUMPAD5";
+				#map_key_vals[] = 76;
+
+				&map_key_vars[] = "KEY_NUMPAD6";
+				#map_key_vals[] = 77;
+
+				&map_key_vars[] = "KEY_NUMPAD7";
+				#map_key_vals[] = 71;
+
+				&map_key_vars[] = "KEY_NUMPAD8";
+				#map_key_vals[] = 72;
+
+				&map_key_vars[] = "KEY_NUMPAD9";
+				#map_key_vals[] = 73;
+
+				&map_key_vars[] = "KEY_NUMPADCOMMA";
+				#map_key_vals[] = 179;
+
+				&map_key_vars[] = "KEY_NUMPADENTER";
+				#map_key_vals[] = 156;
+
+				&map_key_vars[] = "KEY_NUMPADEQUALS";
+				#map_key_vals[] = 141;
+
+				&map_key_vars[] = "KEY_O";
+				#map_key_vals[] = 24;
+
+				&map_key_vars[] = "KEY_P";
+				#map_key_vals[] = 25;
+
+				&map_key_vars[] = "KEY_PAUSE";
+				#map_key_vals[] = 197;
+
+				&map_key_vars[] = "KEY_PERIOD";
+				#map_key_vals[] = 52;
+
+				&map_key_vars[] = "KEY_POWER";
+				#map_key_vals[] = 222;
+
+				&map_key_vars[] = "KEY_PRIOR";
+				#map_key_vals[] = 201;
+
+				&map_key_vars[] = "KEY_Q";
+				#map_key_vals[] = 16;
+
+				&map_key_vars[] = "KEY_R";
+				#map_key_vals[] = 19;
+
+				&map_key_vars[] = "KEY_RBRACKET";
+				#map_key_vals[] = 27;
+
+				&map_key_vars[] = "KEY_RCONTROL";
+				#map_key_vals[] = 157;
+
+				&map_key_vars[] = "KEY_RETURN";
+				#map_key_vals[] = 28;
+
+				&map_key_vars[] = "KEY_RIGHT";
+				#map_key_vals[] = 205;
+
+				&map_key_vars[] = "KEY_RMENU";
+				#map_key_vals[] = 184;
+
+				&map_key_vars[] = "KEY_RMETA";
+				#map_key_vals[] = 220;
+
+				&map_key_vars[] = "KEY_RSHIFT";
+				#map_key_vals[] = 54;
+
+				&map_key_vars[] = "KEY_RWIN";
+				#map_key_vals[] = 220;
+
+				&map_key_vars[] = "KEY_S";
+				#map_key_vals[] = 31;
+
+				&map_key_vars[] = "KEY_SCROLL";
+				#map_key_vals[] = 70;
+
+				&map_key_vars[] = "KEY_SECTION";
+				#map_key_vals[] = 167;
+
+				&map_key_vars[] = "KEY_SEMICOLON";
+				#map_key_vals[] = 39;
+
+				&map_key_vars[] = "KEY_SLASH";
+				#map_key_vals[] = 53;
+
+				&map_key_vars[] = "KEY_SLEEP";
+				#map_key_vals[] = 223;
+
+				&map_key_vars[] = "KEY_SPACE";
+				#map_key_vals[] = 57;
+
+				&map_key_vars[] = "KEY_STOP";
+				#map_key_vals[] = 149;
+
+				&map_key_vars[] = "KEY_SUBTRACT";
+				#map_key_vals[] = 74;
+
+				&map_key_vars[] = "KEY_SYSRQ";
+				#map_key_vals[] = 183;
+
+				&map_key_vars[] = "KEY_T";
+				#map_key_vals[] = 20;
+
+				&map_key_vars[] = "KEY_TAB";
+				#map_key_vals[] = 15;
+
+				&map_key_vars[] = "KEY_U";
+				#map_key_vals[] = 22;
+
+				&map_key_vars[] = "KEY_UNDERLINE";
+				#map_key_vals[] = 147;
+
+				&map_key_vars[] = "KEY_UNLABELED";
+				#map_key_vals[] = 151;
+
+				&map_key_vars[] = "KEY_UP";
+				#map_key_vals[] = 200;
+
+				&map_key_vars[] = "KEY_V";
+				#map_key_vals[] = 47;
+
+				&map_key_vars[] = "KEY_W";
+				#map_key_vals[] = 17;
+
+				&map_key_vars[] = "KEY_X";
+				#map_key_vals[] = 45;
+
+				&map_key_vars[] = "KEY_Y";
+				#map_key_vals[] = 21;
+
+				&map_key_vars[] = "KEY_YEN";
+				#map_key_vals[] = 125;
+
+				&map_key_vars[] = "KEY_Z";
+				#map_key_vals[] = 44;
+
+				&map_key_vars[] = "KEYBOARD_SIZE";
+				#map_key_vals[] = 256;
+			endif;
+		endif;
+		
+		// Playback the Action.
+		foreach(&recorded_action[],&recorded_action,#rai);
+			&action_data[]   = split("|",%&recorded_action%);
+			#action_ticks   := %&action_data[0]%;
+			do;
+				if(%#action_ticks% == %#current_ticks%);
+					break;
+				endif;
+				
+				wait("1t");
+				inc(#current_ticks);
+			until(%#action_ticks% == %#current_ticks%);
+			#action_yaw     := %&action_data[1]%;
+			#action_pitch   := %&action_data[2]%;
+			&action_gui      = %&action_data[3]%;
+			#action_data_sz  = arraysize(&action_data[]);
+			#action_data_sz  = %#action_data_sz% - 1;
+			for(#action_key_index,4,%#action_data_sz%);
+				&pressed_key  = %&action_data[%#action_key_index%]%;
+				if(%&action_gui% == "NONE");
+					#toggle_index = indexof(&map_movement_keys[],,%&pressed_key%);
+					if(%#toggle_index% != -1);
+						toggle(map_movement_keys[%#action_key_index%]);
+						if(%map_movement_keys[%#action_key_index%]%);
+							keydown(%&map_movement_terms[%#action_key_index%]%);
+						else;
+							keyup(%&map_movement_terms[%#action_key_index%]%);
+						endif;
+					endif;
+			next;
+		next;
+	endfunction;
+	
+	

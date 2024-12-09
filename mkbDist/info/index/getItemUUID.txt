@@ -1,0 +1,29 @@
+//! @mkb-import-begin
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemUUID
+        // Given the NBT Data of an Item, extracts the Item's UUID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item UUID from.
+            //
+            // Returns the Item's UUID, or an empty string if one is not found.
+        function getItemUUID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:92
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"uuid:\"(\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\"");
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

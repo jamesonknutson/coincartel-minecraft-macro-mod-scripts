@@ -1,0 +1,42 @@
+//! @mkb-import-begin
+    // info/index/getHypixelGamemodeFromScoreboard
+        // Attempts to read the Scoreboard (foreach("teams") ... prefix + suffix ... next) to find the Player's location on Hypixel
+            // Params:
+            //      None
+            //
+            // Returns one of the following strings: 'LOBBY', 'SKYBLOCK', or 'OTHER'. 'OTHER' indicates that the function
+            // was not able to determine which area the Player is located in.
+        function getHypixelGamemodeFromScoreboard();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:382
+            &return_string = "OTHER";
+            
+            // Setup indicator strings
+            if(true);
+                &match_expr[] = "Games in this lobby are"; // Only shown in Prototype Lobby Servers
+                &match_area[] = "LOBBY";
+                
+                &match_expr[] = "^Achievements: .+$"; // Only shown in Hypixel Main Lobby Servers
+                &match_area[] = "LOBBY";
+                
+                &match_expr[] = "^Purse: [0-9,.]+"; // Only shown in SkyBlock Servers
+                &match_area[] = "SKYBLOCK";
+                
+                &match_expr[] = "^Bits: [0-9,.]+"; // Only shown in SkyBlock Servers
+                &match_area[] = "SKYBLOCK";
+            endif;
+            
+            foreach("teams");
+                &joint_team = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                &joint_team = trim(%&joint_team%);
+                &joint_team = regexreplace(&joint_team,"^\s*","");
+                foreach(&match_expr[],&match_expr,#mei);
+                    ifmatches(%&joint_team%,%&match_expr%);
+                        &return_string = %&match_area[%#mei%]%;
+                        break;
+                    endif;
+                next;
+            next;
+            
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

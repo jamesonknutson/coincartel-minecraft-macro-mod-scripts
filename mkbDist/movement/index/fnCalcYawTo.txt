@@ -1,0 +1,45 @@
+//! @mkb-import-begin
+    // movement/index/splitCoordString
+        // Given a coordinate string, splits it up by tunnel characters and returns an integer array.
+            // Params:
+            //      {string} [&coord_string="%XPOS%|%YPOS%|%ZPOS%"] The coordinate string to split up
+            //
+            // Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS.
+        function splitCoordString(&coord_string="%XPOS%|%YPOS%|%ZPOS%");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:6
+            &pos[] = split("|",%&coord_string%);
+            &x     = %&pos[0]%;
+            &y     = %&pos[1]%;
+            &z     = %&pos[2]%;
+            &arr[] = split(", ","%&x%, %&y%, %&z%");
+            return(&arr[]);
+        endfunction;
+    // movement/index/fnCalcYawTo
+        // Given an X, Y, Z value (and/or coordinate string), calculates the yaw and pitch values required to look at the value.
+            // Params:
+            //      {string} <&coordinate_string>   The Coordinate String, or X position.
+            //      {string} [&y_pos]               The Y position (only required if <&coordinate_string> is a single value).
+            //      {string} [&z_pos]               The Z position (only required if <&coordinate_string> is a single value).
+            //
+            // Returns an Array where element 0 = yaw, element 1 = dist, element 2 = pitch.
+        function fnCalcYawTo(&coordinate_string,&y_pos,&z_pos);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:34
+            &x_pos = %&coordinate_string%;
+            ifmatches(%&coordinate_string%,"(.+)\|(.+)\|(.+)");
+                &split_pos[] = splitCoordString(%&coordinate_string%);
+                &x_pos       = %&split_pos[0]%;
+                &y_pos       = %&split_pos[1]%;
+                &z_pos       = %&split_pos[2]%;
+            endif;
+            
+            calcyawto(%&x_pos%,%&y_pos%,%&z_pos%,#calc_yaw,#calc_dist,#calc_pitch);
+            #calc_yaw = %#calc_yaw% + 180;
+            if(%#calc_yaw% > 360);
+                #calc_yaw = %#calc_yaw% - 360;
+            elseif(%#calc_yaw% == 360);
+                #calc_yaw = 0;
+            endif;
+            
+            return(%#calc_yaw%,%#calc_dist%,%#calc_pitch%);
+        endfunction;
+//! @mkb-import-end

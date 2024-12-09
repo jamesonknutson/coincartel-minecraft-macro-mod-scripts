@@ -1,0 +1,85 @@
+// index/farming.txt
+	// Attempts to Recover the Bot back home into the specified position (if no position is given,
+	// the default position will be the /sethome position).
+		// Params:
+			// {number} [&position_x=""] 	The X Position to Recover the Bot to.
+			// {number} [&position_y=""] 	The Y Position to Recover the Bot to.
+			// {number} [&position_z=""] 	The Z Position to Recover the Bot to.
+			// {number} [#timeout_sec=60]	Maximum amount of Seconds this Function can run for. If time elapsed exceeds this
+			//                           	number, function will timeout and return False. If set to -1, will not impose a time limit.
+			// {number} [#tick_wait=20]  	Amount of Ticks to wait between GUI Interactions of any sort. If set to -1, will not
+			//                           	impose a minimum amount of time to wait between Interactions, and will just execute the
+			//                           	next interaction immediately following the last successful one.
+		// Returns a Boolean indicating whether or not the Function was able to recover the Bot back home.
+		// Example:
+			//	recovered = farmingRecover(%@#farming_start_x%,%@#farming_start_y%,%@#farming_start_z%);
+	function farmingRecover(&position_x="",&position_y="",&position_z="",#timeout_sec=60,#tick_wait=20);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&2farmingRecover&7";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			if((%&position_x% != "") || (%&position_y% != "") || (%&position_z% != ""));
+				ifmatches(%&position_x%,"^[\d-]+$");
+					position_x   = true;
+					#position_x := %&position_x%;
+				endif;
+				ifmatches(%&position_y%,"^[\d-]+$");
+					position_y   = true;
+					#position_y := %&position_y%;
+				endif;
+				ifmatches(%&position_z%,"^[\d-]+$");
+					position_z   = true;
+					#position_z := %&position_z%;
+				endif;
+				position_needed = ((%position_x%) || (%position_y%) || (%position_z%));
+			endif;
+		endif;
+		
+		// Loop until we get back home.
+		if(true);
+			return_boolean = false;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						break;
+					endif;
+				endif;
+				
+				// 2. Get back onto the SkyBlock Home Server
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					at_skyblock_home   = gotoServer("SKYBLOCK_HOME",100,%#recursive_timeout%,true);
+					if(%at_skyblock_home%);
+						// If we need to Recover the Bot further, do so. Otherwise, we can exit and return TRUE now.
+						if(%position_needed%);
+							if(!%position_x%); #position_x = %XPOS%; endif;
+							if(!%position_y%); #position_y = %YPOS%; endif;
+							if(!%position_z%); #position_z = %ZPOS%; endif;
+							
+							&coord_bounds[]    = split(", ","-240|0|-240, 240|256|240");
+							#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							&position_string   = "%#position_x%|%#position_y%|%#position_z%";
+							position_reached   = baritoneGoto(%&position_string%,&coord_bounds[],%#recursive_timeout%);
+							if(%position_reached%);
+								return_boolean = true;
+								break;
+							endif;
+						else;
+							return_boolean = true;
+							break;
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%return_boolean%);
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning boolean '&d%return_boolean%&7'.");
+		return(%return_boolean%);
+	endfunction;

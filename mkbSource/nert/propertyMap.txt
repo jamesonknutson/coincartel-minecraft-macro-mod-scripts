@@ -1,0 +1,39 @@
+	// Returns an Array of JSON Object Property Key Names that map out to certain Variables in a given Instruction Type.
+		// Params:
+			// {string} <&instruction_type>	String ENUM of: REGRESSION, MARKETMANIPULATION, AH2BIN, BIN2BIN.
+			//
+		// Returns an Array:
+		//	
+	function nertPropertyMap(&instruction_type);
+		&instruction_type = miscValidate(%&instruction_type%,-1,"REGRESSION","MARKETMANIPULATION","AH2BIN","BIN2BIN");
+		if(%&instruction_type% != "");
+			&key_name       = "name";
+			&key_time_added = "timeAdded";
+			&key_type       = "type";
+			if(%&instruction_type% == "REGRESSION");
+				&key_uuid   = "uuid";
+				&key_cost   = "lowestPrice";
+				&key_profit = "predictedProfit";
+				&key_price  = "targetPrice";
+				
+			elseif(%&instruction_type% == "MARKETMANIPULATION");
+				&key_uuid   = "uuidList";
+				&key_cost   = "combinedCost";
+				&key_profit = "combinedProfit";
+				&key_price  = "lowestPrice";
+				
+			elseif(%&instruction_type% == "AH2BIN");
+				&key_uuid   = "uuid";
+				&key_cost   = "currentPrice";
+				&key_profit = "predictedProfit";
+				&key_price  = "lowestPrice";
+				
+			elseif(%&instruction_type% == "BIN2BIN");
+				&key_uuid   = "uuid";
+				&key_cost   = "";
+				&key_profit = "";
+				&key_price  = "";
+				
+			endif;
+		endif;
+	endfunction;

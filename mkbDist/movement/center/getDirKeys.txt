@@ -1,0 +1,34 @@
+//! @mkb-import-begin
+    // movement/center/getDirKeys
+        // Returns a rough mapping of Movement Keys to their affect on the X/Z Axes.
+            // Returns an Array:
+                // {string} &px    String ENUM of forward, back, left, right that maps to movement in the positive X axis
+                // {string} &nx    String ENUM of forward, back, left, right that maps to movement in the negative X axis
+                // {string} &pz    String ENUM of forward, back, left, right that maps to movement in the positive Z axis
+                // {string} &nz    String ENUM of forward, back, left, right that maps to movement in the negative Z axis
+        function getDirKeys();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/center.txt:7
+            if(%DIRECTION% == "N");
+                &px = "right";
+                &nx = "left";
+                &pz = "back";
+                &nz = "forward";
+            elseif(%DIRECTION% == "E");
+                &px = "forward";
+                &nx = "back";
+                &pz = "right";
+                &nz = "left";
+            elseif(%DIRECTION% == "S");
+                &px = "left";
+                &nx = "right";
+                &pz = "forward";
+                &nz = "back";
+            elseif(%DIRECTION% == "W");
+                &px = "back";
+                &nx = "forward";
+                &pz = "left";
+                &nz = "right";
+            endif;
+            return(%&px%,%&nx%,%&pz%,%&nz%);
+        endfunction;
+//! @mkb-import-end

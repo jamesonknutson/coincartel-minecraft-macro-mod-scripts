@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // autosetup/index/getEntityHazards
+        // Gets all the potentially hazardous entities (other players, armour stands) within a 6 block radius. Returns an array of
+        // coordinate strings (X|Y|Z), where each coordinate string is the position of a hazardous entity.
+            // Params: None
+            // Returns: Array of Coordinate Strings
+        function getEntityHazards();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:444
+            foreach("entities(range:6)");
+                if((%ENTITYTYPE% == "OtherPlayerMP") || (%ENTITYTYPE% == "ArmorStand"));
+                    &return_array[] = "%ENTITYXPOS%|%ENTITYYPOS%|%ENTITYZPOS%";
+                endif;
+            next;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

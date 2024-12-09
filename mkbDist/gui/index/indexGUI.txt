@@ -1,0 +1,264 @@
+//! @mkb-import-begin
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemUUID
+        // Given the NBT Data of an Item, extracts the Item's UUID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item UUID from.
+            //
+            // Returns the Item's UUID, or an empty string if one is not found.
+        function getItemUUID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:92
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"uuid:\"(\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\"");
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // misc/index/miscValidate
+        // Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+        // found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+            // Params:
+            //      {array} <&elements[]>       The Array to search for <&search_term> in.
+            //      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+            //      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+            //                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+            //                                  value should be used.
+            //
+            // Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+            // is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+        function miscValidate(&search_term,#default_idx=0,...&elements[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:12
+            #term_index = indexof(&elements[],,%&search_term%);
+            if(%#term_index% != -1);
+                &return_string = %&elements[%#term_index%]%;
+            elseif(%#default_idx% != -1);
+                &return_string = %&elements[%#default_idx%]%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // gui/index/indexGUI
+        // Indexes the Items in the specified GUI type ("ALL", "INVENTORY", "HOTBAR", "CONTAINER"), optionally only indexing
+        // certain Items that match all provided parameters of [&base], [&name], [&sbid], [&uuid], [&data], and [&stack], as well
+        // as supporting custom return variables. Default return type is an Array where each element is: '<slot>|<stack>|<base>|<name>'.
+        // All filter parameters are optional.
+            // Params:
+            //      {string} [&type]                    The type of Container to index. Must be one of: 'ALL', 'INVENTORY', 'HOTBAR', or 'CONTAINER'.
+            //      {string} [&base]                    The base item to filter for. If provided, will only index items found in the slot range that
+            //                                          match this base item.
+            //      {string} [&name]                    The item name to filter for. If provided, will only index items found in the slot range that
+            //                                          match this item name.
+            //      {string} [&sbid]                    The SkyBlock Item ID to filter for. If provided, will only index items found in the slot range that
+            //                                          match this SkyBlock Item ID.
+            //      {string} [&uuid]                    The Item UUID to filter for. If provided, will only index items found in the slot range that match this UUID.
+            //      {string} [&data]                    The Item Damage/Data value to filter for. If provided, will only index items found in the slot range that match this Data
+            //                                          value.
+            //      {string} [&stack]                   The Item Stack Size to filter for. If provided, will only index items found in the slot range that match this Stack Size.
+            //                                          Can be used in conjunction with [&base], [&name], [&uuid], [&sbid], and [&data] to create a precise filter of items to index.
+            //      {boolean} [use_inv_methods=false]   Whether or not to use static inventory slot methods (getslotiteminv, getslotinv). Only has some effect if the
+            //                                          [&type] parameter is "INVENTORY" or "HOTBAR". Defaults to false.
+            //      {string} [...&return_vars[]]        The return variables to extract. If omitted, will return an Array where each element matches format:
+            //                                          '<slot>|<stack>|<base>|<name>'. If provided, each element will hold the specified variable in the order they
+            //                                          are passed in the array. Valid values to provide are: 'slot', 'stack', 'base', 'name', 'sbid', 'uuid', 'damage', and 'nbt'.
+            //                                          If 'nbt' is being returned, the NBT data will be encoded using encode() (use decode() to decode it) in the Array.
+            //
+        function indexGUI(&type="ALL",&base="",&name="",&sbid="",&uuid="",&data="",&stack="",use_inv_methods=false,...&return_vars[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:110
+            // Validate input parameters and setup method variables
+            if(true);
+                // Validate input parameters
+                if(true);
+                    &default_return_vars[] = split(", ","slot, stack, base, name");
+                    &valid_return_vars[]   = split(", ","slot, stack, base, name, sbid, uuid, nbt, damage");
+                    foreach(&valid_return_vars[],&r_var);
+                        #r_idx = indexof(&return_vars[],,%&r_var%);
+                        if(%#r_idx% != -1);
+                            &use_return_vars[] = %&r_var%;
+                            #use_return_idxs[] = %#r_idx%;
+                        endif;
+                    next;
+                    #array_size = arraysize(&use_return_vars[]);
+                    if(%#array_size% == 0);
+                        push(&use_return_vars[],&default_return_vars[*]);
+                    else;
+                        sort("ASC",#use_return_idxs[],&use_return_vars[]);
+                    endif;
+                    &type = miscValidate(%&type%,0,"ALL","INVENTORY","HOTBAR","CONTAINER");
+                endif;
+                
+                // Setup method variables
+                if(true);
+                    use_inv_methods = ((%use_inv_methods%) && ((%&type% == "INVENTORY") || (%&type% == "HOTBAR")));
+                    
+                    // Setup the slot ranges to index.
+                    if(true);
+                        #static_inv_start  = 9;
+                        #static_inv_end    = 43;
+                        #static_hb_start   = 36;
+                        #static_hb_end     = 43;
+                        #dynamic_inv_start = %CONTAINERSLOTS% - 36;
+                        #dynamic_inv_end   = %CONTAINERSLOTS% - 1;
+                        #dynamic_hb_start  = %CONTAINERSLOTS% - 8;
+                        #dynamic_hb_end    = %CONTAINERSLOTS% - 1;
+                        #dynamic_con_start = 0;
+                        #dynamic_con_end   = %CONTAINERSLOTS% - 37;
+                        
+                        if(%&type% == "ALL");
+                            #range_start = %#dynamic_con_start%;
+                            #range_end   = %#dynamic_inv_end%;
+                        elseif(%&type% == "INVENTORY");
+                            if(%use_inv_methods%);
+                                #range_start = %#static_inv_start%;
+                                #range_end   = %#static_inv_end%;
+                            else;
+                                #range_start = %#dynamic_inv_start%;
+                                #range_end   = %#dynamic_inv_end%;
+                            endif;
+                        elseif(%&type% == "HOTBAR");
+                            if(%use_inv_methods%);
+                                #range_start = %#static_hb_start%;
+                                #range_end   = %#static_hb_end%;
+                            else;
+                                #range_start = %#dynamic_hb_start%;
+                                #range_end   = %#dynamic_hb_end%;
+                            endif;
+                        elseif(%&type% == "CONTAINER");
+                            #range_start = %#dynamic_con_start%;
+                            #range_end   = %#dynamic_con_end%;
+                        endif;
+                    endif;
+                    
+                    // Setup the search strings.
+                    if(true);
+                        // Setup item filters.
+                        if(true);
+                            filter_base  = %&base% != "";
+                            filter_name  = %&name% != "";
+                            filter_sbid  = %&sbid% != "";
+                            filter_uuid  = %&uuid% != "";
+                            filter_data  = %&data% != "";
+                            filter_stack = %&stack% != "";
+                        endif;
+                        
+                        // Setup return variables.
+                        if(true);
+                            #return_slot  = indexof(&use_return_vars[],,"slot");
+                            #return_stack = indexof(&use_return_vars[],,"stack");
+                            #return_base  = indexof(&use_return_vars[],,"base");
+                            #return_name  = indexof(&use_return_vars[],,"name");
+                            #return_sbid  = indexof(&use_return_vars[],,"sbid");
+                            #return_uuid  = indexof(&use_return_vars[],,"uuid");
+                            #return_nbt   = indexof(&use_return_vars[],,"nbt");
+                            #return_data  = indexof(&use_return_vars[],,"data");
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            // Begin indexing the slot range.
+            if(true);
+                #slot_offset = %#range_start%;
+                for(#slot,%#range_start%,%#range_end%);
+                    #found_slot = %#slot%;
+                    if(%filter_base%);
+                        getslot(%&base%,#found_slot,%#slot_offset%);
+                    endif;
+                    
+                    if((%#found_slot% >= %#range_start%) && (%#found_slot% <= %#range_end%));
+                        #slot_offset = %#found_slot% + 1;
+                        &found_base  = getslotitemnbt(%#found_slot%,,&found_stack,&found_data,&found_nbt);
+                        &fount_nbt   = strip(%&found_nbt%);
+                        slot_match   = (((!%filter_base) || (%&found_base% == %&base%)) && ((!%filter_data%) || (%&found_data% == %&data%)) && ((!%filter_stack%) || (%&found_stack% == %&stack%)));
+                        
+                        if((%slot_match%) && ((%filter_name%) || (%#return_name% != -1)));
+                            &found_name = getItemName(%&found_nbt%,%&found_base%);
+                            slot_match  = ((!%filter_name%) || (%&found_name% == %&name%));
+                        endif;
+                        if((%slot_match%) && ((%filter_sbid%) || (%#return_sbid% != -1)));
+                            &found_sbid = getItemSBID(%&found_nbt%);
+                            slot_match  = ((!%filter_sbid%) || (%&found_sbid% == %&sbid%));
+                        endif;
+                        if((%slot_match%) && ((%filter_uuid%) || (%#return_uuid% != -1)));
+                            &found_uuid = getItemUUID(%&found_nbt%);
+                            slot_match  = ((!%filter_uuid%) || (%&found_uuid% == %&uuid%));
+                        endif;
+                        
+                        if(%slot_match%);
+                            unset(&join_data[]);
+                            if(#return_slot != -1);
+                                &join_data[%#return_slot%] = %#found_slot%;
+                            endif;
+                            if(#return_base != -1);
+                                &join_data[%#return_base%] = %&found_base%;
+                            endif;
+                            if(#return_name != -1);
+                                &join_data[%#return_name%] = %&found_name%;
+                            endif;
+                            if(#return_sbid != -1);
+                                &join_data[%#return_sbid%] = %&found_sbid%;
+                            endif;
+                            if(#return_uuid != -1);
+                                &join_data[%#return_uuid%] = %&found_uuid%;
+                            endif;
+                            if(#return_data != -1);
+                                &join_data[%#return_data%] = %&found_data%;
+                            endif;
+                            if(#return_stack != -1);
+                                &join_data[%#return_stack%] = %&found_stack%;
+                            endif;
+                            if(#return_nbt != -1);
+                                &join_data[%#return_nbt%] = encode(%&found_nbt%);
+                            endif;
+                            &return_array[] = join("|",&join_data[]);
+                        endif;
+                    else;
+                        break;
+                    endif;
+                next;
+            endif;
+            
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,37 @@
+//! @mkb-import-begin
+    // banking/index/bankingGetLimit
+        // Retrives the max amount of Coins in a given Bank Account.
+            // Params:
+                // {string}  <&account>              The Account to transact with. One of: SOLO, COOP.
+                // {number}  [#timeout_sec=30]       The maximum amount of Seconds that this Function can run for. If set to <= 0,
+                //                                   Function will run on a loop until it is successful, without ever timing out.
+                // {number}  [#tick_wait=20]         The amount of Ticks to wait between looping repeated actions.
+                // {boolean} [personal_bank=true]    Whether or not we should allow the usage of the Personal Bank Item Shortcut.
+            // Returns a String Array indicating the amount of Coins left in the Account.
+                // 0 {boolean} action_success    Whether or not the Action was successful (if we were able to transact the amount specified).
+                // 1 {string}  &purse_before     The amount of Coins in the Purse before the Action.
+                // 2 {string}  &purse_after      The amount of Coins in the Purse after the Action.
+                // 3 {string}  &bank_before      The amount of Coins in the Bank before the Action.
+                // 4 {string}  &bank_after       The amount of Coins in the Bank after the Action.
+                // 5 {string}  &bank_limit       The maximum amount of Coins that can be held in the Account.
+                // 6 {string}  &bank_type        The account Type that was transacted with.
+            // Example:
+                //    &bank_state[]   = bankingGetLimit("SOLO");
+                //    action_success := %&bank_state[0]%; // Whether the Transaction succeeded
+                //    &purse_before   = %&bank_state[1]%; // Balance in Purse before Transaction
+                //    &purse_after    = %&bank_state[2]%; // Balance in Purse after Transaction
+                //    &bank_before    = %&bank_state[3]%; // Balance in Account before Transaction
+                //    &bank_after     = %&bank_state[4]%; // Balance in Account after Transaction
+                //    &bank_limit     = %&bank_state[5]%; // The Limit of the Account
+                //    &bank_type      = %&bank_state[6]%; // SOLO, COOP
+        function bankingGetLimit(&account,#timeout_sec=30,#tick_wait=20,personal_bank=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/banking/index.txt:1675
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6bankingGetLimit&7";
+                do_timeout         = %#timeout_sec% > 0;
+                #start_time        = %TIMESTAMP%;
+            endif;
+        endfunction;
+//! @mkb-import-end

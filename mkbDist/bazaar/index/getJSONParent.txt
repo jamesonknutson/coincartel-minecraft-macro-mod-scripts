@@ -1,0 +1,61 @@
+//! @mkb-import-begin
+    // array/index/arrayLength
+        // Returns the zero-indexed length of an Array.
+            // Params:
+            //        <array> <&array[]>    The Array to measure the length of.
+            //
+            // Returns the zero-indexed length of the Array (arraysize - 1).
+        function arrayLength(&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:6
+            #array_size   = arraysize(&array[]);
+            #array_length = #array_size - 1;
+            return(%#array_length%);
+        endfunction;
+    // misc/index/miscValidate
+        // Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+        // found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+            // Params:
+            //      {array} <&elements[]>       The Array to search for <&search_term> in.
+            //      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+            //      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+            //                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+            //                                  value should be used.
+            //
+            // Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+            // is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+        function miscValidate(&search_term,#default_idx=0,...&elements[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:12
+            #term_index = indexof(&elements[],,%&search_term%);
+            if(%#term_index% != -1);
+                &return_string = %&elements[%#term_index%]%;
+            elseif(%#default_idx% != -1);
+                &return_string = %&elements[%#default_idx%]%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getJSONParent
+        // Walks back a Bazaar JSON Path to the Object Type specified in [&stop_at]. Returns the JSON dot-separated path.
+            // Params:
+                // {string} <&json_path>             The dot-separated JSON Path of the lower-most Object that we want to walk back up from.
+                // {string} [&stop_at="CATEGORY"]    The Object Type ENUM to stop at. Valid strings are:
+                //                                   CATEGORY, SUBCATEGORY, SUBPRODUCT, BUTTON, PRODUCT.
+            // Returns the dot-separated JSON Path in @&mkb_baz_json that can be used to get the Parent Object, or "NONE" if some error occurred.
+        function getJSONParent(&json_path,&stop_at="CATEGORY");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:841
+            &stop_at       = miscValidate(%&stop_at%,0,"CATEGORY","SUBCATEGORY","SUBPRODUCT","BUTTON","PRODUCT");
+            &return_string = "NONE";
+            &split_path[]  = split(".",%&json_path%);
+            #split_path    = arraylength(&split_path[]);
+            for(#to_index,%#split_path%,0);
+                unset(&to_index[]);
+                push(&to_index[],&split_path[0:%#to_index%]);
+                &to_index = join(".",&to_index[]);
+                &obj_type = jsonget("%&to_index%.type",%@&mkb_baz_json%);
+                if(%&obj_type% == %&stop_at%);
+                    &return_string = %&to_index%;
+                    break;
+                endif;
+            next;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

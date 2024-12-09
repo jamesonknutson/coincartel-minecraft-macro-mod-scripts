@@ -1,0 +1,61 @@
+//! @mkb-import-begin
+    // info/index/getClearDiscardAngle
+        // Detects the Blocks surrounding the Player, then based off the environmental data that it detects, decides which direction the Player should be facing
+        // in order to discard (throw items out of the Inventory without the Items being re-added into the Inventory afterwards) Items.
+            // Params: None
+            // Returns an Array:
+                // 0 {number} #discard_yaw      The Yaw value the Player should be looking at in order to Discard Items with the highest likelihood of success
+                // 1 {number} #discard_pitch    The Pitch value the Player should be looking at in order to Discard Items with the highest likelihood of success
+            // Example:
+                // #discard_angles[] = getClearDiscardAngle();
+                // #discard_yaw      = %#discard_angles[0]%;
+                // #discard_pitch    = %#discard_angles[1]%;
+        function getClearDiscardAngle();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:924
+            debug                = true;
+            &script_debug_name   = "&9getClearDiscardAngle&7";
+            &check_curr_axes[]   = split(", ","X, Z");
+            &check_oppo_axes[]   = split(", ","Z, X");
+            #check_offsets[]     = split(", ","1, 2, 3");
+            #check_multipliers[] = split(", ","1, -1");
+            #final_calc_x        = %XPOS%;
+            #final_calc_y        = %YPOS% + 1;
+            #final_calc_z        = %ZPOS%;
+            #check_pos_y         = %#final_calc_y%;
+            #best_air_loop       = 0;
+            foreach(&check_curr_axes[],&check_curr_axis,#cca);
+                &check_oppo_axis = %&check_oppo_axes[%#cca%]%;
+                foreach(#check_multipliers[],#check_multiplier,#cm);
+                    #curr_air_loop = 0;
+                    foreach(#check_offsets[],#check_offset,#co);
+                        #check_curr_axis := "%%&check_curr_axis%POS%";
+                        #check_oppo_axis := "%%&check_oppo_axis%POS%";
+                        #check_curr_axis  = %#check_curr_axis% + (%#check_offset% * %#check_multiplier%);
+                        
+                        if(%&check_curr_axis% == "X");
+                            #check_pos_x = %#check_curr_axis%;
+                            #check_pos_z = %#check_oppo_axis%;
+                        else;
+                            #check_pos_x = %#check_oppo_axis%;
+                            #check_pos_z = %#check_curr_axis%;
+                        endif;
+                        
+                        &check_pos_id = xgetid(%#check_pos_x%,%#check_pos_y%,%#check_pos_z%);
+                        if(%&check_pos_id% == "air");
+                            inc(#curr_air_loop);
+                            if(%#curr_air_loop% > %#best_air_loop%);
+                                #best_air_loop = %#curr_air_loop%;
+                                #final_calc_x  = %#check_pos_x%;
+                                #final_calc_z  = %#check_pos_z%;
+                            endif;
+                        else;
+                            break;
+                        endif;
+                    next;
+                next;
+            next;
+            
+            calcyawpitch(%#final_calc_x%,%#final_calc_y%,%#final_calc_z%,#calc_yaw,#calc_dist,#calc_pitch);
+            return(%#calc_yaw%,%#calc_pitch%);
+        endfunction;
+//! @mkb-import-end

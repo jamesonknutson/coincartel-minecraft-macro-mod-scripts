@@ -1,0 +1,54 @@
+//! @mkb-import-begin
+    // prompt/index/promptGetSounds
+        // Takes an optional input Array of Sound Overrides, then returns an Array of Standardized Sounds to use in Prompt GUIs.
+            // Params:
+                // {string} [...&overrides[]]    An optional Array of Sound Overrides in Format: '<SOUND_TYPE>: <SOUND_FILE>'. Valid
+                //                               SOUND_TYPE ENUMs are:
+                //                               'IN'           : Sound played when entering a Prompt GUI. Defaults to 'block.piston.extend'
+                //                               'OUT'          : Sound played when exiting a Prompt GUI. Defaults to 'block.piston.contract'
+                //                               'GENERIC'      : Sound for generic actions (e.g. toggling an option off). Defaults to 'ui.button.click'.
+                //                               'NEGATIVE_1'   : Sound played for negative feedback (e.g. disabling an option). Defaults to 'entity.villager.no'
+                //                               'NEGATIVE_2'   : Negative feedback for special errors (e.g. unexpected input). Defaults to 'entity.chicken.hurt'
+                //                               'POSITIVE_1'   : Sound played for positive feedback (e.g. enabling an option). Defaults to 'entity.villager.yes'
+                //                               'POSITIVE_2'   : Sound played for positive feedback (e.g. when a new patch is found). Defaults to 'entity.arrow.hit_player'
+                //                               'POSITIVE_3'   : Sound played for positive feedback (e.g. when a new module is accessed). Defaults to 'entity.player.levelup'
+            // Returns a String Array of the Sound Values, with any overrides applied.
+                // {string} &sound_in         = [0];    // The sound played when entering a GUI.
+                // {string} &sound_out        = [1];    // The sound played when leaving a GUI.
+                // {string} &sound_generic    = [2];    // A generic UI interaction sound.
+                // {string} &sound_negative_1 = [3];    // A negative sound played for negative feedback, e.g. disabling an option.
+                // {string} &sound_negative_2 = [4];    // A negative sound played for special negative feedback, e.g. unexpected error.
+                // {string} &sound_positive_1 = [5];    // A positive sound played for positive feedback, e.g. enabling an option.
+                // {string} &sound_positive_2 = [6];    // A positive sound played for positive feedback, e.g. when a new patch is found.
+                // {string} &sound_positive_3 = [7];    // A positive sound played for positive feedback, e.g. when a new module is accessed.
+            // Example:
+                //    &prompt_sounds[]  = promptGetSounds();
+                //    &sound_in         = %&prompt_sounds[0]%;
+                //    &sound_out        = %&prompt_sounds[1]%;
+                //    &sound_generic    = %&prompt_sounds[2]%;
+                //    &sound_negative_1 = %&prompt_sounds[3]%;
+                //    &sound_negative_2 = %&prompt_sounds[4]%;
+                //    &sound_positive_1 = %&prompt_sounds[5]%;
+                //    &sound_positive_2 = %&prompt_sounds[6]%;
+                //    &sound_positive_3 = %&prompt_sounds[7]%;
+        function promptGetSounds(...&overrides[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/prompt/index.txt:55
+            &sound_in         = "block.piston.extend";
+            &sound_out        = "block.piston.contract";
+            &sound_generic    = "ui.button.click";
+            &sound_negative_1 = "entity.villager.no";
+            &sound_negative_2 = "entity.chicken.hurt";
+            &sound_positive_1 = "entity.villager.yes";
+            &sound_positive_2 = "entity.arrow.hit_player";
+            &sound_positive_3 = "entity.player.levelup";
+            foreach(&overrides[],&override,#o);
+                ifmatches(%&override%,"^(\w+): (.+)$");
+                    match(%&override%,"^(\w+): (.+)$",{&sound_key,&sound_val});
+                    &sound_key = lcase(%&sound_key%);
+                    &sound_var = "&sount_%&sound_key%";
+                    set(%&sound_var%,%&sound_val%);
+                endif;
+            next;
+            return(%&sound_in%,%&sound_out%,%&sound_generic%,%&sound_negative_1%,%&sound_negative_2%,%&sound_positive_1%,%&sound_positive_2%,%&sound_positive_3%);
+        endfunction;
+//! @mkb-import-end

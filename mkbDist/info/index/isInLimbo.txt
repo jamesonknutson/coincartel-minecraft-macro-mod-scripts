@@ -1,0 +1,49 @@
+//! @mkb-import-begin
+    // info/index/isInLimbo
+        // Checks if the Player is in Limbo by reading the Dimension, as well as checking to see if there are any signs at the sign positions
+        // where they normally are in Limbo.
+            // Params:
+            //      None
+            //
+            // Returns a boolean indicating whether or not the Player is in Limbo.
+        function isInLimbo();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:475
+            if((%YPOS% > 35) || (%DIMENSION% != "END"));
+                return(False);
+            endif;
+            
+            #limbo_x = -20;
+            #limbo_y = 32;
+            #limbo_z = 21;
+            
+            if((%XPOS% == #limbo_x) && (%YPOS% == #limbo_y) && (%ZPOS% == #limbo_z));
+                return(True);
+            endif;
+            
+            &armor_vars[] = split(", ","ITEM, BOOTSID, LEGGINGSID, CHESTPLATEID, HELMID");
+            all_air       = true;
+            foreach(&armor_vars[],&armor_var);
+                &armor_val = "%%&armor_var%%";
+                if(%&armor_val% != "air");
+                    all_air = false;
+                    break;
+                endif;
+            next;
+            if((%SLOTSFULL% == 0) && (%all_air%));
+                return(True);
+            endif;
+            
+            #sign_x   = -21;
+            #sign_y[] = split(", ","31, 32, 33");
+            #sign_z[] = split(", ","20, 21, 22");
+            foreach(#sign_y[],#sign_y);
+                foreach(#sign_z[],#sign_z);
+                    &block_id = getid(%#sign_x%,%#sign_y%,%#sign_z%);
+                    if(&block_id == "wall_sign");
+                        in_limbo = true;
+                        break;
+                    endif;
+                next;
+            next;
+        endfunction;
+//! @mkb-import-end

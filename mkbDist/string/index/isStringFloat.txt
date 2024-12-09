@@ -1,0 +1,14 @@
+//! @mkb-import-begin
+    // string/index/isStringFloat
+        // Checks if a String is a valid Float (without commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringFloat(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:69
+            ifmatches(%&check_string%,"^[0-9-]*\.[0-9]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+//! @mkb-import-end

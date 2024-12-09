@@ -1,0 +1,1118 @@
+// auctions/getListingInfo.txt
+	// Given any number of an Auction's Identifiers, sifts through Cached Auctions and finds a Listing that matches all of the Identifiers.
+		// Params:
+			// {string} <...&auction_identifiers[]>	An Array of Auction Identifiers in format: '<ID_TYPE>: <ID_DATA>'. If multiple instances of a given
+			//                                     	ID_TYPE are encountered, the one that appears latest in the Array is used. Valid ID_TYPE Prefixes are
+			//                                     	at the end of this Comment.
+		// Valid ID_TYPE Prefixes:
+			// {string} ID      	The Listing ID
+			// {string} TYPE    	The Listing Type (one of: BIN, AUCTION)
+			// {number} PRICE   	The Current Listing Price
+			// {number} BIDS    	The amount of Bids on the Listing
+			// {boolean} ENDED  	Whether or not the Listing has Ended
+			// {boolean} CLAIMED	Whether or not the Listing has been claimed
+			// {string} OWNER   	The UUID of the Player that created this Listing
+			// {string} PROFILE 	The Profile ID the Owner of this Listing was using to create this Listing
+			// {string} SBID    	The SkyBlock ID of the Item that this Listing represents
+			// {string} NAME    	The Display Name of the Item that this Listing represents
+			// {string} MCID    	The Minecraft Item ID that this Listing represents
+			// {number} DATA    	The Data Value of the Item that this Listing represents
+			// {number} STACK   	The Stack Size of the Item that this Listing represents
+			// {string} BUYER   	A UUID(s) of a Player who purchased/claimed this Listing. If giving multiple, join them with ~.
+		// Returns an Array:
+			// 0  {boolean} cache_hit      	Whether or not an Item from the Cache was found that matches the specified Auction Identifiers.
+			// 1  {string}  &cache_id      	The Listing ID
+			// 2  {string}  &cache_type    	The Listing Type (one of: BIN, AUCTION)
+			// 3  {number}  #cache_price   	The Current Listing Price
+			// 4  {number}  #cache_bids    	The amount of Bids on the Listing
+			// 5  {boolean} cache_ended    	Whether or not the Listing has Ended
+			// 6  {boolean} cache_claimed  	Whether or not the Listing has been claimed
+			// 7  {string}  &cache_owner   	The UUID of the Player that created this Listing
+			// 8  {string}  &cache_profile 	The Profile ID the Owner of this Listing was using to create this Listing
+			// 9  {string}  &cache_sbid    	The SkyBlock ID of the Item that this Listing represents
+			// 10 {string}  &cache_name    	The Display Name of the Item that this Listing represents
+			// 11 {string}  &cache_mcid    	The Minecraft Item ID that this Listing represents
+			// 12 {number}  #cache_data    	The Data Value of the Item that this Listing represents
+			// 13 {number}  #cache_stack   	The Stack Size of the Item that this Listing represents
+			// 14 {string}  &cache_buyers  	The UUID(s) of the Player that purchased this Listing, tilde (~) separated, or 'NULL' if no buyers.
+			// 15 {number}  #cache_end_time	The Timestamp of when this Listing will end
+		// Example
+			//	&cache_data[]    = auctionsCheckCache(...&auction_identifiers[]);
+			//	cache_hit       := %&cache_data[0]%;
+			//	&cache_id        = %&cache_data[1]%;
+			//	&cache_type      = %&cache_data[2]%;
+			//	#cache_price    := %&cache_data[3]%;
+			//	#cache_bids     := %&cache_data[4]%;
+			//	cache_ended     := %&cache_data[5]%;
+			//	cache_claimed   := %&cache_data[6]%;
+			//	&cache_owner     = %&cache_data[7]%;
+			//	&cache_profile   = %&cache_data[8]%;
+			//	&cache_sbid      = %&cache_data[9]%;
+			//	&cache_name      = %&cache_data[10]%;
+			//	&cache_mcid      = %&cache_data[11]%;
+			//	#cache_data     := %&cache_data[12]%;
+			//	#cache_stack    := %&cache_data[13]%;
+			//	&cache_buyers    = %&cache_data[14]%;
+			//	#cache_end_time := %&cache_data[15]%;
+	function auctionsCheckCache(...&auction_identifiers[]);
+		// Setup Function Variables
+		if(true);
+			debug                  = false;
+			&script_debug_name     = "&5auctionsCheckCache&7";
+			&identifier_prefixes[] = split(", ","ID, TYPE, PRICE, BIDS, ENDED, CLAIMED, OWNER, PROFILE, SBID, NAME, MCID, DATA, STACK, BUYER, END_TIME");
+			&identifier_types[]    = split(", ","string, string, number, number, boolean, boolean, string, string, string, string, string, number, number, string, number");
+			&map_type_terms[]      = split(", ","string, number, boolean");
+			&map_type_prefixes[]   = split(", ","&, #, ");
+			&valid_prefixes        = join("|",&identifier_prefixes[]);
+			&return_array[0]       = "false";
+			
+			// Create Array of Unique Identifiers to match against cache entries
+			debug_log(%debug%,%&script_debug_name%,"creating array of unique auction identifiers...");
+			foreach(&auction_identifiers[],&auction_identifier,#ai);
+				ifmatches(%&auction_identifier%,"^(%&valid_prefixes%):\s*(.+)$");
+					match(%&auction_identifier%,"^(%&valid_prefixes%):\s*(.+)$",{&identifier_prefix,&identifier_value});
+					#filter_key_index = indexof(&filter_keys[],,%&identifier_prefix%);
+					if(%#filter_key_index% == -1);
+						#prefix_index           = indexof(&identifier_prefixes[],,%&identifier_prefix%);
+						#map_type_index         = indexof(&map_type_terms[],,%&identifier_types[%#prefix_index%]%);
+						&filter_keys[]          = %&identifier_prefix%;
+						&filter_vals[]          = %&identifier_value%;
+						&filter_type_terms[]    = %&identifier_types[%#prefix_index%]%;
+						&filter_type_prefixes[] = %&map_type_prefixes[%#map_type_index%]%;
+					else;
+						&filter_vals[%#filter_key_index%]% = %&identifier_value%;
+					endif;
+				endif;
+			next;
+			
+			#filter_keys_sz = arraysize(&filter_keys[]);
+			debug_log(%debug%,%&script_debug_name%,"found a total of &d%#filter_keys_sz% unique identifiers, they are:");
+			foreach(&filter_keys[],&filter_key,#fk);
+				debug_log(%debug%,%&script_debug_name%,"%#fk% > key: %&filter_key%, value: %&filter_vals[%#fk%]%");
+			next;
+		endif;
+		
+		// Loop over Cached Entries and try to find an Entry that has a match for all the Keys we are filtering for.
+		if(%#filter_keys_sz% >= 1);
+			// Correct the filter_key OWNER from Username to UUID, if OWNER is in the Filter Keys Array. Do the same for BUYER.
+			if(true);
+				&check_for_keys[] = split(", ","OWNER, BUYER");
+				foreach(&check_for_keys[],&check_for_key,#cfk);
+					#key_index = indexof(&filter_keys[],,%&check_for_key%);
+					if(%#key_index% != -1);
+						&minecraft_profile[]  = getMinecraftProfile(%&filter_vals[%#key_index%]%);
+						minecraft_profile    := %&minecraft_profile[0]%;
+						if(%minecraft_profile%);
+							&minecraft_joint_uuid      = %&minecraft_profile[2]%;
+							debug_log(%debug%,%&script_debug_name%,"converted key &d%&check_for_key%&7 with value &d%&filter_vals[%#key_index%]%&7 to UUID &d%&minecraft_joint_uuid%&7.");
+							&filter_vals[%#key_index%] = %&minecraft_joint_uuid%;
+						else;
+							debug_error(%debug%,%&script_debug_name%,"failed to convert key &d%&check_for_key%&7 with value &d%&filter_vals[%#key_index%]%&7 to UUID!");
+						endif;
+					endif;
+				next;
+			endif;
+			
+			// Iteratively loop over the Cache Array that maps to the First Element of the Filter Keys Array to record all Indexes
+			// where we may find a match for all the Auction Identifiers in their source Arrays. We do this to cut down on the amount of Elements
+			// that we must manually iterate over.
+			if(true);
+				// Check if there is an ID or OWNER Key to use as the 'primary' key. If so, prefer to use that Key as the primary key. If not, use the first index.
+				if(true);
+					#primary_key_index = 0;
+					#id_index          = indexof(&filter_keys[],,"ID");
+					#owner_index       = indexof(&filter_keys[],,"OWNER");
+					if(%#id_index% != -1);
+						#primary_key_index = %#id_index%;
+					elseif(%#owner_index% != -1);
+						#primary_key_index = %#owner_index%;
+					endif;
+				endif;
+				
+				debug_log(%debug%,%&script_debug_name%,"finding possible indices");
+				&map_type_prefix           = %&filter_type_prefixes[%#primary_key_index%]%;
+				&primary_cache_search_term = %&filter_vals[%#primary_key_index%]%;
+				&primary_cache_arr_ptr     = lcase("@%&map_type_prefix%cached_listing_%&filter_keys[%#primary_key_index%]%");
+				#loop_augment              = 0;
+				#latest_index              = -1;
+				do;
+					if(%#latest_index% >= 0);
+						debug_log(%debug%,%&script_debug_name%,"have pushed at least one element (#latest_index: %#latest_index%)");
+						#subarray_start = %#check_indices[%#latest_index%]% + 1;
+						debug_log(%debug%,%&script_debug_name%,"element at index %#latest_index% in #check_indices array is &d%#check_indices[%#latest_index%]%&7, will create subarray starting from +1 from this element (&d%#subarray_start%&7).");
+					else;
+						debug_log(%debug%,%&script_debug_name%,"have not pushed any elements, subarray_start set to 0.");
+						#subarray_start = 0;
+					endif;
+					&subarray_string = "%&primary_cache_arr_ptr%[%#subarray_start%:]";
+					push(&primary_cache_subarray[],%&subarray_string%);
+					#primary_cache_index = indexof(&primary_cache_subarray[],,%&primary_cache_search_term%);
+					if(%#primary_cache_index% != -1);
+						#previous_index = %#latest_index%;
+						#latest_index   = %#latest_index% + 1;
+						#real_index     = %#primary_cache_index% + %#subarray_start%;
+						debug_log(%debug%,%&script_debug_name%,"found element at index %#primary_cache_index% in subarray, offset &d%#subarray_start%&7 from source array, source index is &d%#real_index%&7. Incrementing #latest_index from &c%#previous_index%&7 to &a%#latest_index%&7.");
+						#check_indices[] = %#real_index%;
+					else;
+						debug_log(%debug%,%&script_debug_name%,"cannot find any more elements, breaking");
+						break;
+					endif;
+					unset(&primary_cache_subarray[]);
+				until(%#primary_cache_index% == -1);
+			endif;
+			
+			#check_indices_sz = arraysize(#check_indices[]);
+			debug_log(%debug%,%&script_debug_name%,"found total of &d%#check_indices_sz%&7 possible indices");
+			if(%#check_indices_sz% >= 1);
+				debug_log(%debug%,%&script_debug_name%,"iterating over possible indices to find entries");
+				foreach(#check_indices[],#check_index,#ci);
+					debug_log(%debug%,%&script_debug_name%,"%#ci%/%#check_indices_sz% - checking index %#check_index%");
+					index_matched = true;
+					foreach(&filter_keys[],&filter_key,#fk);
+						&filter_val         = %&filter_vals[%#fk%]%;
+						&filter_type_term   = %&filter_type_terms[%#fk%]%;
+						&filter_type_prefix = %&filter_type_prefixes[%#fk%]%;
+						&filter_cache_ptr   = lcase("@%&filter_type_prefix%cached_listing_%&filter_key%[%#check_index%]");
+						&filter_cache_val   = %%&filter_cache_ptr%%;
+						val_match           = %&filter_cache_val% == %&filter_val%;
+						if(%&filter_type_term% == "boolean");
+							filter_val  := %&filter_val%;
+							cached_val  := %&filter_cache_val%;
+							val_match    = %filter_val% == %cached_val%;
+						elseif(%&filter_type_term% == "number");
+							#filter_val := %&filter_val%;
+							#cached_val := %&filter_cache_val%;
+							val_match    = %#filter_val% == %#cached_val%;
+						endif;
+						
+						if(!%val_match%);
+							debug_log(%debug%,%&script_debug_name%,"cached_listing index &d%#check_index%&7 is disqualified, term &d%&filter_key%&7 expected value &a%&filter_val%&7, indexed value was &c%&filter_cache_val%&7.");
+							index_matched = false;
+							break;
+						endif;
+					next;
+					
+					if(%index_matched%);
+						debug_log(%debug%,%&script_debug_name%,"cached_listing index &d%#check_index%&7 is &amatched&7, all terms met expected values");
+						&return_array[0] = "true";
+						foreach(&identifier_prefixes[],&identifier_prefix,#ipi);
+							#map_type_term_index    = indexof(&map_type_terms[],,%&identifier_types[%#ipi%]%);
+							&identifier_type_prefix = %&map_type_prefixes[%#map_type_term_index%]%;
+							&prefix_cache_ptr       = lcase("@%&identifier_type_prefix%cached_listing_%&identifier_prefix%[%#check_index%]");
+							&return_array[]         = %%&prefix_cache_ptr%%;
+						next;
+						break;
+					endif;
+				next;
+			endif;
+		endif;
+		
+		return(&return_array[]);
+	endfunction;
+	
+	// Similar to auctionsDecodeItemData, except decodes an Array of Auction's 'item_bytes.data' Fields.
+		// Params:
+			// {string} <&all_auctions_json>	All of the Auction JSONs to extract Data from.
+			//
+		// Status String ENUMs:
+			// SUCCESS           	Successfully decoded the Data
+			// ERROR_INVALID_DATA	Invalid Input Data
+			// ERROR_SERVER      	Decode API is Down
+			// ERROR_UNKNOWN     	Unknown Error occurred
+		// Returns an Array where the first Element is the Decode Status ENUM, then the remaining are Tunnel Split Strings, where each String holds Data in Format:
+			// 0 {string} &decoded_sbid 	The Auction Listing Item SBID
+			// 1 {string} &decoded_mcid 	The Auction listing Item MCID
+			// 2 {string} &decoded_name 	The Auction Listing Item Name
+			// 3 {number} #decoded_data 	The Auction Listing Item Data/Damage Value
+			// 4 {number} #decoded_stack	The Stack Size of the Auction Listing Item
+		// Example:
+			//	&decoded_auctions[] = auctionsDecodeListingsData(%&all_auctions_json%);
+			//	foreach(&decoded_auctions[],&decoded_auction,#dai);
+			//		if(%#dai% == 0);
+			//			&decoded_status = %&decoded_auction%;
+			//			if(%&decoded_status% == "SUCCESS");
+			//			else;
+			//				if(%&decoded_status% == "ERROR_INVALID_DATA");
+			//				elseif(%&decoded_status% == "ERROR_SERVER");
+			//				elseif(%&decoded_status% == "ERROR_UNKNOWN");
+			//				endif;
+			//			endif;
+			//		else;
+			//			&decoded_auction[]  = split("|",%&decoded_auction%);
+			//			&decoded_sbid       = %&decoded_auction[0]%;
+			//			&decoded_mcid       = %&decoded_auction[1]%;
+			//			&decoded_name       = %&decoded_auction[2]%;
+			//			#decoded_data      := %&decoded_auction[3]%;
+			//			#decoded_stack     := %&decoded_auction[4]%;
+			//		endif;
+			//	next;
+	function auctionsDecodeListingsData(&all_auctions_json);
+		// Setup Function Variables
+		if(true);
+			debug                    = false;
+			&script_debug_name       = "&9auctionsDecodeListingsData&7";
+			&enum_success            = "SUCCESS";
+			&enum_error_invalid_data = "ERROR_INVALID_DATA";
+			&enum_error_server       = "ERROR_SERVER";
+			&enum_error_unknown      = "ERROR_UNKNOWN";
+			&decode_api_url          = "http://localhost:8080/multi";
+			&return_array[0]         = %&enum_error_unknown%;
+			ifmatches(%&decode_api_url%,"localhost");
+				log("&4&lWARNING: auctionsDecodeListingsData is using localhost decoder API! Change to remote hosted decoder API before release to Production.")
+			endif;
+			
+			setrequestheader("User-Agent",%UUID%);
+			setrequestheader("Content-Type","application/json");
+		endif;
+		
+		// Handle the API Request.
+		if(true);
+			// Compile the Listings
+			do;
+				&encoded_data = jsonget("auctions.%#auction_index%.item_bytes.data",%&all_auctions_json%);
+				ifmatches(%&encoded_data%,"^ERROR_");
+					debug_log(%debug%,%&script_debug_name%,"final auction index is %#auction_index%");
+					#final_index = %#auction_index%;
+					break;
+				endif;
+				
+				&decode_strings[] = "\"%&encoded_data%\"";
+				inc(#auction_index);
+			loop;
+			
+			#decode_strings_sz = arraysize(&decode_strings[]);
+			if(%#decode_strings_sz% >= 1);
+				&decode_strings  = join(",",&decode_strings[]);
+				&request_body    = "{\"listings\":[%&decode_strings%]}";
+				&server_response = httppost(%&decode_api_url%,%&request_body%,#decoded_code);
+				if(%#decoded_code% == 200);
+					&return_array[0] = %&enum_success%;
+					for(#auction_index,0,%#final_index%);
+						&decoded_nbt     = jsonget(%#auction_index%,%&server_response%);
+						&decoded_sbid    = getItemSBID(%&decoded_nbt%);
+						&decoded_data[]  = getItemInfoSB(%&decoded_sbid%);
+						&decoded_sbid    = %&decoded_data[1]%;
+						&decoded_mcid    = %&decoded_data[2]%;
+						#decoded_data   := %&decoded_data[3]%;
+						#decoded_stack   = jsonget("Count",%&decoded_nbt%);
+						&decoded_name    = jsonget("auctions.%#auction_index%.item_name",%&all_auctions_json%);
+						&decoded_name    = strip(%&decoded_name%);
+						&return_array[]  = "%&decoded_sbid%|%&decoded_mcid%|%&decoded_name%|%#decoded_data%|%#decoded_stack%";
+					next;
+				elseif((%#decoded_code% == -1) || (%#decoded_code% == 500));
+					&return_array[0] = %&enum_error_server%;
+				endif;
+			else;
+				debug_error(%debug%,%&script_debug_name%,"did not find any decode_strings in passed all_auctions_json!");
+			endif;
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Given an Auction's JSON Data, grabs the Auction's 'item_bytes.data' Field and submits it to the local NBT decoder API to convert it.
+		// Params:
+			// {string} <&auction_json>	The Auction JSON to extract Data from.
+			//
+		// Status String ENUMs:
+			// SUCCESS           	Successfully decoded the Data
+			// ERROR_INVALID_DATA	Invalid Input Data
+			// ERROR_SERVER      	Decode API is Down
+			// ERROR_UNKNOWN     	Unknown Error occurred
+		// Returns an Array:
+			// 0 {string} &decoded_status	String ENUM describing the Status of the Decode Request. Possible values are defined above.
+			// 1 {string} &decoded_sbid  	The Auction Listing Item SBID
+			// 2 {string} &decoded_mcid  	The Auction listing Item MCID
+			// 3 {string} &decoded_name  	The Auction Listing Item Name
+			// 4 {number} #decoded_data  	The Auction Listing Item Data/Damage Value
+			// 5 {number} #decoded_stack 	The Stack Size of the Auction Listing Item
+		// Example:
+			//	&decoded_bytes[] = auctionsDecodeItemData(%&auction_json%);
+			//	&decoded_status  = %&decoded_bytes[0]%;
+			//	&decoded_sbid    = %&decoded_bytes[1]%;
+			//	&decoded_mcid    = %&decoded_bytes[2]%;
+			//	&decoded_name    = %&decoded_bytes[3]%;
+			//	#decoded_data   := %&decoded_bytes[4]%;
+			//	#decoded_stack  := %&decoded_bytes[5]%;
+	function auctionsDecodeItemData(&auction_json);
+		// Setup Function Variables
+		if(true);
+			debug                    = true;
+			&script_debug_name       = "&9auctionsDecodeItemData&7";
+			&enum_success            = "SUCCESS";
+			&enum_error_invalid_data = "ERROR_INVALID_DATA";
+			&enum_error_server       = "ERROR_SERVER";
+			&enum_error_unknown      = "ERROR_UNKNOWN";
+			&decode_api_url          = "http://localhost:8080/";
+			&decoded_status          = %&enum_error_unknown%;
+			ifmatches(%&decode_api_url%,"localhost");
+				log("&4&lWARNING: auctionsDecodeItemData is using localhost decoder API! Change to remote hosted decoder API before release to Production.")
+			endif;
+			
+			setrequestheader("User-Agent",%UUID%);
+			setrequestheader("Content-Type","application/json");
+		endif;
+		
+		// Handle the API Request.
+		if(true);
+			&encoded_data = jsonget("item_bytes.data",%&auction_json%);
+			ifmatches(%&encoded_data%,"^ERROR_");
+				debug_error(%debug%,%&script_debug_name%,"Invalid Auction JSON Data passed to Function, cannot extract item_bytes.data Field: &4%&auction_json%&c.");
+				&decoded_status  = %&enum_error_invalid_data%;
+			else;
+				&request_body    = "{\"data\":\"%&encoded_data%\"}";
+				&server_response = httppost(%&decode_api_url%,%&request_body%,#decoded_code);
+				if(%#decoded_code% == 200);
+					&decoded_status  = %&enum_success%;
+					&decoded_sbid    = getItemSBID(%&server_response%);
+					&decoded_data[]  = getItemInfoSB(%&decoded_sbid%);
+					&decoded_sbid    = %&decoded_data[1]%;
+					&decoded_mcid    = %&decoded_data[2]%;
+					#decoded_data   := %&decoded_data[3]%;
+					#decoded_stack   = jsonget("Count",%&server_response%);
+					&decoded_name    = jsonget("item_name",%&auction_json%);
+					&decoded_name    = strip(%&decoded_name%);
+				elseif(%#decoded_code% == -1);
+					&decoded_status  = %&enum_error_server%;
+				elseif(%#decoded_code% == 500);
+					&decoded_status  = %&enum_error_server%;
+				endif;
+			endif;
+			
+			&vars[] = split(" ","&decoded_status &decoded_sbid &decoded_mcid &decoded_name #decoded_data #decoded_stack");
+			foreach(&vars[],&var,#v);
+				&val = %%&var%%;
+				&logvar = regexreplace(&var,"(?<!&)&","&&");
+				debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&val%");
+			next;
+			
+			&return_array[] = split(", ","%&decoded_status%, %&decoded_sbid%, %&decoded_mcid%, %&decoded_name%, %#decoded_data%, %#decoded_stack%");
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Given an Auction's ID, and/or the Auctioneer's Username and as much identifying information regarding the Item as is possible, finds the Auction
+	// Listing from the API and returns it's Data.
+		// Params:
+			// {string} <...&auction_identifiers[]>	An Array of Auction Identifiers in format: '<ID_TYPE>: <ID_DATA>'. If multiple instances of a given
+			//                                     	ID_TYPE are encountered, the one that appears latest in the Array is used. Valid ID_TYPE Prefixes are
+			//                                     	at the end of this Comment.
+		// Valid ID_TYPE Prefixes:
+			// {string} ID      	The Listing ID
+			// {string} TYPE    	The Listing Type (one of: BIN, AUCTION)
+			// {number} PRICE   	The Current Listing Price
+			// {number} BIDS    	The amount of Bids on the Listing
+			// {boolean} ENDED  	Whether or not the Listing has Ended
+			// {boolean} CLAIMED	Whether or not the Listing has been claimed
+			// {string} OWNER   	The UUID of the Player that created this Listing
+			// {string} PROFILE 	The Profile ID the Owner of this Listing was using to create this Listing
+			// {string} SBID    	The SkyBlock ID of the Item that this Listing represents
+			// {string} NAME    	The Display Name of the Item that this Listing represents
+			// {string} MCID    	The Minecraft Item ID that this Listing represents
+			// {number} DATA    	The Data Value of the Item that this Listing represents
+			// {number} STACK   	The Stack Size of the Item that this Listing represents
+			// {string} BUYER   	A UUID of a Player who purchased/claimed this Listing.
+			// {number} END_TIME	The Timestamp of when this Listing will end
+		// Returns an Array:
+			// 0  {boolean} api_hit      	Whether or not an Item from the api was found that matches the specified Auction Identifiers.
+			// 1  {string}  &api_id      	The Listing ID
+			// 2  {string}  &api_type    	The Listing Type (one of: BIN, AUCTION)
+			// 3  {number}  #api_price   	The Current Listing Price
+			// 4  {number}  #api_bids    	The amount of Bids on the Listing
+			// 5  {boolean} api_ended    	Whether or not the Listing has Ended
+			// 6  {boolean} api_claimed  	Whether or not the Listing has been claimed
+			// 7  {string}  &api_owner   	The UUID of the Player that created this Listing
+			// 8  {string}  &api_profile 	The Profile ID the Owner of this Listing was using to create this Listing
+			// 9  {string}  &api_sbid    	The SkyBlock ID of the Item that this Listing represents
+			// 10 {string}  &api_name    	The Display Name of the Item that this Listing represents
+			// 11 {string}  &api_mcid    	The Minecraft Item ID that this Listing represents
+			// 12 {number}  #api_data    	The Data Value of the Item that this Listing represents
+			// 13 {number}  #api_stack   	The Stack Size of the Item that this Listing represents
+			// 14 {string}  &api_buyers  	The UUID(s) of the Player that purchased this Listing, tilde (~) separated, or 'NULL' if no buyers.
+			// 15 {number}  #api_end_time	The Timestamp of when this Listing will end
+		// Example
+			//	&api_data[]    = auctionsGetListingInfoFromAPI(...&auction_identifiers[]);
+			//	api_hit       := %&api_data[0]%;
+			//	&api_id        = %&api_data[1]%;
+			//	&api_type      = %&api_data[2]%;
+			//	#api_price    := %&api_data[3]%;
+			//	#api_bids     := %&api_data[4]%;
+			//	api_ended     := %&api_data[5]%;
+			//	api_claimed   := %&api_data[6]%;
+			//	&api_owner     = %&api_data[7]%;
+			//	&api_profile   = %&api_data[8]%;
+			//	&api_sbid      = %&api_data[9]%;
+			//	&api_name      = %&api_data[10]%;
+			//	&api_mcid      = %&api_data[11]%;
+			//	#api_data     := %&api_data[12]%;
+			//	#api_stack    := %&api_data[13]%;
+			//	&api_buyers    = %&api_data[14]%;
+			//	#api_end_time := %&api_data[15]%;
+	function auctionsGetListingInfoFromAPI(...&auction_identifiers[]);
+		// Setup Function Variables
+		if(true);
+			debug                  = false;
+			&script_debug_name     = "&3auctionsGetListingInfoFromAPI&7";
+			&identifier_paths[]    = split(", ","uuid, NULL, NULL, NULL, NULL, claimed, auctioneer, profile_id, NULL, item_name, NULL, NULL, NULL, NULL, NULL");
+			&identifier_prefixes[] = split(", ","ID, TYPE, PRICE, BIDS, ENDED, CLAIMED, OWNER, PROFILE, SBID, NAME, MCID, DATA, STACK, BUYER, END_TIME");
+			&identifier_types[]    = split(", ","string, string, number, number, boolean, boolean, string, string, string, string, string, number, number, string, number");
+			&map_type_terms[]      = split(", ","string, number, boolean");
+			&map_type_prefixes[]   = split(", ","&, #, ");
+			&valid_prefixes        = join("|",&identifier_prefixes[]);
+			api_hit                = false;
+			
+			// Create Array of Unique Identifiers to match against cache entries
+			foreach(&auction_identifiers[],&auction_identifier,#ai);
+				ifmatches(%&auction_identifier%,"^(%&valid_prefixes%):\s*(.+)$");
+					match(%&auction_identifier%,"^(%&valid_prefixes%):\s*(.+)$",{&identifier_prefix,&identifier_value});
+					#filter_key_index = indexof(&filter_keys[],,%&identifier_prefix%);
+					if(%#filter_key_index% == -1);
+						#prefix_index           = indexof(&identifier_prefixes[],,%&identifier_prefix%);
+						#map_type_index         = indexof(&map_type_terms[],,%&identifier_types[%#prefix_index%]%);
+						&filter_keys[]          = %&identifier_prefix%;
+						&filter_vals[]          = %&identifier_value%;
+						&filter_type_terms[]    = %&identifier_types[%#prefix_index%]%;
+						&filter_type_prefixes[] = %&map_type_prefixes[%#map_type_index%]%;
+						&filter_paths[]         = %&identifier_paths[%#prefix_index%]%;
+					else;
+						&filter_vals[%#filter_key_index%]% = %&identifier_value%;
+					endif;
+				endif;
+			next;
+			
+			#filter_keys_sz = arraysize(&filter_keys[]);
+		endif;
+		
+		// Loop over Cached Entries and try to find an Entry that has a match for all the Keys we are filtering for.
+		if(%#filter_keys_sz% >= 1);
+			// Determine the Method we will be using to find the Auction Listing (did we get an Auction ID, or the Auctioneer's UUID?)
+			if(true);
+				#id_index      = indexof(&filter_keys[],,"ID");
+				#owner_index   = indexof(&filter_keys[],,"OWNER");
+				got_listing_id = %#id_index% != -1;
+				got_owner_id   = %#owner_index% != -1;
+				
+				if((%got_listing_id%) || (%got_owner_id%));
+					#buyer_index = indexof(&filter_keys[],,"BUYER");
+					if(%#buyer_index% != -1);
+						&split_buyers[] = split("~",%&filter_vals[%#buyer_index%]%);
+						foreach(&split_buyers[],&split_buyer,#sbi);
+							&buyer_profile[]   = getMinecraftProfile(%&split_buyer%);
+							buyer_profile     := %&buyer_profile[0]%;
+							if(%buyer_profile%);
+								&buyer_joint_uuid    = %&buyer_profile[2]%;
+								&fixed_buyer_uuids[] = %&buyer_joint_uuid%;
+								do_fixed_buyer       = true;
+							endif;
+						next;
+						
+						if(%do_fixed_buyer%);
+							&filter_vals[%#buyer_index%] = join("~",&fixed_buyer_uuids[]);
+						else;
+							&filter_keys[]          = arrayDelete(&filter_keys[],%#buyer_index%);
+							&filter_vals[]          = arrayDelete(&filter_vals[],%#buyer_index%);
+							&filter_type_terms[]    = arrayDelete(&filter_type_terms[],%#buyer_index%);
+							&filter_type_prefixes[] = arrayDelete(&filter_type_prefixes[],%#buyer_index%);
+							&filter_paths[]         = arrayDelete(&filter_paths[],%#buyer_index%);
+						endif;
+					endif;
+				endif;
+			endif;
+			
+			// Execute the branch corresponding to which Data Types we received.
+			if(true);
+				debug_log(%debug%,%&script_debug_name%,"Making API Call...");
+				if(%got_listing_id%);
+					// Get the API Data
+					if(true);
+						&api_url     = "skyblock/auction?uuid=%&filter_vals[%#id_index%]%";
+						&api_data[]  = hypixelAPICall(%&api_url%);
+						req_success := %&api_data[0]%; // True if we received response from API, false if we got throttled by CF.
+						api_success := %&api_data[1]%; // The value of the 'success' key in the API response.
+						#api_code   := %&api_data[2]%; // The HTTP Response Code from the API Request.
+						&api_resp    = %&api_data[3]%; // The raw JSON data returned from the Server.
+						debug_log(%debug%,%&script_debug_name%,"Making API Call to %&api_url%, outcome req %req_success%, outcome api %api_success%, code %#api_code%");
+					endif;
+					
+					// If the API Data Request was successful, set the Auction JSON Match.
+					if((%req_success%) && (%api_success%));
+						&auction_json = jsonget("auctions.0",%&api_resp%);
+						ifnotmatches(%&auction_json%,"^ERROR_");
+							debug_log(%debug%,%&script_debug_name%,"Found Auction");
+							auction_found = true;
+						endif;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"Did not get any usable Data from the API!");
+					endif;
+				elseif(%got_owner_id%);
+					// Get the Owner's UUID
+					if(true);
+						&owner_raw_input       = %&filter_vals[%#owner_index%]%;
+						&minecraft_profile[]   = getMinecraftProfile(%&owner_raw_input%);
+						minecraft_profile     := %&minecraft_profile[0]%;
+						&minecraft_username    = %&minecraft_profile[1]%;
+						&minecraft_joint_uuid  = %&minecraft_profile[2]%;
+						&minecraft_split_uuid  = %&minecraft_profile[3]%;
+					endif;
+					if(%minecraft_profile%);
+						// Get the API Data
+						if(true);
+							&filter_vals[%#owner_index%]  = %&minecraft_joint_uuid%;
+							&api_url                      = "skyblock/auction?player=%&minecraft_joint_uuid%";
+							&api_data[]                   = hypixelAPICall(%&api_url%);
+							req_success                  := %&api_data[0]%; // True if we received response from API, false if we got throttled by CF.
+							api_success                  := %&api_data[1]%; // The value of the 'success' key in the API response.
+							#api_code                    := %&api_data[2]%; // The HTTP Response Code from the API Request.
+							&api_resp                     = %&api_data[3]%; // The raw JSON data returned from the Server.
+						endif;
+						
+						// If the API Data Request was successful, iterate over all of the Owner's Auctions looking for a Match against all the Filtered Values.
+						if((%req_success%) && (%api_success%));
+							&decoded_auction_jsons[] = auctionsDecodeListingsData(%&api_resp%);
+							&decoded_status          = %&decoded_auction_jsons[0]%;
+							if(%&decoded_status% != "SUCCESS");
+								debug_breakpoint(%debug%,%&script_debug_name%,"auctionsDecodeListingsData failed: &4%&decoded_status%&7.");
+							endif;
+							
+							auction_found            = false;
+							no_more_auctions         = false;
+							do;
+								&auction_json = jsonget("auctions.%#loop_counter%",%&api_resp%);
+								ifmatches(%&auction_json%,"^ERROR_");
+									no_more_auctions = true;
+									break;
+								endif;
+								
+								#get_from_index   = %#loop_counter% + 1;
+								&decoded_bytes[]  = split("|",%&decoded_auction_jsons[%#get_from_index%]%);
+								&decoded_sbid     = %&decoded_bytes[0]%;
+								&decoded_mcid     = %&decoded_bytes[1]%;
+								&decoded_name     = %&decoded_bytes[2]%;
+								#decoded_data    := %&decoded_bytes[3]%;
+								#decoded_stack   := %&decoded_bytes[4]%;
+								auction_found     = true;
+								foreach(&filter_keys[],&filter_key,#fki);
+									&filter_val    = %&filter_vals[%#fki%]%;
+									&filter_type   = %&filter_type_terms[%#fki%]%;
+									&filter_prefix = %&filter_type_prefixes[%#fki%]%;
+									&filter_path   = %&filter_paths[%#fki%]%;
+									filter_match   = false;
+									
+									// Check if the Auction's Data matches what we are filtering for with this Key.
+									if(true);
+										// ID, TYPE, PRICE, BIDS, ENDED, CLAIMED, OWNER, PROFILE, SBID, NAME, MCID, DATA, STACK
+										if(%&filter_path% != "NULL");
+											&json_value  = xJsonGet(%&filter_path%,%&auction_json%);
+											&json_value  = strip(%&json_value%);
+											&json_value  = lcase(%&json_value%);
+											&filter_val  = strip(%&filter_val%);
+											&filter_val  = lcase(%&filter_val%);
+											filter_match = %&filter_val% == %&json_value%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&json_value%&7.");
+										elseif(%&filter_key% == "TYPE");
+											&json_value = jsonget("bin",%&auction_json%);
+											ifmatches(%&json_value%,"^ERROR_");
+												&json_value = "AUCTION";
+											else;
+												&json_value = "BIN";
+											endif;
+											filter_match = %&filter_val% == %&json_value%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&json_value%&7.");
+										elseif(%&filter_key% == "PRICE");
+											#highest_bid = xJsonGet("highest_bid_amount",%&auction_json%);
+											if(%#highest_bid% > 0);
+												&json_value = %#highest_bid%;
+											else;
+												&json_value = xJsonGet("starting_bid",%&auction_json%);
+											endif;
+											filter_match = %&filter_val% == %&json_value%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&json_value%&7.");
+										elseif(%&filter_key% == "BIDS");
+											&bids_array   = jsonget("bids",%&auction_json%);
+											&bids_array[] = getjsonasarray(%&bids_array%);
+											#bids_array   = arraysize(&bids_array[]);
+											if(%#bids_array% > 1);
+												#bids_array = %#bids_array% - 1;
+											endif;
+											&json_value  = %#bids_array%;
+											filter_match = %&filter_val% == %&json_value%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&json_value%&7.");
+										elseif(%&filter_key% == "ENDED");
+											claimed_auction       = jsonget("claimed",%&auction_json%);
+											&first_claimed_bidder = jsonget("claimed_bidders.0",%&auction_json%);
+											&end_timestamp        = xJsonGet("end",%&auction_json%);
+											setclipboard(%&auction_json%);
+											
+											if(%claimed_auction%);
+												debug_log(%debug%,%&script_debug_name%,"claimed_auction == true (%claimed_auction%) from auction_json. on clipboard");
+												json_value = true;
+											elseifnotmatches(%&first_claimed_bidder%,"^ERROR_");
+												debug_log(%debug%,%&script_debug_name%,"first_claimed_bidder: &d%&first_claimed_bidder%&7.");
+												json_value = true;
+											else;
+												#end_timestamp_rounded = xEval("ceil(%&end_timestamp% / 1000)",true);
+												json_value = %TIMESTAMP% >= %#end_timestamp_rounded%;
+												if(%json_value%);
+													debug_log(%debug%,%&script_debug_name%,"timestamp (%TIMESTAMP%) >= end_timestamp_rounded (%#end_timestamp_rounded%)");
+												else;
+													debug_log(%debug%,%&script_debug_name%,"timestamp (%TIMESTAMP%) < end_timestamp_rounded (%#end_timestamp_rounded%)");
+												endif;
+											endif;
+											
+											filter_val   := %&filter_val%;
+											filter_match  = %filter_val% == %json_value%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %filter_val%, have: &8%json_value%&7.");
+										elseif(%&filter_key% == "SBID");
+											filter_match  = %&decoded_sbid% == %&filter_val%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&decoded_sbid%&7.");
+										elseif(%&filter_key% == "MCID");
+											filter_match  = %&decoded_mcid% == %&filter_val%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %&filter_val%, have: &8%&decoded_mcid%&7.");
+										elseif(%&filter_key% == "DATA");
+											#filter_val  := %&filter_val%;
+											filter_match  = %#decoded_data% == %#filter_val%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %#filter_val%, have: &8%#decoded_data%&7.");
+										elseif(%&filter_key% == "STACK");
+											#filter_val  := %&filter_val%;
+											filter_match  = %#decoded_stack% == %#filter_val%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %#filter_val%, have: &8%#decoded_stack%&7.");
+										elseif(%&filter_key% == "BUYER");
+											&json_value = jsonget("claimed_bidders",%&auction_json%);
+											ifnotmatches(%&json_value%,"^ERROR_");
+												#buyer_index = 0;
+												do;
+													&buyer_uuid = jsonget("claimed_bidders.%#buyer_index%",%&auction_json%);
+													ifmatches(%&buyer_uuid%,"^ERROR_");
+														break;
+													endif;
+													&buyer_uuids[] = %&buyer_uuid%;
+													&json_value    = "ARRAY";
+													inc(#buyer_index);
+												loop;
+											else;
+												&json_value = "NULL";
+											endif;
+											
+											if((%&json_value% == "NULL") && ((%&filter_val% == "NULL") || (%&filter_val% == "")));
+												filter_match = true;
+											elseif((%&json_value% == "ARRAY") && ((%&filter_val% != "NULL") && (%&filter_val% != "")));
+												filter_match = true;
+												&split_buyers[] = split("~",%&filter_val%);
+												foreach(&split_buyers[],&split_buyer,#sbi);
+													#buyer_uuid_index = indexof(&buyer_uuids[],,%&split_buyer%);
+													if(%#buyer_uuid_index% == -1);
+														debug_error(%debug%,%&script_debug_name%,"cannot find buyer uuid '&4%&split_buyer%&c' in claimed_bidders array!");
+														filter_match = false;
+														break;
+													endif;
+												next;
+											else;
+												debug_error(%debug%,%&script_debug_name%,"json_value and filter_val are out of sync (one is ARRAY, other is NULL)");
+												filter_match = false;
+											endif;
+										elseif(%&filter_key% == "END_TIME");
+											&json_value  = jsonget("end",%&auction_json%);
+											#end_ceiling = xEval("ceil(%&json_value% / 1000)",true);
+											#filter_val := %&filter_val%;
+											filter_match = %#end_ceiling% == %#filter_val%;
+											debug_log(%debug%,%&script_debug_name%,"comparing key %&filter_key%, want: %#filter_val%, have: &8%#end_ceiling%&7.");
+										endif;
+									
+										if(!%filter_match%);
+											debug_log(%debug%,%&script_debug_name%,"auction json at index %#loop_counter% is invalid due to a failed match for key &d%&filter_key%&7!");
+											auction_found = false;
+											break;
+										endif;
+									endif;
+								next;
+								
+								if(%auction_found%);
+									break;
+								endif;
+								inc(#loop_counter);
+							until((%auction_found%) || (%no_more_auctions%));
+						endif;
+					endif;
+				else;
+					debug_error(%debug%,%&script_debug_name%,"Did not find an ID or OWNER Term in the auction_identifiers[] Array!");
+				endif;
+			endif;
+			
+			if(%auction_found%);
+				// Set Default Values
+				if(true);
+					api_hit       = true;
+					&api_id       = jsonget("uuid",%&auction_json%);
+					&api_type     = "AUCTION";
+					#api_price    = xJsonGet("highest_bid_amount",%&auction_json%);
+					#api_bids     = 0;
+					api_ended     = jsonget("claimed",%&auction_json%);
+					api_claimed   = jsonget("claimed",%&auction_json%);
+					&api_owner    = jsonget("auctioneer",%&auction_json%);
+					&api_profile  = jsonget("profile_id",%&auction_json%);
+					&api_buyer    = jsonget("claimed_bidders",%&auction_json%);
+					&api_end_time = jsonget("end",%&auction_json%);
+					#api_end_time = xEval("ceil(%&api_end_time% / 1000)",true);
+					
+					use_decode_api  = true;
+					if(%use_decode_api%);
+						&decoded_bytes[] = auctionsDecodeItemData(%&auction_json%);
+						&decoded_status  = %&decoded_bytes[0]%;
+						decode_success   = %&decoded_status% == "SUCCESS";
+					endif;
+					
+					if(%decode_success%);
+						&api_sbid   = %&decoded_bytes[1]%;
+						&api_mcid   = %&decoded_bytes[2]%;
+						&api_name   = %&decoded_bytes[3]%;
+						#api_data  := %&decoded_bytes[4]%;
+						#api_stack := %&decoded_bytes[5]%;
+					else;
+						&api_sbid   = "NULL";
+						&api_mcid   = "NULL";
+						&api_name   = jsonget("item_name",%&auction_json%);
+						#api_data   = -1;
+						#api_stack  = -1;
+					endif;
+				endif;
+				
+				// Correct Values from Defaults if Needed
+				if(true);
+					// Correct API Type from Default if Needed
+					if(true);
+						&listing_type = jsonget("bin",%&auction_json%);
+						ifnotmatches(%&listing_type%,"^ERROR_");
+							&api_type = "BIN";
+						endif;
+					endif;
+					
+					// Correct API Price from Default if Needed
+					if(true);
+						if(%#api_price% <= 0);
+							#api_price = xJsonGet("starting_bid",%&auction_json%);
+						endif;
+					endif;
+					
+					// Correct API Bids
+					if(true);
+						&bids_array   = jsonget("bids",%&auction_json%);
+						&bids_array[] = getjsonasarray(%&bids_array%);
+						#bids_array   = arraysize(&bids_array[]);
+						if(%#bids_array% > 1);
+							#bids_array = %#bids_array% - 1;
+						endif;
+						#api_bids = %#bids_array%;
+					endif;
+					
+					// Correct API Ended if Needed
+					if(!%api_ended%);
+						claimed_auction       = jsonget("claimed",%&auction_json%);
+						&first_claimed_bidder = jsonget("claimed_bidders.0",%&auction_json%);
+						&end_timestamp        = xJsonGet("end",%&auction_json%);
+						
+						if(%claimed_auction%);
+							debug_log(%debug%,%&script_debug_name%,"claimed_auction == true (%claimed_auction%) from auction_json. on clipboard");
+							api_ended = true;
+						elseifnotmatches(%&first_claimed_bidder%,"^ERROR_");
+							api_ended(%debug%,%&script_debug_name%,"first_claimed_bidder: &d%&first_claimed_bidder%&7.");
+							api_ended = true;
+						else;
+							#end_timestamp_rounded = xEval("ceil(%&end_timestamp% / 1000)",true);
+							api_ended = %TIMESTAMP% >= %#end_timestamp_rounded%;
+							if(%api_ended%);
+								debug_log(%debug%,%&script_debug_name%,"timestamp (%TIMESTAMP%) >= end_timestamp_rounded (%#end_timestamp_rounded%)");
+							else;
+								debug_log(%debug%,%&script_debug_name%,"timestamp (%TIMESTAMP%) < end_timestamp_rounded (%#end_timestamp_rounded%)");
+							endif;
+						endif;
+					endif;
+					
+					&api_name = strip(%&api_name%);
+					
+					// Correct API SBID, MCID, DATA, and Stack, if possible.
+					if(!%decode_success%);
+						&nullable_keys[]  = split(", ","SBID, MCID, DATA, STACK");
+						&nullable_vars[]  = split(", ","&api_sbid, &api_mcid, #api_data, #api_stack");
+						&nullable_cache[] = split(", ","&cache_sbid, &cache_mcid, #cache_data, #cache_stack");
+						foreach(&nullable_keys[],&nullable_key,#nki);
+							#nullable_index        = indexof(&filter_keys[],,%&nullable_key%);
+							nullable_found[%#nki%] = %#nullable_index% != -1;
+							if(%#nullable_index% != -1);
+								set(%&nullable_vars[%#nki%]%,%&filter_vals[%#nullable_index%]%);
+							endif;
+						next;
+						
+						#false_index = indexof(nullable_found[],,false);
+						if(%#false_index% != -1);
+							&cache_data[]  = auctionsCheckCache("ID: %&api_id%");
+							cache_hit     := %&cache_data[0]%;
+							if(%cache_hit%);
+								&cache_sbid    = %&cache_data[9]%;
+								&cache_mcid    = %&cache_data[11]%;
+								#cache_data   := %&cache_data[12]%;
+								#cache_stack  := %&cache_data[13]%;
+								foreach(nullable_found[],nullable,#ni);
+									if(!%nullable%);
+										&nullable_var   = %&nullable_vars[%#ni%]%;
+										&nullable_cache = %&nullable_cache[%#ni%]%;
+										&nullable_val   = %%&nullable_cache%%;
+										set(%&nullable_var%,%&nullable_val%);
+									endif;
+								next;
+							endif;
+						endif;
+					endif;
+					
+					// Correct API Buyer, if possible.
+					if(true);
+						ifnotmatches(%&api_buyer%,"^ERROR_");
+							#buyer_index = 0;
+							do;
+								&buyer_uuid = jsonget("claimed_bidders.%#buyer_index%",%&auction_json%);
+								ifmatches(%&buyer_uuid%,"^ERROR_");
+									break;
+								endif;
+								api_buyer_found = true;
+								&buyer_uuids[]  = %&buyer_uuid%;
+								inc(#buyer_index);
+							loop;
+						endif;
+						
+						if(%api_buyer_found%);
+							&api_buyer = join("~",&buyer_uuids[]);
+						else;
+							&api_buyer = "NULL";
+						endif;
+					endif;
+				endif;
+				
+				// Setup Return Array
+				if(true);
+					&return_terms[] = split(", ","HIT, ID, TYPE, PRICE, BIDS, ENDED, CLAIMED, OWNER, PROFILE, SBID, NAME, MCID, DATA, STACK, BUYER, END_TIME");
+					#update_index   = indexof(@&cached_listing_id[],,%&api_id%);
+					if(%#update_index% == -1);
+						@&cached_listing_id[] = %&api_id%;
+						#update_index         = indexof(@&cached_listing_id[],,%&api_id%);
+					endif;
+					
+					foreach(&return_terms[],&return_term,#rti);
+						if(%&return_term% != "HIT");
+							#term_index     = indexof(&identifier_prefixes[],,%&return_term%);
+							&term_type      = %&identifier_types[%#term_index%]%;
+							#type_index     = indexof(&map_type_terms[],,%&term_type%);
+							&term_prefix    = %&map_type_prefixes[%#type_index%]%;
+							&term_cache     = lcase("@%&term_prefix%cached_listing_%&return_term%[%#update_index%]");
+							&term_pointer   = lcase("%&term_prefix%api_%&return_term%");
+							&term_value     = %%&term_pointer%%;
+							set(%&term_cache%,%&term_value%);
+						else;
+							&term_value = %api_hit%;
+						endif;
+						&return_array[] = %&term_value%;
+					next;
+				endif;
+			else;
+				&return_array[] = false;
+			endif;
+		else;
+			&return_array[] = false;
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Given an Auction's ID (or if called while in a Listing GUI), fetches Data regarding that Listing.
+		// Params:
+			// {string} [&auction_id] 	The Auction ID. If omitted, will fetch the Listing found in the Active GUI.
+			// {boolean} [force=false]	Whether or not to force an API request. If false, will return values from the Cache
+			//                        	unless the Data is not yet Cached.
+		// Throws Errors:
+			// ERROR_API_LIMIT	Hit an API Limit.
+			// ERROR_NOT_FOUND	Auction ID was not found, and/or was not in a valid Auction Listing GUI at time of Function Call.
+		// Returns an Array:
+			// 0  {boolean} listing_hit      	Whether or not an Item from the api was found that matches the specified Auction Identifiers.
+			// 1  {string}  &listing_id      	The Listing ID
+			// 2  {string}  &listing_type    	The Listing Type (one of: BIN, AUCTION)
+			// 3  {number}  #listing_price   	The Current Listing Price
+			// 4  {number}  #listing_bids    	The amount of Bids on the Listing
+			// 5  {boolean} listing_ended    	Whether or not the Listing has Ended
+			// 6  {boolean} listing_claimed  	Whether or not the Listing has been claimed
+			// 7  {string}  &listing_owner   	The UUID of the Player that created this Listing
+			// 8  {string}  &listing_profile 	The Profile ID the Owner of this Listing was using to create this Listing
+			// 9  {string}  &listing_sbid    	The SkyBlock ID of the Item that this Listing represents
+			// 10 {string}  &listing_name    	The Display Name of the Item that this Listing represents
+			// 11 {string}  &listing_mcid    	The Minecraft Item ID that this Listing represents
+			// 12 {number}  #listing_data    	The Data Value of the Item that this Listing represents
+			// 13 {number}  #listing_stack   	The Stack Size of the Item that this Listing represents
+			// 14 {number}  &listing_buyers  	The UUID(s) of the Player that purchased this Listing, tilde (~) separated, or 'NULL' if no buyers.
+			// 15 {number}  #listing_end_time	The Timestamp of when this Auction will end.
+		// Example:
+			//	&listing_info[]    = auctionsGetListingInfo(%&auction_id%,%force%);
+			//	listing_hit       := %&listing_info[0]%;
+			//	&listing_id        = %&listing_info[1]%;
+			//	&listing_type      = %&listing_info[2]%;
+			//	#listing_price    := %&listing_info[3]%;
+			//	#listing_bids     := %&listing_info[4]%;
+			//	listing_ended     := %&listing_info[5]%;
+			//	listing_claimed   := %&listing_info[6]%;
+			//	&listing_owner     = %&listing_info[7]%;
+			//	&listing_profile   = %&listing_info[8]%;
+			//	&listing_sbid      = %&listing_info[9]%;
+			//	&listing_name      = %&listing_info[10]%;
+			//	&listing_mcid      = %&listing_info[11]%;
+			//	#listing_data     := %&listing_info[12]%;
+			//	#listing_stack    := %&listing_info[13]%;
+			//	&listing_buyers    = %&listing_info[14]%;
+			//	#listing_end_time := %&listing_info[15]%;
+	function auctionsGetListingInfo(&auction_id,force=false);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9auctionsGetListingInfo&7";
+			debug_log(%debug%,%&script_debug_name%,"Getting Listing Info, &&auction_id: '&d%&auction_id%&7'.");
+		endif;
+		
+		// If we were provided with the Auction's ID, attempt to hit Cache with it.
+		if(%&auction_id% != "");
+			if(!%force%);
+				debug_log(%debug%,%&script_debug_name%,"Checking Cache for &&auction_id");
+				&cache_data[]  = auctionsCheckCache("ID: %&auction_id%");
+				cache_hit     := %&cache_data[0]%;
+				if(%cache_hit%);
+					return_hit        = true;
+					&return_id        = %&cache_data[1]%;
+					&return_type      = %&cache_data[2]%;
+					#return_price    := %&cache_data[3]%;
+					#return_bids     := %&cache_data[4]%;
+					return_ended     := %&cache_data[5]%;
+					return_claimed   := %&cache_data[6]%;
+					&return_owner     = %&cache_data[7]%;
+					&return_profile   = %&cache_data[8]%;
+					&return_sbid      = %&cache_data[9]%;
+					&return_name      = %&cache_data[10]%;
+					&return_mcid      = %&cache_data[11]%;
+					#return_data     := %&cache_data[12]%;
+					#return_stack    := %&cache_data[13]%;
+					&return_buyers    = %&cache_data[14]%;
+					#return_end_time := %&cache_data[15]%;
+				endif;
+			else;
+				debug_log(%debug%,%&script_debug_name%,"Skipping cache for &&auction_id (force is true)");
+			endif;
+			
+			if(!%cache_hit%);
+				debug_log(%debug%,%&script_debug_name%,"Did not hit Cache for &&auction_id, hitting API.");
+				&api_data[]       = auctionsGetListingInfoFromAPI("ID: %&auction_id%");
+				api_hit          := %&api_data[0]%;
+				&return_id        = %&api_data[1]%;
+				&return_type      = %&api_data[2]%;
+				#return_price    := %&api_data[3]%;
+				#return_bids     := %&api_data[4]%;
+				return_ended     := %&api_data[5]%;
+				return_claimed   := %&api_data[6]%;
+				&return_owner     = %&api_data[7]%;
+				&return_profile   = %&api_data[8]%;
+				&return_sbid      = %&api_data[9]%;
+				&return_name      = %&api_data[10]%;
+				&return_mcid      = %&api_data[11]%;
+				#return_data     := %&api_data[12]%;
+				#return_stack    := %&api_data[13]%;
+				&return_buyers    = %&api_data[14]%;
+				#return_end_time := %&api_data[15]%;
+				
+				if(%api_hit%);
+					debug_log(%debug%,%&script_debug_name%,"Got a valid hit from API for &&auction_id!");
+					return_hit = true;
+				else;
+					debug_error(%debug%,%&script_debug_name%,"Got no hit for &&auction_id from API, reading out &&api_data[] Array...");
+					&vars[] = split(" ","api_hit &return_id &return_type #return_price #return_bids return_ended return_claimed &return_owner &return_profile &return_sbid &return_name &return_mcid #return_data #return_stack &return_buyers");
+					foreach(&vars[],&var,#v);
+						&val    = "%%&var%%";
+						&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+						&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+						debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+					next;
+					// debug_breakpoint(%debug%,%&script_debug_name%,"Waiting for review...");
+					debug_error(%debug%,%&script_debug_name%,"Waiting for review...");
+				endif;
+			endif;
+		endif;
+		
+		// If we haven't hit anything yet, try to get the Listing Data of whatever GUI we are currently in.
+		if(!%return_hit%);
+			debug_log(%debug%,%&script_debug_name%,"Haven't hit Cache or API yet, will try to get Data from GUI if we are in a GUI...");
+			&listing_username_expr = "(?:\[.*?\] )?(\w{3,16})";
+			&coins_expr            = "([\d,]+) coins";
+			#listing_item_slot     = 13;
+			do;
+				if((%GUI% == "GUICHEST") && ((%CONTAINERNAME% == "Auction View") || (%CONTAINERNAME% == "BIN Auction View")));
+					&listing_item = getslotitemnbt(%#listing_item_slot%,,#listing_stack,#listing_data,&listing_nbt);
+					&listing_nbt  = strip(%&listing_nbt%);
+					if(%&listing_item% != "air");
+						ifnotmatches(%&listing_nbt%,"Seller: Refreshing");
+							&cache_data[]  = auctionsIndexSlotData(%#listing_item_slot%,%force%);
+							debug_log(%debug%,%&script_debug_name%,"got return from auctionsCheckCache");
+							cache_hit     := %&cache_data[0]%;
+							if(%cache_hit%);
+								return_hit        = true;
+								&return_id        = %&cache_data[1]%;
+								&return_type      = %&cache_data[2]%;
+								#return_price    := %&cache_data[3]%;
+								#return_bids     := %&cache_data[4]%;
+								return_ended     := %&cache_data[5]%;
+								return_claimed   := %&cache_data[6]%;
+								&return_owner     = %&cache_data[7]%;
+								&return_profile   = %&cache_data[8]%;
+								&return_sbid      = %&cache_data[9]%;
+								&return_name      = %&cache_data[10]%;
+								&return_mcid      = %&cache_data[11]%;
+								#return_data     := %&cache_data[12]%;
+								#return_stack    := %&cache_data[13]%;
+								&return_buyers    = %&cache_data[14]%;
+								#return_end_time := %&cache_data[15]%;
+							endif;
+							break;
+						endif;
+					endif;
+				else;
+					break;
+				endif;
+				
+				wait("1t");
+			while((%GUI% == "GUICHEST") && ((%CONTAINERNAME% == "Auction View") || (%CONTAINERNAME% == "BIN Auction View")));
+		endif;
+		
+		&return_vars[] = split(", ","return_hit, &return_id, &return_type, #return_price, #return_bids, return_ended, return_claimed, &return_owner, &return_profile, &return_sbid, &return_name, &return_mcid, #return_data, #return_stack, &return_buyers, #return_end_time");
+		debug_log(%debug%,%&script_debug_name%,"returning the following array:");
+		foreach(&return_vars[],&var,#v);
+			&val    = "%%&var%%";
+			&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+			&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+			debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+		next;
+		if(%debug%); log(" "); endif;
+		
+		foreach(&return_vars[],&return_var,#rvi);
+			&return_array[%#rvi%] = %%&return_var%%;
+		next;
+		return(&return_array[]);
+	endfunction;
+	
+	// Clears all Auction Cache Arrays.
+	function auctionsClearCache();
+		&identifier_prefixes[] = split(", ","ID, TYPE, PRICE, BIDS, ENDED, CLAIMED, OWNER, PROFILE, SBID, NAME, MCID, DATA, STACK, BUYER, END_TIME");
+		&identifier_types[]    = split(", ","string, string, number, number, boolean, boolean, string, string, string, string, string, number, number, string, number");
+		&map_type_terms[]      = split(", ","string, number, boolean");
+		&map_type_prefixes[]   = split(", ","&, #, ");
+		foreach(&identifier_prefixes[],&identifier_term,#ip);
+			&identifier_type = %&identifier_types[%#ip%]%;
+			if(%&identifier_type% == "string");
+				&array_pointer = lcase("@&cached_listing_%&identifier_term%[]");
+			elseif(%&identifier_type% == "number");
+				&array_pointer = lcase("@#cached_listing_%&identifier_term%[]");
+			elseif(%&identifier_type% == "boolean");
+				&array_pointer = lcase("@cached_listing_%&identifier_term%[]");
+			endif;
+			
+			log("Unsetting array pointer: %&identifier_term%");
+			unset(%&array_pointer%);
+		next;
+	endfunction;

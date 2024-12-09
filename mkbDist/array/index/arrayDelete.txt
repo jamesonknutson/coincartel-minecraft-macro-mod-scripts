@@ -1,0 +1,31 @@
+//! @mkb-import-begin
+    // array/index/arrayDelete
+        // Removes the Element at <#index> from <&array[]> (different from calling unset, completely clears the entry from the Array).
+            // Params:
+            //        {array} <&array[]>    The Array to unset the specified index from.
+            //        {number} <#index>     The Index to unset in the Source Array. If negative, will be taken
+            //                              as an offset from the end of the Array (i.e. -1 = array.length - 1).
+            //                              If the Index is greater than the length of the Source Array, no element
+            //                              will be removed.
+        function arrayDelete(&array[],#index);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:295
+            #array_size = arraysize(&array[]);
+            #array_len  = #array_size - 1;
+            if(%#array_size% == 0);
+                return(&array[]);
+            else;
+                if(%#index% < 0);
+                    #index = #array_len + #index;
+                endif;
+                
+                if((%#index% >= 0) && (%#index% <= %#array_len%));
+                    foreach(&array[],&element,#i);
+                        if(%#i% != %#index%);
+                            &out_array[] = %&element%;
+                        endif;
+                    next;
+                endif;
+            endif;
+            return(&out_array[]);
+        endfunction;
+//! @mkb-import-end

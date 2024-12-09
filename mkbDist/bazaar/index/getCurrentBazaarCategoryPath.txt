@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // bazaar/index/getCurrentBazaarCategoryPath
+        // Finds the Currently Selected Bazaar Category's Path.
+            // Params: None
+            // Returns the JSON dot-separated path of the Category that is currently selected, or "NONE" if not found.
+        function getCurrentBazaarCategoryPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:463
+            &return_string = "NONE";
+            for(#i,0,4);
+                &container_expr = jsonget("holds.%#i%.button.exp_container",%@&mkb_baz_json%);
+                ifmatches(%CONTAINERNAME%,%&container_expr%);
+                    &return_string = "holds.%#i%";
+                    break;
+                endif;
+            next;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

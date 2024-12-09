@@ -1,0 +1,38 @@
+//! @mkb-import-begin
+    // api/index/getHypixelAPIRequestLimit
+        // Gets the limiting variables for the current Player.
+            // Params:
+            //        None
+            //
+            // Returns an Array:
+            //        0 <integer> #reqs_in_last_min : Total requests in the last 60 seconds.
+            //        1 <integer> #reqs_avail_now   : Total requests available now before hitting throttle.
+            //        2 <integer> #wait_timestamp   : Timestamp to wait till before making the next request to avoid being throttled.
+        function getHypixelAPIRequestLimit();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/api/index.txt:45
+            &script_debug_name = "&9getHypixelAPIRequestLimit&7";
+            debug              = true;
+            #max_req_per_min   = 120;
+        
+            #api_reqs = arraysize(@#api_req_ts[]);
+            if(%#api_reqs% >= 1);
+                #array_end = %#api_reqs% - 1;
+                for(#i,%#array_end%,0);
+                    #api_req_ts  = %@#api_req_ts[%#i%]%;
+                    #elapsed_sec = %TIMESTAMP% - %#api_req_ts%;
+                    if(%#elapsed_sec% <= 120);
+                        #save_timestamps[] = %#api_req_ts%;
+                    endif;
+                next;
+        
+                unset(@#api_req_ts[]);
+                push(@#api_req_ts[],#save_timestamps[*]);
+        
+            endif;
+        
+            #reqs_in_last_min = arraysize(#save_timestamps[]);
+            #reqs_avail_now   = 120 - %#reqs_in_last_min%;
+            #wait_timestamp   = %TIMESTAMP% + ((%#reqs_in_last_min% - 120) / 2);
+            return(%#reqs_in_last_min%,%#reqs_avail_now%,%#wait_timestamp%);
+        endfunction;
+//! @mkb-import-end

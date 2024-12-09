@@ -1,0 +1,193 @@
+//! Part A: Optional -- only done if the Customer does not have enough Coins to purchase Legendary Assassin Helmet
+	//	1.	Join Customer Party, warp to Customer, trade Customer 1M coins
+	//	2.	Customer buys 'Shadow Goggles' from Auction House, lists Item for 2.5M coins
+	//	3.	Bot buys Shadow Goggles from Customer's Listing
+//! Part B:
+	//	1.	Customer buys 'Legendary Assassin Helmet' from Auction House
+	//	2.	Customer lists Legendary Assassin Helmet for <CREDITS> amount of Coins (BIN)
+	//	3.	Bot purchases Legendary Assassin Helmet from Customer's Listing
+	//	4.	Bot deducts the amount of Coins delivered/spent, voila
+
+// delivery/squidlerRoute_LEGENDARY_ASSASSIN_HELMET.txt
+	// Handles a Delivery Event with the "Legendary Assassin Helmet" Method.
+		// Params:
+			// {string} <&key>         	The Delivery Key used in this Delivery Event.
+			// {string} <&qty_total>   	Total amount of Credits ever held on this Key.
+			// {string} <&qty_remain>  	Remaining amount of Credits held on this Key.
+			// {string} <&user_uuid>   	Minecraft UUID of the Player we are delivering to.
+			// {string} <&user_discord>	Discord Tag of the Player we are delivering to.
+		// Returns a Boolean indicating whether or not the Delivery succeeded.
+		// Example:
+			//	delivery_state = deliveryRouteLegendaryAssassinHelmet(%&key%,%&qty_total%,%&qty_remain%,%&user_uuid%,%&user_discord%);
+	function deliveryRouteLegendaryAssassinHelmet(&key,&qty_total,&qty_remain,&user_uuid,&user_discord);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6deliveryRoute&7[LAH]";
+			#timeout_sec       = 300;
+			#tick_wait         = 20;
+			do_timeout         = true;
+			#start_time        = %TIMESTAMP%;
+			&purse_coins       = getPurse();
+			&credit_ratio      = "1000000";
+			&purse_credits     = xEval("%&purse_coins% / %&credit_ratio%",true);
+			purse_gte_remain   = _gte(%&purse_credits%,%&qty_remain%);
+			allow_command      = true;
+			refill_coins       = true;
+			if(%purse_gte_remain%);
+				&deliver_credits = %&qty_remain%;
+			else;
+				&deliver_credits = %&purse_credits%;
+			endif;
+			
+			&deliver_coins = xEval("%&deliver_credits% * %&credit_ratio%");
+			
+			// Validate Player
+			if(true);
+				&player_profile[] = getMinecraftProfile(%&user_uuid%);
+				player_found     := %&player_profile[0]%;
+				if(!%player_found%);
+					debug_error(%debug%,%&script_debug_name%,"Could not resolve &&player_name='&4%&player_name%&7' to any known Player!");
+					return(&return_array[]);
+				endif;
+				
+				&player_name = %&player_profile[1]%;
+			endif;
+		endif;
+		
+		// Setup the Steps required for this Delivery
+		if(true);
+			&d_coins_metric = number(%&deliver_coins%,"F:M","P:S");
+			
+			&d_title[]    = "1. Purchase 'Legendary Assassin Helmet' from AH";
+			&d_message[]  = "Make sure to purchase one of Legendary Rarity. Just purchase the cheapest one you can find that is Legendary.";
+			d_clickable[] = true;
+			d_complete[]  = false;
+			
+			&d_title[]    = "2. List that Item on AH for %&d_coins_metric% Coins";
+			&d_message[]  = "This step will become clickable once the Bot detects that you have listed the Auction.";
+			d_clickable[] = false;
+			d_complete[]  = false;
+			
+			&d_title[]    = "3. Enjoy your Coins and leave a review :)";
+			&d_message[]  = "Thank you for flying Coinopoly Airlines.";
+			d_clickable[] = true;
+			d_complete[]  = false;
+			
+			#latest_step_index = getlaststep(%&key%);
+			
+			foreach(&d_title[],&d_title,#dt);
+				&d_message  = %&d_message[%#dt%]%;
+				d_clickable = %d_clickable[%#dt%]%;
+				d_complete  = %d_complete[%#dt%]%;
+				
+				if(%#dt% > %#latest_step_index%);
+					step_created = newstep(%&key%,%&d_title%,%&d_message%);
+					if(!%step_created%);
+						debug_error(%debug%,%&script_debug_name%,"Failed to create step index %#dt% (title '&d%&d_title%&7', message '&d%&d_message%&7')!");
+						return_early   = true;
+						return_boolean = false;
+						break;
+					endif;
+					
+					wait("1000ms");
+				endif;
+				step_edited = editstep(%&key%,%#dt%,%&d_title%,%&d_message%,%d_complete%,%d_clickable%);
+				if(!%step_edited%);
+					debug_error(%debug%,%&script_debug_name%,"Failed to edit step index %#dt% (title '&d%&d_title%&7', message '&d%&d_message%&7')!");
+					return_early   = true;
+					return_boolean = false;
+					break;
+				endif;
+				
+				wait("1000ms");
+			next;
+			
+			if(%return_early%);
+				debug_log(%debug%,%&script_debug_name%,"Returning boolean &d%return_boolean%&7.");
+				return(%return_boolean%);
+			endif;
+		endif;
+		
+		// Wait until the Item becomes available on the Auction House for this Player.
+		if(true);
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						return_early = true;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if the Customer has listed the Auction yet.
+				if(true);
+					localGUI("NONE");
+					#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&player_listings[]  = auctionsIndexPlayer(%&player_name%,%#tick_wait%,%#recursive_timeout%);
+					#player_listings_sz = arraysize(&player_listings[]);
+					debug_log(%debug%,%&script_debug_name%,"Found &d%#player_listings_sz%&7 listings for &d%&player_name%&7.");
+					foreach(&player_listings[],&player_listing,#pli);
+						&listing_info[]  = split("|",%&player_listing%);
+						listing_hit     := %&listing_info[0]%;
+						if(%listing_hit%);
+							&listing_id    = %&listing_info[1]%;
+							#invalid_index = indexof(&invalid_ids[],,%&listing_id%);
+							if(%#invalid_index% == -1);
+								&listing_type    = %&listing_info[2]%;
+								#listing_price  := %&listing_info[3]%;
+								listing_ended   := %&listing_info[5]%;
+								listing_claimed := %&listing_info[6]%;
+								&listing_sbid    = %&listing_info[9]%;
+								listing_valid    = ((%&listing_type% == "BIN") && (!%listing_ended%) && (!%listing_claimed%) && (%&listing_sbid% == "STARRED_SHADOW_ASSASSIN_HELMET"));
+								&vars[]          = split(" ","&listing_type #listing_price listing_ended listing_claimed &listing_sbid listing_valid");
+								foreach(&vars[],&var,#v);
+									&val	= "%%&var%%";
+									&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+									&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+									debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+								next;
+								if(%debug%); log(" "); endif;
+								
+								if(!%listing_valid%);
+									debug_error(%debug%,%&script_debug_name%,"Listing &d%&listing_id%&7 is invalid.");
+									&invalid_ids[] = %&listing_id%;
+								else;
+									debug_log(%debug%,%&script_debug_name%,"Listing &d%&listing_id%&7 may be valid!");
+									price_eq = _eq(%#listing_price%,%&deliver_coins%);
+									if(%price_eq%);
+										#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+										&auction_bid_placed = auctionsPlaceBid(%&listing_id%,,%refill_coins%,%allow_command%,%#tick_wait%,%#recursive_timeout%);
+										if(%&auction_bid_placed% == "SUCCESS");
+											return_boolean = true;
+										else;
+											debug_error(%debug%,%&script_debug_name%,"Failed to purchase Listing (error code: &4%&auction_bid_placed%&7).");
+											return_early = true;
+										endif;
+									else;
+										debug_error(%debug%,%&script_debug_name%,"Price for Auction &d%&listing_id%&7 (SBID: &e%&listing_sbid%&7) is %#listing_price% coins, we are only delivering &d%&deliver_coins%&7 coins. Invalid.");
+										&invalid_ids[] = %&listing_id%;
+									endif;
+								endif;
+							endif;
+						else;
+							debug_error(%debug%,%&script_debug_name%,"Listing ID is not valid!");
+						endif;
+					next;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until((%return_early%) || (%return_boolean%));
+		endif;
+		
+		if(%return_boolean%);
+			editstep(%&key%,2,%&d_title[2]%,%&d_message[2]%,true,true);
+			markdelivered(%&key%,%&deliver_credits%);
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning boolean '&d%return_boolean%&7'.");
+		return(%return_boolean%);
+	endfunction;

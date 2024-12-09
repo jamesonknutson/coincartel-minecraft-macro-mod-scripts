@@ -1,0 +1,106 @@
+//! @mkb-import-begin
+    // autosetup/index/inHazardousRange
+        // Checks if the specified X/Y/Z position is found within a known Hazardous Range and/or is a Hazardous Position.
+            // Params:
+                // {number} <#x>                     The X position to check if found within a Hazardous Range
+                // {number} <#y>                     The Y position to check if found within a Hazardous Range
+                // {number} <#z>                     The Z position to check if found within a Hazardous Range
+                // {string} [&hazard_positions[]]    An Array of X|Y|Z coordinate strings that hold Hazardous Positions. If
+                //                                   not provided will only check against known Hazardous Ranges.
+                // {boolean} [check_blocks=true]     Whether or not to check if the position has an interactive block (i.e. chest) on it.
+                //                                   If the block is interactive, will return true. Set this to false if we are doing a
+                //                                   left click interaction.
+                // {boolean} [check_ranges=true]     Whether or not to check if the position is within a known Hazardous Range,
+                //                                   or just the [&hazard_positions[]] Array.
+            // Returns a Boolean indicating whether or not the Position was found within a Hazardous Range.
+        function inHazardousRange(#x,#y,#z,&hazard_positions[],check_blocks=true,check_ranges=true,&allow_blocks[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:350
+            // Hazardous Area Ranges -- right or left clicking while the cursor is against any position within a range's
+            // minimum and maximum coordinate bounds will result in entering a bad GUI.
+            if(%check_ranges%);
+                // Auction House Walls
+                if(true);
+                    // South - min: -39|72|-87, max: -29|78|-84
+                    #hazard_min_x[] = -39;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -87;
+                    #hazard_max_x[] = -29;
+                    #hazard_max_y[] = 78;
+                    #hazard_max_z[] = -84
+                    
+                    // North - min: -39|72|-98, max: -29|77|-95
+                    #hazard_min_x[] = -39;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -98;
+                    #hazard_max_x[] = -29;
+                    #hazard_max_y[] = 77;
+                    #hazard_max_z[] = -95;
+                    
+                    // West - min: -48|72|-93, max: -46|73|-89
+                    #hazard_min_x[] = -48;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -93;
+                    #hazard_max_x[] = -46;
+                    #hazard_max_y[] = 73;
+                    #hazard_max_z[] = -89;
+                endif;
+                
+                // Community Building Walls
+                if(true);
+                    // West - min: -5|73|-111, max: -3|75|-107
+                    #hazard_min_x[] = -5;
+                    #hazard_min_y[] = 73;
+                    #hazard_min_z[] = -111;
+                    #hazard_max_x[] = -3;
+                    #hazard_max_y[] = 75;
+                    #hazard_max_z[] = -107;
+                endif;
+                
+                // Bank Vault Walls
+                if(true);
+                    // West - min: -30|71|-64, max: -28|74|-60
+                    #hazard_min_x[] = -30;
+                    #hazard_min_y[] = 71;
+                    #hazard_min_z[] = -64;
+                    #hazard_max_x[] = -28;
+                    #hazard_max_y[] = 74;
+                    #hazard_max_z[] = -60;
+                endif;
+                
+                foreach(#hazard_min_x[],#min_x,#i);
+                    #min_y = %#hazard_min_y[%#i%]%;
+                    #min_z = %#hazard_min_z[%#i%]%;
+                    #max_x = %#hazard_max_x[%#i%]%;
+                    #max_y = %#hazard_max_y[%#i%]%;
+                    #max_z = %#hazard_max_z[%#i%]%;
+                    
+                    if((%#x% >= %#min_x%) && (%#x% <= %#max_x%) && (%#y% >= %#min_y%) && (%#y% <= %#max_y%) && (%#z% >= %#min_z%) && (%#z% <= %#max_z%));
+                        in_hazardous_range = true;
+                        break;
+                    else;
+                        log("%#i% > Not in hazardous range")
+                    endif;
+                next;
+                
+                if(%in_hazardous_range%);
+                    return(%in_hazardous_range%);
+                endif;
+            endif;
+            
+            // Check if the block at x, y, z is hazardous, if we need to.
+            if(%check_blocks%);
+                &interactive_blocks[] = split(", ","anvil, beacon, bed, brewing_stand, chest, crafting_table, enchanting_table, ender_chest, furnace, item_frame, jukebox, sign");
+                &found_block          = xgetid(%#x%,%#y%,%#z%);
+                #interactive_index    = indexof(&interactive_blocks[],,%&found_block%);
+                in_hazardous_range    = %#interactive_index% != -1;
+                if(%in_hazardous_range%);
+                    return(%in_hazardous_range%);
+                endif;
+            endif;
+            
+            &check_string      = "%#x%|%#y%|%#z%";
+            #check_index       = indexof(&hazard_positions[],,%&check_string%);
+            in_hazardous_range = #check_index != -1;
+            return(%in_hazardous_range%);
+        endfunction;
+//! @mkb-import-end

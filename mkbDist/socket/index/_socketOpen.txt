@@ -1,0 +1,50 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // socket/index/_socketOpen
+        // Opens up a Socket Connection to the Specified URL.
+            // Params:
+                // {string} <&socket_name>                  The Name to assign to the Socket. Must be Unique and not already in use.
+                // {string} <&socket_url>                   The Socket URL to connect to (e.g. wss://socket.coincartel.io)
+                // {boolean} [include_auth_headers=true]    Whether or not to include the Authentication Headers ('X-MC-UUID', 'X-MC-HWID') in the Request.
+                // {string} [&custom_headers]               An optional JSON Object of key:value Headers to use in the Connection Request.
+        function _socketOpen(&socket_name,&socket_url,include_auth_headers=true,&custom_headers);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/socket/index.txt:7
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6_socketOpen";
+                
+                &vars[]            = split(" ","&socket_name &socket_url include_auth_headers &custom_headers");
+                foreach(&vars[],&var,#v);
+                    &val    = "%%&var%%";
+                    &logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+                    &logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+                    debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+                next;
+                if(%debug%); log(" "); endif;
+            endif;
+            
+            &return_string = socketOpen(%&socket_name%,%&socket_url%,%include_auth_headers%,%&custom_headers%);
+            debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'.");
+            return(%&return_string%)
+        endfunction;
+//! @mkb-import-end

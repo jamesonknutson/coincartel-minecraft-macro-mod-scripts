@@ -1,0 +1,21 @@
+//! @mkb-import-begin
+    // info/index/getScoreboardSkyBlockArea
+        // Attempts to read the Scoreboard to find the Player's AREA on Hypixel SkyBlock (i.e. 'Private Island', 'Hub', 'Bank', etc).
+            // Params:
+            //      None
+            //
+            // Returns the string found on the Scoreboard following the Gem Character, or "-1" if not able to be parsed.
+        function getScoreboardSkyBlockArea();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:456
+            &return_string = -1;
+            foreach("teams");
+                &joint_team = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                &joint_team = trim(%&joint_team%);
+                &joint_team = regexreplace(&joint_team,"^\s*","");
+                ifmatches(%&joint_team%,"\u23E3 (.+)",&found_area,1);
+                    &return_string = %&found_area%;
+                endif;
+            next;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

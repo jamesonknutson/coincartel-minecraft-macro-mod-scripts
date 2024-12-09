@@ -1,0 +1,20 @@
+	// Sums an Array of Numbers into one Number.
+		// Params:
+			// {number} <#numbers[]>   	The Numbers to Sum
+			// {number} [...#numbers[]]	Additional Numbers to Sum
+		// Returns:
+			// {number} #summed_number	The Summed Figure of all The Numbers
+			//
+		// Example:
+			// #sum_numbers[] = split(", ","1, 2, 3");
+			// #summed_number = sumNumbers(#sum_numbers[],5,5);
+			// log("%#summed_number%"); // '16'
+	function sumNumbers(#sum_numbers[],...#numbers[]);
+		foreach(#sum_numbers[],#sum_number,#sn);
+			#return_number = %#return_number% + %#sum_number%;
+		next;
+		foreach(#numbers[],#number,#n);
+			#return_number = %#return_number% + %#number%;
+		next;
+		return(%#return_number%);
+	endfunction;

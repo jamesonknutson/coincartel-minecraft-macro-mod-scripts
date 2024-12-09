@@ -1,0 +1,55 @@
+// movement/center.txt
+	// Returns a rough mapping of Movement Keys to their affect on the X/Z Axes.
+		// Returns an Array:
+			// {string} &px	String ENUM of forward, back, left, right that maps to movement in the positive X axis
+			// {string} &nx	String ENUM of forward, back, left, right that maps to movement in the negative X axis
+			// {string} &pz	String ENUM of forward, back, left, right that maps to movement in the positive Z axis
+			// {string} &nz	String ENUM of forward, back, left, right that maps to movement in the negative Z axis
+	function getDirKeys();
+		if(%DIRECTION% == "N");
+			&px = "right";
+			&nx = "left";
+			&pz = "back";
+			&nz = "forward";
+		elseif(%DIRECTION% == "E");
+			&px = "forward";
+			&nx = "back";
+			&pz = "right";
+			&nz = "left";
+		elseif(%DIRECTION% == "S");
+			&px = "left";
+			&nx = "right";
+			&pz = "forward";
+			&nz = "back";
+		elseif(%DIRECTION% == "W");
+			&px = "back";
+			&nx = "forward";
+			&pz = "left";
+			&nz = "right";
+		endif;
+		return(%&px%,%&nx%,%&pz%,%&nz%);
+	endfunction;
+	
+	// Centers the Bot to the middle of a Block.
+		// Params:
+			// {number} [#max_offset=50]  	Thousandths of a block from the Center Point to accept as being
+			//                            	within the acceptable range of error. E.g., 50 = 0.050 (trying to center to 1.000, 1.000 -> 1.450|1.550, 1.450|1.550).
+			// {number} [#center_x=%XPOS%]	The X Coordinate to Center the Bot to
+			// {number} [#center_z=%ZPOS%]	The Z Coordinate to Center the Bot to
+		// Returns a Boolean indicating whether or not the Bot was able to be Centered.
+		// Example:
+			//	bot_centered = center();
+	function center(#max_offset=50,#center_x=%XPOS%,#center_z=%ZPOS%);
+		#cen_xk = %#center_x% * 1000;
+		#cen_zk = %#center_z% * 1000;
+		#min_xk = %#cen_xk% + (500 - %#max_offset%);
+		#max_xk = %#cen_xk% + (500 + %#max_offset%);
+		#min_zk = %#cen_zk% + (500 - %#max_offset%);
+		#max_zk = %#cen_zk% + (500 + %#max_offset%);
+		do;
+			&x     = %XPOSF%;         &z  = %ZPOSF%;
+			#xk    = replace(&x,"."); #zk = replace(&z,".");
+			#angle = xEval("arctan((%#cen_zk% - %#zk%)/(%#cen_xk% - %#xk%))");
+		until(%centered%);
+		return(%centered%);
+	endfunction;

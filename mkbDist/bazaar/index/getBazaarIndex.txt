@@ -1,0 +1,24 @@
+//! @mkb-import-begin
+    // bazaar/index/getBazaarIndex
+        // Given a Search Term (Display Name or SBID), searches for the specified Product in @&mkb_baz_sbids & @&mkb_baz_names. If a Product
+        // is found, it's Index is returned. If not, -1 is returned.
+            // Params:
+                // {string} <&search_term>    The Product's Display Name or SBID to search up.
+                //
+            // Returns the Index of the Search Term in the @&mkb_baz_[sbids|names|paths] Arrays, or -1 if it is not found.
+        function getBazaarIndex(&search_term);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:128
+            #sbid_index = indexof(@&mkb_baz_sbids[],,%&search_term%);
+            if(%#sbid_index% != -1);
+                return(%#sbid_index%);
+            endif;
+            
+            #name_index = indexof(@&mkb_baz_names[],,%&search_term%);
+            if(%#name_index% != -1);
+                return(%#name_index%);
+            endif;
+            
+            #path_index = indexof(@&mkb_baz_paths[],,%&search_term%);
+            return(%#path_index%);
+        endfunction;
+//! @mkb-import-end

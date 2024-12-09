@@ -1,0 +1,552 @@
+// autosetup
+	// ❌ recover_main
+	// ❌ refresh_and_execute
+	// ❌ upgrade_farming_drops
+	// ❌ upgrade_hoe
+	// ✅ anita_find_medals => countMedals
+	// ✅ jacob_find_medals => countMedals
+	// ❌ anita_purchase
+	// ❌ swap_medals
+	// ❌ find_hoe_state
+	// ❌ index_jacob_rewards
+	// ❌ collect_jacob
+	// ❌ setup_pet
+	// ❌ setup_personal_compactor
+	// ❌ setup_rancher_boots
+
+// autosetup/index.txt
+	// Finds the amount of Medals in the Inventory.
+		// Params:
+			//	{boolean} [use_api=true]	Whether or not to allow the usage of the API to find the amount of Medals.
+			//	                        	Sometimes, API can be inaccurate, esp. when we have just changed the amount of
+			//	                        	Medals we have in our inventory (either via collecting rewards or by spending/swapping
+			//	                        	them).
+		// Returns: Array
+			//	0 {number} #bronze_medals	The amount of Bronze Medals in the Inventory.
+			//	1 {number} #silver_medals	The amount of Silver Medals in the Inventory.
+			//	2 {number} #gold_medals  	The amount of Gold Medals in the Inventory.
+		// Example:
+			//	#inv_medals[]  = countMedals();
+			//	#bronze_medals = %#inv_medals[0]%;
+			//	#silver_medals = %#inv_medals[1]%;
+			//	#gold_medals   = %#inv_medals[2]%;
+	function countMedals(use_api=true);
+		// If we can use API, try to use API first.
+		if(%use_api%);
+			&active_profile[]       = getActiveProfile(%UUID%,%@&api_key%,true);
+			active_profile_success := %&active_profile[0]%;
+			if(%active_profile_success%);
+				&skyblock_profile = %&active_profile[1]%;
+				#bronze_medals    = jsonget("jacob2.medals_inv.bronze",%&skyblock_profile%);
+				#silver_medals    = jsonget("jacob2.medals_inv.silver",%&skyblock_profile%);
+				#gold_medals      = jsonget("jacob2.medals_inv.gold",%&skyblock_profile%);
+				return(%#bronze_medals%,%#silver_medals%,%#gold_medals%);
+			endif;
+		endif;
+		
+		// If we could not use API, or API failed, go in-person to Jacob to get the info we need.
+		if(true);
+			in_jacob_gui = goto("JACOB",true);
+			if(%in_jacob_gui%);
+				#wheat_slot = 15;
+				&item_id    = getslotitemnbt(%#wheat_slot%,,#item_stack,#item_data,&item_nbt);
+				&item_nbt   = strip(%&item_nbt%);
+				match(%&item_nbt%,"Bronze medals: (\d+)",#bronze_medals,1,0);
+				match(%&item_nbt%,"Silver medals: (\d+)",#silver_medals,1,0);
+				match(%&item_nbt%,"Gold medals: (\d+)",#gold_medals,1,0);
+				return(%#bronze_medals%,%#silver_medals%,%#gold_medals%);
+			endif;
+		endif;
+		
+		return(0,0,0);
+	endfunction;
+	
+	function getUniqueGoldMedals(use_api=true);
+	endfunction;
+	
+	// Gets the Level of the Current Profile's Anita Upgrades.
+		// Params:
+			//	{boolean} [use_api=true]	Whether or not to allow the usage of API requests to determine
+			//	                        	the result.
+		// Returns an Array:
+			//	0	{number} #double_drops	The amount of Double Drop upgrades purchased
+			//	1	{number} #farming_cap 	The amount of Farming Cap upgrades purchased
+		// Example:
+			//	#anita_upgrades[] = getAnitaUpgrades();
+			//	#double_drops     = %#anita_upgrades[0]%;
+			//	#farming_cap      = %#anita_upgrades[1]%;
+	function getAnitaUpgrades(use_api=true);
+		// Attempt to get the Upgrade information from the API if we can.
+		if(%use_api%);
+			&active_profile[]       = getActiveProfile();
+			active_profile_success := %&active_profile[0]%;
+			if(%active_profile_success%);
+				&player_joint_uuid = %UUID%;
+				&player_joint_uuid = regexreplace(&player_joint_uuid,"-","");
+				&jacob_data        = jsonget("members.%&player_joint_uuid%.jacob2",%&active_profile[1]%);
+				#double_drops      = jsonget("perks.double_drops",%&jacob_data%);
+				#farming_level_cap = jsonget("perks.farming_level_cap",%&jacob_data%);
+				if(#double_drops >= 2);
+					#double_drops = %#double_drops% / 2;
+				endif;
+				return(%#double_drops%,%#farming_level_cap%);
+			endif;
+		endif;
+		
+		// If we could not find the answer from API, get it from the /viewskill FARMING GUI.
+		if(true);
+			
+		endif;
+	endfunction;
+	
+	// Purchases a Product from Anita.
+		// Params:
+			//	{string} <&product>          	String ENUM of the Product ID to purchase. Can be either Display Name
+			//	                             	or SBID. Valid values are listed below.
+			//	{number} [#quantity=1]       	Amount of the Product to purchase.
+			//	{boolean} [allow_refill=true]	Whether or not to allow the Function to refill Items from as many containers
+			//	                             	as possible (will try: enderchest, backpacks, jacob, bazaar in that order) if
+			//	                             	any items, coins, medals etc are required to purchase the specified item.
+		// Returns a Boolean indicating whether or not the function was successful.
+		// Valid Values for <&product>:
+			//	<SKYBLOCK_ID>         		<DISPLAY NAME>            	<COST>		<NOTES>												<INVENTORY_ITEM>
+			//	INFINIDIRT_WAND       		InfiniDirt™ Wand          	1J    		
+			//	PRISMAPUMP            		Prismapump x4             	1B + 2J
+			//	HOE_OF_GREAT_TILLING  		Hoe of Great Tilling      	1B + 5J
+			//	HOE_OF_GREATER_TILLING		Hoe of Greater Tilling    	1S + 10J
+			//	BASKET_OF_SEEDS       		Basket of Seeds           	2S + 30J
+			//	NETHER_WART_POUCH     		Nether Wart Pouch         	2S + 30J
+			//	ENCHANTED_BOOK        		Enchanted Book            	2S + 32J	Delicate 5 / Delicate V
+			//	THEORETICAL_HOE       		Mathematical Hoe Blueprint	1G + 32J	Display in Inventory as Wooden Hoe SBID 'THEORETICAL_HOE'.
+			//	INK_SACK:3            		Coco Chopper              	1G + 32J	Display in Inventory as Golden Axe SBID 'COCO_CHOPPER'.
+			//	MELON                 		Melon Dicer               	1G + 32J	Display in Inventory as Diamond Axe SBID 'MELON_DICER'.
+			//	PUMPKIN               		Pumpkin Dicer             	1G + 32J	Display in Inventory as Golden Axe SBID 'PUMPKIN_DICER'.
+			//	HUGE_MUSHROOM_2       		Fungi Cutter              	1G + 32J	Display in Inventory as Golden Hoe SBID 'FUNGI_CUTTER'.
+			//	CACTUS                		Cactus Knife              	1G + 32J	Display in Inventory as Golden Hoe SBID 'CACTUS_KNIFE'.
+			//	<NULL>                		+1 Farming Level Cap      	<VARIES>	Requires winning Gold Medals in unique collections
+			//	<NULL>                		Extra Farming Drops       	<VARIES>	
+	function anitaPurchase(&product,#quantity=1,allow_refill=true);
+		// Validate input
+		if(true);
+			// InfiniDirt Wand
+				&anita_items[] = "stick";
+				&anita_names[] = "InfiniDirt™ Wand";
+				&anita_sbids[] = "INFINIDIRT_WAND";
+				&anita_costs[] = "1J";
+			// Prismapump
+				&anita_items[] = "prismarine";
+				&anita_names[] = "Prismapump x4";
+				&anita_sbids[] = "PRISMAPUMP";
+				&anita_costs[] = "2J|1B";
+				&inv_items[]   = "prismarine";
+				&inv_names[]   = "Prismapump";
+				&inv_sbids[]   = "PRISMAPUMP";
+			// Hoe of Great Tilling
+				&anita_items[] = "stone_hoe";
+				&anita_names[] = "Hoe of Great Tilling";
+				&anita_sbids[] = "HOE_OF_GREAT_TILLING";
+				&anita_costs[] = "5J|1B";
+			// Hoe of Greater Tilling
+				&anita_items[] = "diamond_hoe";
+				&anita_names[] = "Hoe of Greater Tilling";
+				&anita_sbids[] = "HOE_OF_GREATER_TILLING";
+				&anita_costs[] = "10J|1S";
+			// Basket of Seeds
+				&anita_items[] = "skull";
+				&anita_names[] = "Basket of Seeds";
+				&anita_sbids[] = "BASKET_OF_SEEDS";
+				&anita_costs[] = "30J|2S";
+			// Nether Wart Pouch
+				&anita_items[] = "skull";
+				&anita_names[] = "Nether Wart Pouch";
+				&anita_sbids[] = "NETHER_WART_POUCH";
+				&anita_costs[] = "30J|2S";
+			// Delicate 5 Enchanted Book
+				&anita_items[] = "enchanted_book";
+				&anita_names[] = "Enchanted Book";
+				&anita_sbids[] = "ENCHANTED_BOOK";
+				&anita_costs[] = "32J|2S";
+			// Mathematical Hoe Blueprint
+				&anita_items[] = "wooden_hoe";
+				&anita_names[] = "Mathematical Hoe Blueprint";
+				&anita_sbids[] = "THEORETICAL_HOE";
+				&anita_costs[] = "32J|1G";
+			// Coco Chopper
+				&anita_items[] = "dye";
+				&anita_names[] = "Coco Chopper";
+				&anita_sbids[] = "INK_SACK:3";
+				&anita_costs[] = "32J|1G";
+				&inv_items[]   = "golden_axe";
+				&inv_names[]   = "Coco Chopper";
+				&inv_sbids[]   = "COCO_CHOPPER";
+			// Melon Dicer
+				&anita_items[] = "melon";
+				&anita_names[] = "Melon Dicer";
+				&anita_sbids[] = "MELON";
+				&anita_costs[] = "32J|1G";
+				&inv_items[]   = "diamond_axe";
+				&inv_names[]   = "Melon Dicer";
+				&inv_sbids[]   = "MELON_DICER";
+			// Pumpkin Dicer
+				&anita_items[] = "pumpkin";
+				&anita_names[] = "Pumpkin Dicer";
+				&anita_sbids[] = "PUMPKIN";
+				&anita_costs[] = "32J|1G";
+				&inv_items[]   = "golden_axe";
+				&inv_names[]   = "Pumpkin Dicer";
+				&inv_sbids[]   = "PUMPKIN_DICER";
+			// Fungi Cutter
+				&anita_items[] = "red_mushroom_block";
+				&anita_names[] = "Fungi Cutter";
+				&anita_sbids[] = "HUGE_MUSHROOM_2";
+				&anita_costs[] = "32J|1G";
+				&inv_items[]   = "golden_hoe";
+				&inv_names[]   = "Fungi Cutter";
+				&inv_sbids[]   = "FUNGI_CUTTER";
+			// Cactus Knife
+				&anita_items[] = "cactus";
+				&anita_names[] = "Cactus Knife";
+				&anita_sbids[] = "CACTUS";
+				&anita_costs[] = "32J|1G";
+				&inv_items[]   = "golden_hoe";
+				&inv_names[]   = "Cactus Knife";
+				&inv_sbids[]   = "CACTUS_KNIFE";
+			// +1 Farming Level Cap
+				&anita_items[] = "hay_block";
+				&anita_names[] = "+1 Farming Level Cap";
+				&anita_sbids[] = "";
+				&anita_costs[] = "NULL";
+			// Extra Farming Drops
+				&anita_items[] = "wheat";
+				&anita_names[] = "Extra Farming Drops";
+				&anita_sbids[] = "";
+				&anita_costs[] = "NULL";
+		
+			// Find the index of <&product> in the anita_... arrays
+			if(true);
+				#anita_name_index = indexof(&anita_names[],,%&product%);
+				#anita_sbid_index = indexof(&anita_sbids[],,%&product%);
+				#inv_name_index   = indexof(&inv_names[],,%&product%);
+				#inv_sbid_index   = indexof(&inv_sbids[],,%&product%);
+				#use_anita_index  = -1;
+				if(#anita_name_index != -1);
+					#use_anita_index = %#anita_name_index%;
+				elseif(#anita_sbid_index != -1);
+					#use_anita_index = %#anita_sbid_index%;
+				elseif((#inv_name_index != -1) || (#inv_sbid_index != -1));
+					if(#inv_name_index != -1);
+						#use_inv_index = %#inv_name_index%;
+					else;
+						#use_inv_index = %#inv_name_index%;
+					endif;
+					&inv_name        = %&inv_names[%#use_inv_index%]%;
+					#use_anita_index = indexof(&anita_names[],,%&inv_name%);
+				endif;
+				
+				if(#use_anita_index == -1);
+					debug_error(%debug%,%&script_debug_name%,"Invalid input product passed.");
+					return(False);
+				endif;
+			endif;
+			
+			&anita_item     = %&anita_items[%#use_anita_index%]%;
+			&anita_name     = %&anita_names[%#use_anita_index%]%;
+			&anita_sbid     = %&anita_sbids[%#use_anita_index%]%;
+			&anita_costs[]  = split("|",%&anita_costs[%#use_anita_index%]%);
+			special_cost    = %&anita_costs[0]% == "NULL";
+			if(%special_cost%);
+				&active_profile[]       = getActiveProfile();
+				active_profile_success := %&active_profile[0]%;
+				if(%&anita_name% == "+1 Farming Level Cap");
+					
+				elseif(%&anita_name% == "Extra Farming Drops");
+					
+				endif;
+			else;
+				#cost_bronze = 0;
+				#cost_silver = 0;
+				#cost_gold   = 0;
+				#cost_jacob  = 0;
+				foreach(&anita_costs[],&anita_cost,#aci);
+					match(%&anita_cost%,"(\d+)(\w+)",{#amount,&suffix});
+					if(%&suffix% == "J");
+						#cost_jacob = %#amount%;
+					elseif(%&suffix% == "B");
+						#cost_bronze = %#amount%;
+					elseif(%&suffix% == "S");
+						#cost_silver = %#amount%;
+					elseif(%&suffix% == "G");
+						#cost_gold = %#amount%;
+					endif;
+				next;
+			endif;
+			
+			#inv_name_index = indexof(&inv_names[],,%&anita_name%);
+			if(#inv_name_index != -1);
+				&inv_name = %&inv_names[%#inv_name_index%]%;
+				&inv_item = %&inv_items[%#inv_name_index%]%;
+				&inv_sbid = %&inv_sbids[%#inv_name_index%]%;
+				inv_diff  = true;
+			endif;
+			
+			
+		endif;
+	endfunction;
+	
+	// Finds Rancher Boots in the Inventory, then if they are set to the wrong speed,
+	// edits them to the correct speed, then equips them.
+		// Params:
+			// {number} [#desired_speed=200]	The desired speed the Boots should be set to.
+			//
+		// Returns a boolean indicating whether or not there are a pair of Rancher Boots
+		// equipped with the desired speed setup appropriately.
+	function setupRancherBoots(#desired_speed=200);
+		// Check if we have Rancher's Boots in our Inventory or on our Mouse.
+		if(true);
+			#inventory_start = 8;
+			#inventory_end   = 44;
+			#r_start         = %#inventory_start%;
+			#r_end           = %#inventory_end%;
+			#f_offset        = %#inventory_start%;
+			&r_item          = "leather_boots";  // optional, include to use getslot and to use additional filtering parameters
+			&r_sbid          = "RANCHERS_BOOTS"; // optional, include to use additional filtering parameters
+			for(#r_slot,%#r_start%,%#r_end%);
+				if(%&r_item% != "");
+					getslotinv(%&r_item%,#f_slot,%#f_offset%);
+				else;
+					#f_slot = %#r_slot%;
+				endif;
+				
+				if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+					&f_item = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+					&f_nbt  = strip(%&f_nbt%);
+					&f_name = getItemName(%&f_nbt%,%&f_item%);
+					&f_sbid = getItemSBID(%&f_nbt%);
+					f_match = (((!%&r_item%) || (%&r_item% == %&f_item%)) && ((!%&r_name%) || (%&r_name% == %&f_name%)) && ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%)));
+					if(%f_match%);
+						
+					else;
+						#f_offset = %#f_slot% + 1;
+					endif;
+				else;
+					break;
+				endif;
+			next;
+		endif;
+	endfunction;
+	
+	// Checks if the specified X/Y/Z position is found within a known Hazardous Range and/or is a Hazardous Position.
+		// Params:
+			// {number} <#x>                 	The X position to check if found within a Hazardous Range
+			// {number} <#y>                 	The Y position to check if found within a Hazardous Range
+			// {number} <#z>                 	The Z position to check if found within a Hazardous Range
+			// {string} [&hazard_positions[]]	An Array of X|Y|Z coordinate strings that hold Hazardous Positions. If
+			//                               	not provided will only check against known Hazardous Ranges.
+			// {boolean} [check_blocks=true] 	Whether or not to check if the position has an interactive block (i.e. chest) on it.
+			//                               	If the block is interactive, will return true. Set this to false if we are doing a
+			//                               	left click interaction.
+			// {boolean} [check_ranges=true] 	Whether or not to check if the position is within a known Hazardous Range,
+			//                               	or just the [&hazard_positions[]] Array.
+		// Returns a Boolean indicating whether or not the Position was found within a Hazardous Range.
+	function inHazardousRange(#x,#y,#z,&hazard_positions[],check_blocks=true,check_ranges=true,&allow_blocks[]);
+		// Hazardous Area Ranges -- right or left clicking while the cursor is against any position within a range's
+		// minimum and maximum coordinate bounds will result in entering a bad GUI.
+		if(%check_ranges%);
+			// Auction House Walls
+			if(true);
+				// South - min: -39|72|-87, max: -29|78|-84
+				#hazard_min_x[] = -39;
+				#hazard_min_y[] = 72;
+				#hazard_min_z[] = -87;
+				#hazard_max_x[] = -29;
+				#hazard_max_y[] = 78;
+				#hazard_max_z[] = -84
+				
+				// North - min: -39|72|-98, max: -29|77|-95
+				#hazard_min_x[] = -39;
+				#hazard_min_y[] = 72;
+				#hazard_min_z[] = -98;
+				#hazard_max_x[] = -29;
+				#hazard_max_y[] = 77;
+				#hazard_max_z[] = -95;
+				
+				// West - min: -48|72|-93, max: -46|73|-89
+				#hazard_min_x[] = -48;
+				#hazard_min_y[] = 72;
+				#hazard_min_z[] = -93;
+				#hazard_max_x[] = -46;
+				#hazard_max_y[] = 73;
+				#hazard_max_z[] = -89;
+			endif;
+			
+			// Community Building Walls
+			if(true);
+				// West - min: -5|73|-111, max: -3|75|-107
+				#hazard_min_x[] = -5;
+				#hazard_min_y[] = 73;
+				#hazard_min_z[] = -111;
+				#hazard_max_x[] = -3;
+				#hazard_max_y[] = 75;
+				#hazard_max_z[] = -107;
+			endif;
+			
+			// Bank Vault Walls
+			if(true);
+				// West - min: -30|71|-64, max: -28|74|-60
+				#hazard_min_x[] = -30;
+				#hazard_min_y[] = 71;
+				#hazard_min_z[] = -64;
+				#hazard_max_x[] = -28;
+				#hazard_max_y[] = 74;
+				#hazard_max_z[] = -60;
+			endif;
+			
+			foreach(#hazard_min_x[],#min_x,#i);
+				#min_y = %#hazard_min_y[%#i%]%;
+				#min_z = %#hazard_min_z[%#i%]%;
+				#max_x = %#hazard_max_x[%#i%]%;
+				#max_y = %#hazard_max_y[%#i%]%;
+				#max_z = %#hazard_max_z[%#i%]%;
+				
+				if((%#x% >= %#min_x%) && (%#x% <= %#max_x%) && (%#y% >= %#min_y%) && (%#y% <= %#max_y%) && (%#z% >= %#min_z%) && (%#z% <= %#max_z%));
+					in_hazardous_range = true;
+					break;
+				else;
+					log("%#i% > Not in hazardous range")
+				endif;
+			next;
+			
+			if(%in_hazardous_range%);
+				return(%in_hazardous_range%);
+			endif;
+		endif;
+		
+		// Check if the block at x, y, z is hazardous, if we need to.
+		if(%check_blocks%);
+			&interactive_blocks[] = split(", ","anvil, beacon, bed, brewing_stand, chest, crafting_table, enchanting_table, ender_chest, furnace, item_frame, jukebox, sign");
+			&found_block          = xgetid(%#x%,%#y%,%#z%);
+			#interactive_index    = indexof(&interactive_blocks[],,%&found_block%);
+			in_hazardous_range    = %#interactive_index% != -1;
+			if(%in_hazardous_range%);
+				return(%in_hazardous_range%);
+			endif;
+		endif;
+		
+		&check_string      = "%#x%|%#y%|%#z%";
+		#check_index       = indexof(&hazard_positions[],,%&check_string%);
+		in_hazardous_range = #check_index != -1;
+		return(%in_hazardous_range%);
+	endfunction;
+	
+	// Gets all the potentially hazardous entities (other players, armour stands) within a 6 block radius. Returns an array of
+	// coordinate strings (X|Y|Z), where each coordinate string is the position of a hazardous entity.
+		// Params: None
+		// Returns: Array of Coordinate Strings
+	function getEntityHazards();
+		foreach("entities(range:6)");
+			if((%ENTITYTYPE% == "OtherPlayerMP") || (%ENTITYTYPE% == "ArmorStand"));
+				&return_array[] = "%ENTITYXPOS%|%ENTITYYPOS%|%ENTITYZPOS%";
+			endif;
+		next;
+		return(&return_array[]);
+	endfunction;
+	
+	// Checks if the current cursor position is hazardous (within any hazardous range, intersects with a hazardous entity, or
+	// intersects with a hazardous block && [check_blocks] is True). If it is, adjusts the cursor position until it is not hazardous.
+		// Params:
+			// {string[]} [&accept_blocks[]]	An optional Array of Block IDs to check against the result of TRACE operations. If the TRACE
+			//                              	operation is not a Block, and/or the Trace Operation's Block ID is not found in this Array,
+			//                              	will not accept that position as non-hazardous. For use with Rancher Boots setup to look in the Air.
+			// {boolean} [check_blocks=true]	Whether or not to check for hazardous (interactive) blocks, i.e. chest, crafting bench, etc.
+			//                              	If the interaction type we are executing is a left click, we can set this to false.
+			// {boolean} [check_ranges=true]	Whether or not to check for hazardous (interactive) block ranges found in the Hub, such as the
+			//                              	walls surrounding the Auction Agents, the Bank Vault, etc. This can be set to false if the interaction
+			//                              	is not taking place in the Hub.
+		// Returns a boolean indicating whether or not the operation was successful.
+	function adjustLookToAvoidHazards(&accept_blocks[],check_blocks=true,check_ranges=true);
+		&entity_hazards[] = getEntityHazards();
+		#multipliers[]    = split(", ","1, -1");
+		#start_x          = 0;
+		#start_y          = 1;
+		#start_z          = 0;
+		init_set          = false;
+		do;
+			&trace_type = trace(6,true);
+			if(%&trace_type% == "NONE");
+				cursor_hazard = false;
+			else;
+				if(!%init_set%);
+					#init_x  = %XPOS%;
+					#init_y  = %YPOS%;
+					#init_z  = %ZPOS%;
+					init_set = true;
+				endif;
+				cursor_hazard = inHazardousRange(%TRACEX%,%TRACEY%,%TRACEZ%,&entity_hazards[],%check_blocks%,%check_ranges%);
+			endif;
+			if(%cursor_hazard%);
+				if((%#start_x% == 50) && (%#start_y% == 50) && (%#start_z% == 50));
+					// Ran out of spots to check, just break and accept failure.
+					break;
+				endif;
+				
+				recalc_trace = false;
+				for(#y,%#start_y%,50);
+					for(#x,%#start_x%,50);
+						for(#z,%#start_z%,50);
+							foreach(#multipliers[],#multiplier);
+								#calc_x      = %#init_x% + (%#x% * %#multiplier%);
+								#calc_y      = %#init_y% + (%#y% * %#multiplier%);
+								#calc_z      = %#init_z% + (%#z% * %#multiplier%);
+								block_hazard = inHazardousRange(%#calc_x%,%#calc_y%,%#calc_z%,&entity_hazards[],%check_blocks%,%check_ranges%);
+								if(!%block_hazard%);
+									recalc_trace = true;
+									#new_start_x = %#x%;
+									#new_start_y = %#y%;
+									#new_start_z = %#z% + 1;
+									
+									// Exit the current GUI.
+									if(true);
+										do;
+											if(%GUI% == "NONE");
+												break;
+											else;
+												press("escape");
+												wait("1t");
+											endif;
+										until(%GUI% == "NONE");
+									endif;
+									
+									// Adjust the cursor position to the found position and break out to check if we are safe yet
+									if(true);
+										calcyawpitch(%#calc_x%,%#calc_y%,%#calc_z%,#calc_yaw,#calc_dist,#calc_pitch);
+										#calc_ticks = random(4,10);
+										#calc_ms    = %#calc_ticks% * 50;
+										log("looking to %#calc_yaw%, %#calc_pitch% in 0.%#calc_ms% milliseconds from %YAW%, %PITCH%.")
+										looks(%#calc_yaw%,%#calc_pitch%,"0.%#calc_ms%");
+										break;
+									endif;
+								endif;
+							next;
+							if(%recalc_trace%);
+								break;
+							endif;
+						next;
+						if(%recalc_trace%);
+							break;
+						endif;
+					next;
+					if(%recalc_trace%);
+						break;
+					endif;
+				next;
+				
+				#start_x = %#new_start_x%;
+				#start_y = %#new_start_y%;
+				#start_z = %#new_start_z%;
+				
+				wait("1t");
+			endif;
+		until(!%cursor_hazard%);
+		return_boolean = !%cursor_hazard%;
+		return(%return_boolean%);
+	endfunction;

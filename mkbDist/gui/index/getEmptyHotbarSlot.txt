@@ -1,0 +1,85 @@
+//! @mkb-import-begin
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // info/index/getItemRarity
+        // Given an item's raw NBT data, returns the rarity level of the Item.
+            // Params:
+                // {string} <&raw_nbt>                 The Raw NBT Data of the Item (unstripped).
+                // {string} [&return_type="number"]    String ENUM of: number, string, color
+            // Returns a different type depending on [&return_type] value:
+                // number: A number (0 = common, 8 = very special)
+                // string: A string (COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC, DIVINE, SPECIAL, VERY SPECIAL)
+                // color : A color code (7 = common, a = uncommon, 9 = rare, 5 = epic, 6 = legendary, d = mythic, b = divine, c = special, c = very special)
+        function getItemRarity(&raw_nbt,&return_type="number");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:68
+            &item_name = getItemName(%&raw_nbt%,"air","false");
+            ifmatches(%&item_name%,"^\xa7(\w)",&color_code,1);
+                &color_codes[] = split(", ","7, a, 9, 5, 6, d, b, c, c");
+                &color_names[] = split(", ","COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC, DIVINE, SPECIAL, VERY SPECIAL");
+                #color_index   = indexof(&color_codes[],,%&color_code%);
+                if(#color_index != -1);
+                    if(%&return_type% == "number");
+                        return(%#color_index%);
+                    elseif(%&return_type% == "string");
+                        return(%&color_names[%#color_index%]%);
+                    elseif(%&return_type% == "color");
+                        return(%&color_code%);
+                    endif;
+                endif;
+            endif;
+            return(-1);
+        endfunction;
+    // gui/index/getEmptyHotbarSlot
+        // Finds the most 'empty' hotbar slot on the hotbar and returns the slot it was found in.
+            // Params:
+                // {boolean} [allow_not_empty=false]    Whether or not to accept the lowest rarity and stacksize item
+                //                                      on the Hotbar in lieu of an actually empty slot in the event that the
+                //                                      hotbar contains zero air slots.
+            // Returns the static slot number (36 - 44, where 36 = slot 1, 44 = slot 9) that the air slot is found at,
+            // or -1 if no good slot is found.
+        function getEmptyHotbarSlot(allow_not_empty=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:804
+            // Iterate over Static Hotbar slots
+            if(true);
+                #r_start  = 36;
+                #r_end    = 44;
+                for(#r_slot,%#r_start%,%#r_end%);
+                    #f_slot = %#r_slot%;
+                    if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                        #r_offset     = %#r_offset% + 1;
+                        &f_item       = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&t_nbt);
+                        if(%&f_item% == "air");
+                            #return_number = %#f_slot%;
+                            break;
+                        endif;
+                        #item_rarity = getItemRarity(%&t_nbt%);
+                        &f_nbt       = strip(%&t_nbt%);
+                        &f_name      = getItemName(%&f_nbt%,%&f_item%);
+                        
+                    else;
+                        break;
+                    endif;
+                next;
+                if((%#return_number% >= %#r_start%) && (%#return_number% >= %#r_end%));
+                    return(%#return_number%);
+                endif;
+            endif;
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,32 @@
+{
+  "name": "mkbfunctionexporternew",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bin/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "types": "./declarations",
+  "bin": {
+    "newMkbExport": "bin/index.js"
+  },
+  "keywords": [],
+  "author": "jamesonknutson",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^3.9.1",
+    "@types/fs-extra": "^9.0.13",
+    "fs-extra": "^10.0.0",
+    "outdent": "^0.8.0",
+    "path": "^0.12.7",
+    "toposort": "^2.0.2",
+    "yargs": "^17.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.15",
+    "@types/yargs": "^17.0.8",
+    "prisma": "^3.9.1",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.5.5"
+  }
+}

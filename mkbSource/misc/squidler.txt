@@ -1,0 +1,163 @@
+// misc/squidler.txt
+	// Runs Squidler Test
+	function squidler(do_press=false);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9squidler&7";
+			#tick_wait         = 20;
+			#start_time        = %TIMESTAMP%;
+			&enum_server       = "ERROR_SERVER";
+			&enum_inventory    = "ERROR_INVENTORY";
+			&enum_environment  = "ERROR_ENVIRONMENT";
+		endif;
+		
+		
+		
+		//	Option A
+		//		1. If not on Island, go Home
+		//		2. Create Listing for Dupe Item
+		//		3. Rightclick Button
+		//		4. Wait 20 seconds
+		//		5. Go to Hub
+		//		6. Wait 8.5 seconds
+		//		7. Go to Home
+		//		8. Monitor Chat Output for Exception
+		
+		// 1. Get to SkyBlock Home
+		if(true);
+			at_home = gotoServer("SKYBLOCK_HOME");
+			if(!%at_home%);
+				debug_file(%debug%,%&script_debug_name%,"ERROR > Did not get home for some reason?");
+				return(%&enum_server%);
+			endif;
+			debug_file(%debug%,%&script_debug_name%,"at home!");
+		endif;
+		
+		// 2. Create Listing for Dupe Item
+		if(true);
+			// 2a. Find the Item in our Inventory
+			#dupe_slot = findItemInv(false,"MCID: skull","SBID: GREATER_BACKPACK","NAME: Greater Backpack");
+			if(%#dupe_slot% == -1);
+				debug_file(%debug%,%&script_debug_name%,"ERROR > Could not find Item in Inventory?");
+				return(%&enum_inventory%);
+			endif;
+			
+			// 2b. Create the Listing for the Dupe Item
+			if(true);
+				#starting_bid    = 1000000;
+				&auction_created = auctionsCreateListing(%#dupe_slot%,%#starting_bid%,60,"BIN",true,true,20,30);
+				if(%&auction_created% != "SUCCESS");
+					debug_file(%debug%,%&script_debug_name%,"ERROR > Could not Create listing for Item. Error: &4%&auction_created%&c.");
+					return(%&auction_created%);
+				endif;
+			endif;
+		endif;
+		
+		// 3. Click the Button
+		if(true);
+			if(%GUI% != "NONE");
+				localGUI("NONE");
+			endif;
+			
+			if(%HITID% != "wooden_button");
+				debug_file(%debug%,%&script_debug_name%,"ERROR > Not looking at a Wooden Button!");
+				&vars[] = split(" ","HITX HITY HITZ HITID XPOS YPOS ZPOS CARDINALYAW PITCH");
+				foreach(&vars[],&var,#v);
+					&val    = "%%&var%%";
+					&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+					&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+					debug_file(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+				next;
+				if(%debug%); log(" "); endif;
+				return(%&enum_environment%);
+			endif;
+			
+			do;
+				if(%GUI% != "NONE");
+					localGUI("NONE");
+				endif;
+				
+				if(%HITID% == "wooden_button");
+					if(%HIT_POWERED%);
+						debug_file(%debug%,%&script_debug_name%,"button is powered! breaking");
+						button_powered = true;
+						break;
+					endif;
+					if(%do_press%);
+						key("use");
+					else;
+						debug_file(%debug%,%&script_debug_name%,"Would press!");
+						button_powered = true;
+						break;
+					endif;
+				else;
+					debug_file(%debug%,%&script_debug_name%,"ERROR > not looking at button? dafaq");
+				endif;
+				
+				wait("1t");
+			until((%HITID% == "wooden_button") && (%GUI% == "NONE") && (%HIT_POWERED%))
+			
+			if(%button_powered%);
+				debug_file(%debug%,%&script_debug_name%,"disabling rendering");
+				press(201,true);
+				
+				do;
+					&hypixel_gamemode = getHypixelGamemode(); // LOBBY LIMBO SKYBLOCK OTHER.
+					&skyblock_island  = getSkyBlockArea(); // SKYBLOCK_HUB SKYBLOCK_HOME OTHER.
+					if((%&skyblock_island% != %&skyblock_island_last%) || (%&hypixel_gamemode% != %&hypixel_gamemode_last%));
+						debug_file(%debug%,%&script_debug_name%,"position updated (last hypixel: %&hypixel_gamemode_last%, curr hypixel: %&hypixel_gamemode% | last skyblock: %&skyblock_island_last%, curr skyblock: %&skyblock_island%)");
+						&hypixel_gamemode_last = %&hypixel_gamemode%;
+						&skyblock_island_last  = %&skyblock_island%;
+					endif;
+					if((%XPOS% != %#last_x%) || (%YPOS% != %#last_y%) || (%ZPOS% != %#last_z%));
+						debug_log(%debug%,%&script_debug_name%,"pos updated (last_x %#last_x%, xpos %XPOS% | last_y %#last_y%, ypos %YPOS% | last_z %#last_z% zpos %ZPOS%)");
+						#last_x = %XPOS%;
+						#last_y = %YPOS%;
+						#last_z = %ZPOS%;
+					endif;
+					wait("5t");
+				loop;
+				
+				if(false);
+					debug_log(%debug%,%&script_debug_name%,"waiting 20 seconds before going to hub...");
+					#start_time = %TIMESTAMP%;
+					do;
+						#elapsed_sec = %TIMESTAMP% - %#start_time%;
+						debug_log(%debug%,%&script_debug_name%,"elapsed_sec: %#elapsed_sec%");
+						if(%#elapsed_sec% >= 20);
+							debug_log(%debug%,%&script_debug_name%,"waited 20 seconds, breaking and going to hub!");
+							break;
+						endif;
+						wait("1t");
+					until(%#elapsed_sec% >= 20);
+					
+					// Get to the Hub
+					debug_log(%debug%,%&script_debug_name%,"getting to hub");
+					do;
+						at_hub = gotoServer("SKYBLOCK_HUB");
+						if(%at_hub%);
+							debug_log(%debug%,%&script_debug_name%,"got to hub");
+							break;
+						endif;
+						debug_error(%debug%,%&script_debug_name%,"didn't get to hub?");
+						wait("1t");
+					until(%at_hub%);
+					
+					// Wait 8.5 Seconds, then go back Home.
+					#start_time = %TIMESTAMP%;
+					debug_log(%debug%,%&script_debug_name%,"waiting 8.5 seconds before going back home");
+					do;
+						#elapsed_sec = %TIMESTAMP% - %#start_time%;
+						debug_log(%debug%,%&script_debug_name%,"elapsed_sec: %#elapsed_sec%");
+						if(%#elapsed_sec% >= 8);
+							wait("500ms");
+							debug_log(%debug%,%&script_debug_name%,"waited 8.5 seconds, breaking and going back home!");
+							break;
+						endif;
+						wait("1t");
+					until(%#elapsed_sec% >= 20);
+				endif;
+			endif;
+		endif;
+	endfunction;

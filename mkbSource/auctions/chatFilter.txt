@@ -1,0 +1,381 @@
+// Success:
+	//	WON AUCTION CLAIMED
+	  	//	You claimed (?<listingItem>.+) from (?:\[.*\] )?(?<listingOwner>\w{3,16})(?:'s)? auction!
+	  	  	//	Claiming an Auction from the 'Cauldron' Icon or the Listing from the GUI
+	  	  	//
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//	listingOwner:	EXPRESSION
+	  	  	//
+	//	LOST AUCTION COINS CLAIMED
+	  	//	You collected (?<listingCoins>[\d,.]+) coins back from an auction which you didn't hold the top bid!
+	  	  	//	Claiming Coins from an Auction we did not win either by the Listing GUI or Cauldron Item
+	  	  	//
+	  	  	//	listingCoins:	EXPRESSION
+	  	  	//
+	//	BIN TYPE BID PLACED
+	  	//	You purchased (?<listingItem>.+) for (?<listingPrice>[\d,.]+) coins!
+	  	  	//	Purchasing BIN Item from the Auction House
+	  	  	//
+	  	  	//	listingPrice:	EXPRESSION
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//	listingType: 	BIN
+	  	  	//
+	//	AUCTION TYPE BID PLACED
+	  	//	Bid of (?<listingPrice>[\d,.]+) coins placed for (?<listingItem>.+)!
+	  	  	//	Placing Bid on Item from Auction House
+	  	  	//
+	  	  	//	listingPrice:	EXPRESSION
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//	listingType: 	AUCTION
+	  	  	//
+	//	BIN TYPE LISTING CREATED
+	  	//	(?:\[.*\] )?(?<listingOwner>\w{3,16}) created a BIN auction for (?<listingItem>.+) at (?<listingPrice>[\d,.]+) coins!
+	  	  	//	Creating an Auction, type 'BIN'.
+	  	  	//
+	  	  	//	listingOwner:	EXPRESSION
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//	listingPrice:	EXPRESSION
+	  	  	//	listingType: 	BIN
+	  	  	//
+	//	AUCTION TYPE LISTING CREATED
+	  	//	(?:\[.*\] )?(?<listingOwner>\w{3,16}) created an Auction for (?<listingItem>.+)!
+	  	  	//	Creating an Auction, type 'AUCTION'.
+	  	  	//
+	  	  	//	listingOwner:	EXPRESSION
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//	listingType: 	BIN	
+	  	  	//
+	//	LISTING CANCELLED
+	  	//	(?:\[.*\] )?(?<listingOwner>(?:You|\w{3,16})) cancelled an auction for (?<listingItem>.+)!
+	  	  	//	Cancelling an Auction (BIN or Normal Auction).
+	  	  	//	If listingOwner == 'You', listingOwner = %PLAYER%.
+	  	  	//
+	  	  	//	listingOwner:	EXPRESSION (== "You" => listingOwner = %PLAYER%)
+	  	  	//	listingItem: 	EXPRESSION
+	  	  	//
+	  	  
+// Error:
+	//	GENERIC ERROR WITH CODE
+	  	//	(?:Failed to claim bid!|There was an error with the auction house!).*(?:Error: |\()(\w+)(?:\.|\))
+	  	  	//	'INVALID_BID'
+	  	  	  	//	Occurs when attempting to bid on an Auction and while the Bid is being placed, someone else gets a higher bid in before ours.
+	  	  	  	//	
+	  	  	//	'AUCTION_EXPIRED_OR_NOT_FOUND'
+	  	  	  	//	Occurs when attempting to bid on or collect an Auction that has already expired or been collected
+	  	  	  	//	
+	  	  	//	'ESCROW_ERROR'
+	  	  	  	//	Unknown, found here: https://hypixel.net/threads/escrow_error-with-the-auction-house-causes-me-to-lose-9mil-snowman-pet.3674210/
+	  	  	  	//	
+	  	  	//	'NOT_FOUND_OR_ALREADY_CLAIMED'
+	  	  	  	//	Unknown, found here: https://hypixel.net/threads/auction-house-error.2572895/
+	  	  	  	//	
+	  	  	//	Other Error Codes may be encountered as well.
+	//	GENERIC ERROR WITH CODE 2
+	  	//	Failed to claim bid! \((\w+)\)
+	//	GENERIC ERROR NO CODE
+	  	//	There was an error with the auction house!
+	  	  	//	No Error Code Variant of the same thing above
+	  	  	//
+	//	ERROR_AUCTION_LIMIT
+	  	//	Reached the active auctions limit!
+	  	  	//	Attempting to create new Auction Listing when we already have the maximum amount Active.
+	  	  	//	
+	//	ERROR_AUCTION_CANNOT_CLAIM
+	  	//	You didn't participate in this auction!
+	  	  	//	Attempting to Place Bid after Auction has Expired
+	  	  	//	
+	//	ERROR_AUCTION_LOAD
+	  	//	Couldn't load your auctions! Try again!
+	  	  	//	Unknown, found here: https://hypixel.net/threads/cant-put-up-anything-on-auction.4236901/
+	  	  	//
+	//	ERROR_AUCTION_CREATION_PRICE
+	  	//	(?:Your starting bid must be|You must set it to) at least (?<listingMinPrice>[\d,.]+)(?: coins)?!
+	  	  	//	Attempting to create a new Auction for an Item with the price set too low
+	  	  	//
+	//	ERROR_AUCTION_CREATION_DURATION
+	  	//	Minimum duration is (?<listingMinDurationUnitAmount>[\d,.]+) (?<listingMinDurationUnitType>(?:seconds|minutes|hours|days))
+	  	  	//	Attempting to create a new Auction for an Item with the duration set too low
+	  	  	//
+	//	ERROR_AUCTION_CREATION_PRICE
+	  	//	Can't create a BIN auction for this item for a PRICE this LOW!
+	  	  	//	Attempting to create a new BIN Auction for an Item with the BIN Price set too low, only happens on rare-ish items?
+	  	  	//
+	//	ERROR_AUCTION_CLAIM_COOLDOWN
+	  	//	Claiming this auction is on cooldown!
+	  	  	//	Attempting to Claim an Auction too many times
+	  	  	//
+	//	ERROR_AUCTION_BID_PRICE
+	  	//	Your bid must be at least (?<listingMinPrice>[\d,.]+) gold!
+	  	  	//	Attempting to Place Bid for Auction where Text is less than Current Minimum Bid
+	  	  	//
+	//	ERROR_INPUT_INVALID
+	  	//	Couldn't read this number!
+	  	  	//	Attempting to write text into Sign where input text is not valid
+	  	  	//
+	//	ERROR_AUCTION_ESCROW_REFUND
+	  	//	Escrow refunded (?<escrowCoins>[\d,.]+) for BIN Auction Buy!
+	  	  	//	Occurs after another Error message, generally 'there was an error with the auction house'. Indicates refund of Coins.
+	  	  	//
+	  	  	
+	  	  
+// Check Update 0
+if(false);
+	do_static_update_0 = !%@chatfilter_static_update_0%;
+	if(!%do_static_update_0%);
+		#static_prefixes   = arraysize(@&chatfilter_static_prefixes[]);
+		do_static_update_0 = %#static_prefixes% < 5;
+	endif;
+	
+	if(%do_static_update_0%);
+		@&enum_server_lag               = "ERROR_SERVER_LAG";
+		@&enum_unavailable              = "ERROR_UNAVAILABLE";
+		@&enum_custom_err               = "ERROR_CUSTOM_ERROR";
+		@&enum_generic_err              = "ERROR_GENERIC_ERROR";
+		@&enum_limit                    = "ERROR_LIMIT";
+		@&enum_expired                  = "ERROR_EXPIRED";
+		@&enum_starting_bid             = "ERROR_STARTING_BID";
+		@&enum_duration                 = "ERROR_DURATION";
+		@&enum_cooldown                 = "ERROR_COOLDOWN";
+		@&enum_coins                    = "ERROR_COINS";
+		@&enum_bid_amount               = "ERROR_BID_AMOUNT";
+		@&enum_bad_input                = "ERROR_BAD_INPUT";
+		@&enum_not_found                = "ERROR_NOT_FOUND";
+		@&enum_inventory                = "ERROR_INVENTORY";
+		
+		@&enum_baz_ok_buy_order_created   = "BAZ_OK_BUY_ORDER_CREATED";
+		@&enum_baz_ok_buy_order_claimed   = "BAZ_OK_BUY_ORDER_CLAIMED";
+		@&enum_baz_ok_buy_order_cancelled = "BAZ_OK_BUY_ORDER_CANCELLED";
+		@&enum_baz_ok_buy_instant         = "BAZ_OK_BUY_INSTANT";
+		@&enum_baz_ok_buy_order_flipped   = "BAZ_OK_BUY_ORDER_FLIPPED";
+		@&enum_baz_err_flip_price_too_low = "BAZ_ERR_BUY_ORDER_FLIP_PRICE_TOO_LOW";
+		
+		@&enum_baz_ok_sell_order_created   = "BAZ_OK_SELL_ORDER_CREATED";
+		@&enum_baz_ok_sell_order_claimed   = "BAZ_OK_SELL_ORDER_CLAIMED";
+		@&enum_baz_ok_sell_order_cancelled = "BAZ_OK_SELL_ORDER_CANCELLED";
+		@&enum_baz_ok_sell_instant         = "BAZ_OK_SELL_INSTANT";
+		@&enum_baz_err_sell_instant_inv    = "BAZ_ERR_SELL_INSTANT_INVENTORY";
+		@&enum_baz_err_sell_inventory      = "BAZ_ERR_SELL_INVENTORY";
+		
+		@&enum_baz_err_buy_order_cancel = "BAZ_ERR_BUY_ORDER_CANCEL_ITEMS_CLAIMABLE";
+		@&enum_baz_err_order_cancel     = "BAZ_ERR_ORDER_CANCEL";
+		@&enum_baz_err_order_change     = "BAZ_ERR_ORDER_CHANGE";
+		@&enum_baz_err_skill            = "BAZ_ERR_SKILL_LEVEL";
+		
+		
+		
+		if(true); // (baz_...) Bazaar Expressions
+			// Success Expressions
+			if(true);
+				unset(&expr[]);
+				unset(&code[]);
+				
+				&expr[] = "Buy Order Setup! .+";
+				&code[] = %@&enum_baz_ok_buy_order_created%;
+				
+				&expr[] = "Sell Offer Setup! .+";
+				&code[] = %@&enum_baz_ok_sell_order_created%;
+				
+				&expr[] = "Bazaar! Claimed ([\d,.]+)x (.+?) worth ([\d,.]+) coins bought for ([\d,.]+) each!";
+				&code[] = %@&enum_baz_ok_buy_order_claimed%;
+				
+				&expr[] = "Bazaar! Claimed ([\d,.]+) coins from selling ([\d,]+)x (.+?) at ([\d,.]+) each!";
+				&code[] = %@&enum_baz_ok_sell_order_claimed%;
+				
+				&expr[] = "Bazaar! Bought ([\d,]+)x (.+?) for ([\d,.]+) coins!";
+				&code[] = %@&enum_baz_ok_buy_instant%;
+				
+				&expr[] = "Bazaar! Sold ([\d,]+)x (.+?) for ([\d,.]+) coins!";
+				&code[] = %@&enum_baz_ok_sell_instant%;
+				
+				&expr[] = "Cancelled! Refunded ([\d,.]+) coins from cancelling buy order!";
+				&code[] = %@&enum_baz_ok_buy_order_cancelled%;
+				
+				&expr[] = "Cancelled! Refunded ([\d,]+)x (.+?) from cancelling sell offer!";
+				&code[] = %@&enum_baz_ok_sell_order_cancelled%;
+				
+				&expr[] = "Order Flipped! ([\d,]+)x (.+?) for ([\d,.]+) coins of total expected profit.";
+				&code[] = %@&enum_baz_ok_buy_order_flipped%;
+			endif;
+			
+			&expr_confirm = join("|",&expr[]);
+			&code_confirm = join("|",&code[]);
+			
+			// Failure Expressions
+			if(true);
+				unset(&expr[]);
+				unset(&code[]);
+				
+				&expr[] = "This server is too laggy to use the Bazaar, sorry!";
+				&code[] = %@&enum_server_lag%;
+				
+				&expr[] = ".*?The buy orders for this item changed too much\..*?";
+				&code[] = %@&enum_baz_err_order_change%;
+				
+				&expr[] = "There was an error cancelling your order!";
+				&code[] = %@&enum_baz_err_order_cancel%;
+				
+				&expr[] = "You need level \w+ in Farming, Foraging, and Mining to access this feature!";
+				&code[] = %@&enum_baz_err_skill%;
+				
+				&expr[] = "You have goods to claim on this order!";
+				&code[] = %@&enum_baz_err_buy_order_cancel%;
+				
+				&expr[] = "You don't even have that many items to sell! Awkward!";
+				&code[] = %@&enum_baz_err_sell_instant_inv%;
+				
+				&expr[] = ".*?You don't have enough (.+?) in your Inventory.*?"
+				&code[] = %@&enum_baz_err_sell_inventory%;
+				
+				&expr[] = "This price doesn't work."
+				&code[] = %@&enum_bad_input%;
+				
+				&expr[] = "You can't have a price this high!"
+				&code[] = %@&enum_bad_input%;
+				
+				&expr[] = "This price of ([\d,.]+)\/unit is lower than the old price of ([\d,.]+)\/unit!";
+				&code[] = %@&enum_baz_err_flip_price_too_low%;
+				
+				&expr[] = "Couldn't parse that price!";
+				&code[] = %@&enum_bad_input%;
+				
+				&expr[] = "Placing orders is on cooldown for up to ([\d,.]+) (\w).*";
+				&code[] = %@&enum_cooldown%;
+				
+				// No items could be matched to buyers || The buy orders for this item changed too much || Your inventory changed and you no longer have enough items for the sale || You don't have enough (.+) in your inventory
+				&expr[] = ".*No items could be matched to buyers.*";
+				&code[] = %@&enum_baz_err
+				
+				&tmp_static_expr[]       = "(?:Couldn't match the quoted price|Seems like a volatile market|This price doesn't work)[!.]";
+				&tmp_static_expr[]       = "Not? (?:items could be matched|enough inventory space) to (?:buyers|fit all that!)";
+				&tmp_static_expr[]       = "The(?:re)? (?:are no )?sell orders for this item(?: changed too much)?!";
+				&tmp_static_expr[]       = "Your? (?:cannot|don't|inventory) (?:afford this(?: quantity at this price)?|have any space in your inventory|changed and you no longer have enough items for the sale)!";
+				&tmp_static_failure_expr = join("|",&tmp_static_expr[]);
+				&tmp_static_failure_expr = "^(?:%&tmp_static_failure_expr%)$";
+			endif;
+			
+			@&chatfilter_static_prefixes[0]     = lcase("baz");
+			@&chatfilter_static_confirm_expr[0] = %&tmp_static_confirm_expr%;
+			@&chatfilter_static_failure_expr[0] = %&tmp_static_failure_expr%;
+		endif;
+		
+		if(true); // (banking_...) Banking Expressions
+			@&chatfilter_static_prefixes[1]     = lcase("banking");
+			@&chatfilter_static_confirm_expr[1] = "^(?:You have )?(?:withdrawn|Withdrew|Deposited) .* coins! (?:There's now|You now have) .* coins (?:left in the|in your) account!$";
+			@&chatfilter_static_failure_expr[1] = "^(?:Please input a valid number|You (?:cannot|don't|can't|already) (?:withdraw|have|deposit) (?:(?:any|the maximum amount of|this little|that many)(?: coins(?: in (?:the|your) bank)?)?))!$";
+		endif;
+		
+		if(true); // (anita_...) Anita Expressions
+			@&chatfilter_static_prefixes[2]     = lcase("anita");
+			@&chatfilter_static_confirm_expr[2] = "^You (?:bought|sold a|traded) .*$";
+			@&chatfilter_static_failure_expr[2] = "^You (?:do(?:n't| not)|cannot) (?:afford this trade|have (?:enough medals(?: of that type)?|any inventory space|the require(?:d items|ments to purchase this)))!$";
+		endif;
+		
+		if(true); // (ah_...) Auction House Expressions
+			// Success Expressions
+			if(true);
+				unset(&tmp_static_expr[]);
+				// &tmp_static_expr[]    = "You claimed (?<listingItem>.+) from (?:\[.*\] )?(?<listingOwner>\w{3,16})(?:'s)? auction!";
+				&tmp_static_expr[]       = "You claimed (.+) from (?:\[.*\] )?(\w{3,16})(?:'s)? auction!";
+				// &tmp_static_expr[]    = "You collected (?<listingCoins>[\d,.]+) coins back from an auction which you didn't hold the top bid!";
+				&tmp_static_expr[]       = "You collected ([\d,.]+) coins back from an auction which you didn't hold the top bid!";
+				// &tmp_static_expr[]    = "You purchased (?<listingItem>.+) for (?<listingPrice>[\d,.]+) coins!";
+				&tmp_static_expr[]       = "You purchased (.+) for ([\d,.]+) coins!";
+				// &tmp_static_expr[]    = "Bid of (?<listingPrice>[\d,.]+) coins placed for (?<listingItem>.+)!";
+				&tmp_static_expr[]       = "Bid of ([\d,.]+) coins placed for (.+)!";
+				// &tmp_static_expr[]    = "(?:\[.*\] )?(?<listingOwner>\w{3,16}) created a BIN auction for (?<listingItem>.+) at (?<listingPrice>[\d,.]+) coins!";
+				&tmp_static_expr[]       = "(?:\[.*\] )?(\w{3,16}) created a BIN auction for (.+) at ([\d,.]+) coins!";
+				// &tmp_static_expr[]    = "(?:\[.*\] )?(?<listingOwner>\w{3,16}) created an Auction for (?<listingItem>.+)!";
+				&tmp_static_expr[]       = "(?:\[.*\] )?(\w{3,16}) created an Auction for (.+)!";
+				// &tmp_static_expr[]    = "(?:\[.*\] )?(?<listingOwner>(?:You|\w{3,16})) cancelled an auction for (?<listingItem>.+)!";
+				&tmp_static_expr[]       = "(?:\[.*\] )?(\w{3,16}) cancelled an auction for (.+)!";
+				&tmp_static_expr[]       = "You claimed (.+?) back from the expired auction!";
+				&tmp_static_expr[]       = "(?:\[.*\] )?(\w{3,16}) collected an expired auction!";
+				&tmp_static_expr[]       = "(?:\[.*\] )?(\w{3,16}) collected an auction for ([\d,.]+) coins!";
+				&tmp_static_expr[]       = "You collected ([\d,.]+) coins from selling (.+?) to (?:\[.*\] )?(\w{3,16}) in an auction!";
+				&tmp_static_confirm_expr = join("|",&tmp_static_expr[]);
+				&tmp_static_confirm_expr = "^(?:%&tmp_static_confirm_expr%)$";
+			endif;
+			
+			// Failure Expressions
+			if(true);
+				unset(&tmp_static_expr[]);
+				unset(&tmp_static_code[]);
+				
+				&tmp_static_expr[] = ".*This server is too laggy to use the Auction House, sorry!.*";
+				&tmp_static_code[] = %@&enum_server_lag%;
+				
+				&tmp_static_expr[] = ".*\[NPC\] Mayor Derpy: It will be back in (.*)!.*";
+				&tmp_static_code[] = %@&enum_unavailable%;
+				
+				&tmp_static_expr[] = "(?:Failed to claim bid!|There was an error with the auction house!).*?(?:Error: |\()(\w+)(?:\.|\))";
+				&tmp_static_code[] = %@&enum_custom_err%;
+				
+				&tmp_static_expr[] = "There was an error with the auction house.*";
+				&tmp_static_code[] = %@&enum_generic_err%;
+				
+				&tmp_static_expr[] = "Reached the active auctions limit!";
+				&tmp_static_code[] = %@&enum_limit%;
+				
+				&tmp_static_expr[] = "You didn't participate in this auction!";
+				&tmp_static_code[] = %@&enum_expired%;
+				
+				&tmp_static_expr[] = "Couldn't load your auctions! Try again!";
+				&tmp_static_code[] = %@&enum_server_lag%;
+				
+				&tmp_static_expr[] = "(?:Your starting bid must be|You must set it to) at least ([\d,.]+)(?: coins)?!";
+				&tmp_static_code[] = %@&enum_starting_bid%;
+				
+				&tmp_static_expr[] = "Minimum duration is ([\d,.]+) (seconds|minutes|hours|days)";
+				&tmp_static_code[] = %@&enum_duration%;
+				
+				&tmp_static_expr[] = "Can't create a BIN auction for this item for a PRICE this LOW!";
+				&tmp_static_code[] = %@&enum_starting_bid%;
+				
+				&tmp_static_expr[] = "Claiming this auction is on cooldown!";
+				&tmp_static_code[] = %@&enum_cooldown%;
+				
+				&tmp_static_expr[] = "Your bid must be at least ([\d,.]+) gold!";
+				&tmp_static_code[] = %@&enum_bid_amount%;
+				
+				&tmp_static_expr[] = "Couldn't read this number!";
+				&tmp_static_code[] = %@&enum_bad_input%;
+				
+				&tmp_static_expr[] = "You don't have enough coins to afford this bid!";
+				&tmp_static_code[] = %@&enum_coins%;
+				
+				&tmp_static_expr[] = "This player doesn't have any active auctions!";
+				&tmp_static_code[] = %@&enum_not_found%;
+				
+				&tmp_static_expr[] = "This auction wasn't found!";
+				&tmp_static_code[] = %@&enum_not_found%;
+				
+				&tmp_static_expr[] = "Invalid auction ID!";
+				&tmp_static_code[] = %@&enum_not_found%;
+				
+				&tmp_static_expr[] = "There isn't enough space in your inventory!";
+				&tmp_static_code[] = %@&enum_inventory%;
+				
+				&tmp_static_failure_expr = join("|",&tmp_static_expr[]);
+				&tmp_static_failure_expr = "^(?:%&tmp_static_failure_expr%)$";
+			endif;
+			
+			@&chatfilter_static_prefixes[3]     = lcase("ah");
+			@&chatfilter_static_confirm_expr[3] = %&tmp_static_confirm_expr%;
+			@&chatfilter_static_failure_expr[3] = %&tmp_static_failure_expr%;
+		endif;
+		
+		if(true); // (npcsell_...) NPCSell Expressions
+			@&chatfilter_static_prefixes[4]     = lcase("npcsell");
+			@&chatfilter_static_confirm_expr[4] = "^(?:You sold (.+) for (.+) coins)";
+			@&chatfilter_static_failure_expr[4] = "^(?:That item cannot be sold!|.*You reached the daily limit of coins you may earn from NPC shops.*)$";
+		endif;
+		
+		if(true); // (ench_...) Enchanting Expressions
+			@&chatfilter_static_prefixes[5]     = lcase("ench");
+			@&chatfilter_static_confirm_expr[5] = "(?:You applied .* to your .*!|You removed .* from your .*!)";
+			@&chatfilter_static_failure_expr[5] = "NULL";
+		endif;
+		
+		set(@chatfilter_static_update_0);
+	endif;
+endif;

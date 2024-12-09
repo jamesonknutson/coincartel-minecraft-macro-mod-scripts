@@ -1,0 +1,73 @@
+//! @mkb-import-begin
+    // debug/index/debug_error
+        // Logs a message to chat with an error prefix.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_error(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:49
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &error_message = "&4Error > &c%&string%";
+            &error_message = regexreplace(&error_message,"&7","&c");
+            &error_message = "&7%&script_debug_name%&7: %&error_message%";
+            if(%debug_enabled%);
+                log(%&error_message%);
+            endif;
+            return(%&error_message%);
+        endfunction;
+    // banking/index/bankingActionInternalChangeGUIGetPath
+        // Given a Target GUI Type ENUM, and parallel indexed Arrays of all GUI ENUMs, all GUI ENUMs' Child ENUMs, and
+        // all GUI ENUM's Parents, compiles a Unique Array of GUI ENUMs in order to click in the GUI.
+            // Params:
+                // {string} <&target_enum>       The ENUM to get to. Must be present in the <&gui_enums[]> Array.
+                // {string} <&gui_enums[]>       Array of GUI ENUM Strings.
+                // {string} <&gui_parents[]>     Array of GUI ENUM Strings indexed parallel to <&gui_enums[]>. To indicate
+                //                               that a GUI ENUM is the Root Note, make the Parent at that Index an empty string.
+                // {string} <&gui_children[]>    Array of Tunnel Joint Array Strings that are GUI ENUMs in the <&gui_enums[]> Array,
+                //                               each Entry in this Array will be taken as being a Child of the Element at the same
+                //                               index in <&gui_enums[]>. To indicate that a GUI has no Children, use an empty string.
+        function bankingActionInternalChangeGUIGetPath(&target_enum,&gui_enums[],&gui_parents[],&gui_children[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/banking/index.txt:922
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6bankingChangeGUIGetPath&7";
+            endif;
+            
+            #target_index = indexof(&gui_enums[],,%&target_enum%);
+            if(%#target_index% == -1);
+                &return_array[] = "";
+                &gui_enums      = join(", ",&gui_enums[]);
+                debug_error(%debug%,%&script_debug_name%,"Target Enum (&&target_enum: %&target_enum%) is not present in the GUI ENUMs (&&gui_enums: [%&gui_enums%]) Array!");
+                return(&return_array[]);
+            endif;
+            
+            // Compile list of all GUI ENUMs that are a Parent of the Target ENUM, or a Parent of a Parent of the Target ENUM, and so on.
+            if(%&gui_parents[%#target_index%]% != "");
+                &parent_enums[] = %&gui_parents[%#target_index%]%;
+                #parent_enums[] = 0;
+                do;
+                    #before_length   = arraysize(&parent_enums[]);
+                    #final_index     = %#before_length% - 1;
+                    &final_parent    = %&parent_enums[%#final_index%]%;
+                    #gui_enums_index = indexof(&gui_enums[],,%&final_parent%);
+                    if(%&gui_parents[%#gui_enums_index%]% != "");
+                        &parent_enums[] = %&gui_parents[%#gui_enums_index%]%;
+                        #parent_enums[] = %#parent_enums[%#final_index%]% + 1;
+                    else;
+                        break;
+                    endif;
+                    #after_length = arraysize(&parent_enums[]);
+                until(%#before_length% == %#after_length%);
+                sort("DSC",#parent_enums[],&parent_enums[]);
+            endif;
+            
+            return(&parent_enums[]);
+        endfunction;
+//! @mkb-import-end

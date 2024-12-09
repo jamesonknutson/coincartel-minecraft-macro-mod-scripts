@@ -1,0 +1,544 @@
+//! Part A: Optional -- only done if the Customer does not have enough Coins to purchase Legendary Assassin Helmet
+	//	1.	Join Customer Party, warp to Customer, trade Customer 1M coins
+	//	2.	Customer buys 'Shadow Goggles' from Auction House, lists Item for 2.5M coins
+	//	3.	Bot buys Shadow Goggles from Customer's Listing
+//! Part B:
+	//	1.	Customer buys 'Legendary Assassin Helmet' from Auction House
+	//	2.	Customer lists Legendary Assassin Helmet for <CREDITS> amount of Coins (BIN)
+	//	3.	Bot purchases Legendary Assassin Helmet from Customer's Listing
+	//	4.	Bot deducts the amount of Coins delivered/spent, voila
+
+
+
+// delivery/index.txt
+	// Gets a list of all the Players on the same server as us.
+		// Params:
+			// {number} [#max_dist=-1]	The maximum distance the Player can be from us to be included in the Return Array.
+			//                        	If set to <= -1, will return all Players in this list.
+		// Returns a String Array of all Player Usernames on the same server as us.
+		// Example:
+			//	&server_players[] = getOnlinePlayers();
+	function getOnlinePlayers(#max_dist=-1);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5getOnlinePlayers&7";
+			do_dist_validity   = %#max_dist% > 0;
+		endif;
+		
+		if(%do_dist_validity%);
+			foreach("entities(range:%#max_dist%,filter:{type:player})");
+				&valid_names[] = %ENTITYNAME%;
+			next;
+		endif;
+		
+		foreach("players");
+			if(%PLAYERPING% == 1);
+				ifmatches(%PLAYERNAME%,"^\w{3,16}$");
+					is_valid = !%do_dist_validity%;
+					if(!%is_valid%);
+						#valid_index = indexof(&valid_names[],,%PLAYERNAME%);
+						is_valid     = %#valid_index% != -1;
+					endif;
+					
+					if((%PLAYERNAME% != %PLAYER%) && (%is_valid%));
+						&return_array[] = %PLAYERNAME%;
+					endif;
+				endif;
+			endif;
+		next;
+		
+		return(&return_array[]);
+	endfunction;
+	
+	// Gets all of the Hubs that are available to switch to.
+		// Params:
+			// {number} [#timeout_sec=30]	Maximum amount of Seconds Function can run for before timing out
+			//
+		// Returns Tunnel Joint Array Strings:
+			// {string} &hub_string	0	A String of the Data representing this Hub in format <player>|<limit>|<number>|<name>
+			// {string} #hub_player	1	The amount of Players on the Hub as of right now
+			// {string} #hub_limit 	2	The maximum amount of Players on the Hub
+			// {string} #hub_number	3	The number of the Hub (1 through 28)
+			// {string} &hub_name  	4	The server the Hub is hosted on (e.g. mega21D)
+		// Example:
+			// &hubs[]        = getHubs();
+			// &hub_strings[] = split("~",%&hubs[0]%);
+			// #hub_players[] = split("|",%&hubs[1]%);
+			// #hub_limits[]  = split("|",%&hubs[2]%);
+			// #hub_numbers[] = split("|",%&hubs[3]%);
+			// &hub_names[]   = split("|",%&hubs[4]%);
+	function getHubs(#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5getHubs&7";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+		endif;
+		
+		// Open up the Hub Selector GUI
+		if(true);
+			return_ready = false;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Open up the Hub Selector GUI
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					in_hub_selector    = goto("HUB_SELECTOR",true,%#recursive_timeout%);
+					if(%in_hub_selector%);
+						// 3. Index all of the available Hubs
+						
+						// Iterate over Dynamic Container Slots
+						if(true);
+							#r_start = 0;
+							#r_end   = %CONTAINERSLOTS% - 37;
+							for(#r_slot,%#r_start%,%#r_end%);
+								&r_item = getslotitemnbt(%#r_slot%,,#r_stack,#r_data,&r_nbt);
+								&r_nbt  = strip(%&r_nbt%);
+								if((%&r_item% != "air") && ((%&r_item% != "stained_glass_pane") || (%#r_data% != 15)));
+									&r_name = getItemName(%&r_nbt%,%&r_item%);
+									ifmatches(%&r_name%,"SkyBlock Hub #(\d+)",#hub_number,1);
+										match(%&r_nbt%,"Players: (\d+)\/(\d+)",{#hub_players,#hub_limit});
+										match(%&r_nbt%,"Server: (\w+)",&hub_server,1,"NULL");
+										&hub_strings[] = "%#hub_players%|%#hub_limit%|%#hub_number%|%&hub_server%";
+										#hub_players[] = %#hub_players%;
+										#hub_limits[]  = %#hub_limit%;
+										#hub_numbers[] = %#hub_number%;
+										&hub_servers[] = %&hub_server%;
+									endif;
+								endif;
+							next;
+							
+							return_ready = true;
+						endif;
+					endif;
+				endif;
+			until(%return_ready%);
+		endif;
+		&return_array[] = join("~",&hub_strings[]);
+		&return_array[] = join("|",#hub_players[]);
+		&return_array[] = join("|",#hub_limits[]);
+		&return_array[] = join("|",#hub_numbers[]);
+		&return_array[] = join("|",&hub_servers[]);
+		return(&return_array[]);
+	endfunction;
+	
+	// Switches the Hub Server to the specified Hub Server.
+		// Params:
+			// {string} &hub_server      	The Server ID the Hub is hosted on.
+			// {number} [#timeout_sec=30]	Maximum amount of Seconds Function can run for before timing out
+		// Returns a Boolean indicating whether or not we were able to successfully swap to the Hub.
+		// Example:
+			//	hub_swapped = joinHub(%&hub_server%);
+	function joinHub(&hub_server,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5joinHub&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&hub_server        = lcase(%&hub_server%);
+		endif;
+		
+		do;
+			// 1. Check for Function Timeout
+			if(%do_timeout%);
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+					break;
+				endif;
+			endif;
+			
+			// 2. Get our Current Server ID and check if we are now on the correct Hub Server.
+			if(true);
+				&current_server_id = getServerID(20,%#recursive_timeout%);
+				&current_server_id = lcase(%&current_server_id%);
+				if(%&current_server_id% == %&hub_server%);
+					debug_log(%debug%,%&script_debug_name%,"Current Server ID (&&current_server_id='&e%&current_server_id%&7') matches request.");
+					return_boolean = true;
+					break;
+				endif;
+			endif;
+			
+			// 3. Get the Hub Servers and check to see if we can join this Hub Server.
+			if(true);
+				&hub_strings[]     = getHubs(%#timeout_sec%);
+				&hub_servers[]     = split("|",%&hub_strings[4]%);
+				#hub_server_index  = indexof(&hub_servers[],,%&hub_server%);
+				if(%#hub_server_index% != -1);
+					#hub_server_slot = findItemContainer(false,"NBT: r$Server: %&hub_server%");
+					if(%#hub_server_slot% != -1);
+						&hub_server_item = getslotitemnbt(%#hub_server_slot%,,#hub_server_stack,#hub_server_data,&hub_server_nbt);
+						&hub_server_nbt  = strip(%&hub_server_nbt%);
+						match(%&hub_server_nbt%,"Players: (\d+)\/(\d+)",{#hub_online_count,#hub_limit_count});
+					endif;
+				endif;
+				
+				if((%#hub_server_slot% == -1) || (#hub_server_index% == -1) || (%#hub_online_count% >= %#hub_limit_count%));
+					debug_error(%debug%,%&script_debug_name%,"Hub Server '&4%&hub_server%&7' cannot be found or is too full to join!");
+					return_boolean = false;
+					break;
+				endif;
+				
+				if((%&hub_server_item% != "stained_hardened_clay") || (%#hub_server_data% != 14));
+					updated_gui = containerClick(%#hub_server_slot%,%#recursive_timeout%,%#tick_wait%);
+					if(%updated_gui%);
+						wait("60t");
+					endif;
+				endif;
+			endif;
+			
+			wait("1t");
+		until(%return_boolean%);
+		
+		debug_log(%debug%,%&script_debug_name%,"returning boolean '&d%return_boolean%&7'");
+		return(%return_boolean%);
+	endfunction;
+	
+	// Switches the Hub Server to the lowest population Hub Server.
+		// Params:
+			// {number} [#timeout_sec=30]	Maximum amount of Seconds Function can run for before timing out
+			//
+		// Returns the Hub String that we joined if successful, or an empty string if not.
+		// Example:
+			//	&switched_to_hub = joinLowestPopHub();
+			//	if(%&switched_to_hub% != "");
+			//	
+			//	endif;
+	function joinLowestPopHub(#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5joinLowestPopHub&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+		endif;
+		
+		// Loop until we are on the lowest known population Hub, or an error occurs.
+		if(true);
+			on_best_hub = false;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Get the Hub Servers and find the Lowest Population one.
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&hubs[]            = getHubs(%#recursive_timeout%);
+					&hub_strings[]     = split("~",%&hubs[0]%);
+					#hub_players[]     = split("|",%&hubs[1]%);
+					#hub_limits[]      = split("|",%&hubs[2]%);
+					#hub_numbers[]     = split("|",%&hubs[3]%);
+					&hub_names[]       = split("|",%&hubs[4]%);
+					sort("ASC",#hub_players[],#hub_limits[],#hub_numbers[],&hub_names[],&hub_strings[]);
+					
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					on_best_hub        = joinHub(%&hub_names[0]%,%#recursive_timeout%);
+					if(%on_best_hub%);
+						debug_log(%debug%,%&script_debug_name%,"Swapped to best hub (&&hub_strings[0]='&e%&hub_strings[0]%&7').");
+						&return_string = %&hub_strings[0]%;
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%on_best_hub%);
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+	
+	// Handles a Delivery Event.
+		// Params:
+			// {string} <&redeemed_key>           	The Key that was Redeemed.
+			// {string} <&redeemed_qty_total>     	The Amount of Credits that have ever been held on this Key.
+			// {string} <&redeemed_qty_remaining> 	The Amount of Credits currently remaining on this Key.
+			// {string} <&redeemed_player_uuid>   	The UUID of the Player who redeemed this Key.
+			// {string} <&redeemed_player_discord>	The Discord Tag of the Player who redeemed this Key.
+		// Returns a Boolean indicating whether the Delivery was successful or not.
+		// Example:
+			//	delivery_handled = deliveryEvent(%USEDKEY%,%QUANTITYTOTAL%,%QUANTITYREMAINING%,%USERUUID%,%DISCORD%);
+	function deliveryEvent(&redeemed_key,&redeemed_qty_total,&redeemed_qty_remaining,&redeemed_player_uuid,&redeemed_player_discord);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6$_deliveryEvent&7";
+		endif;
+		
+		//	1: Launch Minecraft
+		//	2: Join Hypixel
+		//	3: Join SkyBlock
+		//	4: Invite <PLAYER_NAME> to your Island
+		//	5: Accept the Trade Request from <PLAYER_NAME>
+		//	6: Complete
+		
+		// Update the Steps shown on the GUI.
+		if(true);
+			&minecraft_profile[]      = getMinecraftProfile(%&redeemed_player_uuid%);
+			&redeemed_player_username = %&minecraft_profile[1]%;
+			
+			// Wrap Steps
+			if(true);
+				&r_titles[]   = "Step 1: Launch Minecraft";
+				&r_messages[] = "Make sure to Login as: '%&redeemed_player_username%'";
+				r_complete[]  = false;
+				r_clickable[] = true;
+				&r_method[]   = "";
+				
+				&r_titles[]   = "Step 2: Join Hypixel";
+				&r_messages[] = "Make sure to Login as: '%&redeemed_player_username%'";
+				r_complete[]  = false;
+				r_clickable[] = true;
+				&r_method[]   = "";
+				
+				&r_titles[]   = "Step 3: Invite the Delivery Bot to your Island";
+				&r_messages[] = "Send %PLAYER% an Invite to your Island (/invite %PLAYER%)";
+				r_complete[]  = false;
+				r_clickable[] = false;
+				&r_method[]   = "awaitIslandInvite|%&redeemed_player_username%|%#timeout_sec%";
+				
+				&r_titles[]   = "Step 4: Send the Delivery Bot a Trade Request";
+				&r_messages[] = "Send %PLAYER% a Trade Request (/trade %PLAYER%)";
+				r_complete[]  = false;
+				r_clickable[] = false;
+				&r_method[]   = "awaitTradeRequest|%&redeemed_player_username%|%#timeout_sec%";
+				
+				&r_titles[]   = "Step 5: Accept the Delivery Bot's Trade";
+				&r_messages[] = "Don't worry if it's not all you ordered, you will only be charged for what is delivered-- the Bot might be low on Coins. If the Bot is not giving you all that you paid for, just redeem the Key again and a different Delivery Bot will handle your order.";
+				r_complete[]  = false;
+				r_clickable[] = false;
+				&r_method[]   = "awaitTradeAccept|%&redeemed_player_username%|%#timeout_sec%";
+				
+				&r_titles[]   = "Step 6: Leave a Review and tell your Friends";
+				&r_messages[] = "Support #LocallyOwned #BlackAndProud Businesses";
+				r_complete[]  = false;
+				r_clickable[] = true;
+				&r_method[]   = "";
+			endif;
+			
+			#last_step_index = getlaststep(%&redeemed_key%);
+			debug_log(%debug%,%&script_debug_name%,"last_step_index: %#last_step_index%");
+			foreach(&r_titles[],&r_title,#rt);
+				&r_message  = %&r_messages[%#rt%]%;
+				r_complete  = %r_complete[%#rt%]%;
+				r_clickable = %r_clickable[%#rt%]%;
+				&r_method   = %&r_method[%#rt%]%;
+				r_available = %#rt% <= %#last_step_index%;
+				if(%#rt% > %#last_step_index%);
+					r_available = newstep(%&redeemed_key%,%&r_title%,%&r_message%);
+					wait("1000ms");
+				endif;
+				
+				if(%r_available%);
+					r_updated = editstep(%&redeemed_key%,%#rt%,%&r_title%,%&r_message%,false,false);
+					wait("1000ms");
+				endif;
+				&vars[] = split(" ","#last_step_index #rt &redeemed_key &r_message r_complete r_clickable &r_method r_available r_updated");
+				foreach(&vars[],&var,#v);
+					&val	= "%%&var%%";
+					&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+					&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+					debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+				next;
+				if(%debug%); log(" "); endif;
+			next;
+		endif;
+	endfunction;
+	
+	// Waits for a Party Invite from a given Username, then once one is found, accepts it. Then, waits for that Username
+	// to warp them somewhere. If the Bot is warped before [#timeout_sec] expires the Function, returns True. Else, returns False.
+		// Params:
+			// {string} <&from_username> 	The Username of the Player who will be inviting us (and/or warping us).
+			// {number} [#timeout_sec=60]	Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns a Boolean indicating whether or not we were warped before timeout.
+		// Example:
+			//	warped = awaitPartyWarp("Blitzkrieg");
+	function awaitPartyWarp(&from_username,#timeout_sec=60);
+		// Setup Function Variables
+		if(true);
+			debug                  = true;
+			&script_debug_name     = "&5awaitPartyWarp&7";
+			#start_time            = %TIMESTAMP%;
+			do_timeout             = %#timeout_sec% > 0;
+			&minecraft_profile[]   = getMinecraftProfile(%&from_username%);
+			minecraft_profile     := %&minecraft_profile[0]%;
+			if(!%minecraft_profile%);
+				debug_error(%debug%,%&script_debug_name%,"No Minecraft Account exists under Username '&4%&from_username%&7'!");
+				return(false);
+			endif;
+			
+			&minecraft_username = %&minecraft_profile[1]%;
+		endif;
+		
+		// Wait until we are warped into the Party Leader's Server.
+		if(true);
+			unset(@delivery_cf_match[]);
+			unset(@&delivery_cf_expr[]);
+			
+			@delivery_cf         = true;
+			@&delivery_cf_expr[] = "%&minecraft_username% has invited you to join their party!";
+			@&delivery_cf_expr[] = "%&minecraft_username%, summoned you to their server";
+			@&delivery_cf_expr[] = "You are already in a party! Leave it to join another one.";
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if any of our expressions have matched
+				if(true);
+					#matched_index = indexof(@delivery_cf_match[],,true);
+					if(%#matched_index% != -1);
+						if(%#matched_index% == 0); // Received an Invite to the Party, try to join it.
+							&echo_command = "/p accept %&minecraft_username%";
+						elseif(%#matched_index% == 1); // Got summoned to the Server, break and return True.
+							return_boolean = true;
+							break;
+						elseif(%#matched_index% == 2); // Failed to join Party due to already being in one. Leave our current Party.
+							&echo_command = "/p leave";
+							@delivery_cf_match[0] = true; // Set the Received Invite Boolean again so we can try to re-join the Party.
+						endif;
+						unset(@delivery_cf_match[%#matched_index%]);
+						
+						// Check if we should wait before executing the Echo Command.
+						if(%command_echoed%);
+							#wait_until_ticks = %#last_command_ticks% + 20;
+							if(%#waited_ticks% < %#wait_until_ticks%);
+								do;
+									wait("1t");
+									inc(#waited_ticks);
+								until(%#waited_ticks% >= %#wait_until_ticks%);
+							endif;
+						endif;
+						
+						echo(%&echo_command%);
+						command_echoed      = true;
+						#last_command_ticks = %#waited_ticks%;
+					endif;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until(%return_boolean%);
+			@delivery_cf = false;
+		endif;
+		
+		return(%return_boolean%);
+	endfunction;
+	
+	// Waits for a Trade Request from a given Username, then once one is found, accepts it. If the Request is not detected before
+	// [#timeout_sec] seconds passes, the Function will return False. Otherwise, the Function will return True once in a Trade GUI.
+		// Params:
+			// {string} <&from_username> 	The Username of the Player to await a Trade Request from.
+			// {number} [#timeout_sec=60]	Max amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns a Boolean indicating whether or not we entered a Trade GUI with the specified Player before timeout.
+		// Example:
+			//	in_trade_gui = awaitTradeRequest("Blitzkrieg");
+	function awaitTradeRequest(&from_username,#timeout_sec=60);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5awaitTradeRequest&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			
+			// Validate that the <&from_username> Field is a Valid Identifier.
+			if(true);
+				&minecraft_profile[]  = getMinecraftProfile(%&from_username%);
+				minecraft_profile    := %&minecraft_profile[0]%;
+				if(!%minecraft_profile%);
+					debug_error(%debug%,%&script_debug_name%,"No Minecraft Account exists under Username '&4%&from_username%&7'!");
+					return(false);
+				endif;
+				&minecraft_username = %&minecraft_profile[1]%;
+			endif;
+		endif;
+		
+		// Wait until we are warped into the Party Leader's Server.
+		if(true);
+			unset(@delivery_cf_match[]);
+			unset(@&delivery_cf_expr[]);
+			
+			@delivery_cf         = true;
+			@&delivery_cf_expr[] = "%&minecraft_username% has sent you a trade request. Click here to accept!";
+			@&delivery_cf_expr[] = "The /trade request from .*?%&minecraft_username% expired!";
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if any of our expressions have matched
+				if(true);
+					#matched_index = indexof(@delivery_cf_match[],,true);
+					if(%#matched_index% != -1);
+						unset(&echo_command);
+						if(%#matched_index% == 0); // Received a Trade Request. Accept it.
+							&echo_command = "/trade %&minecraft_username%";
+							check_gui     = true;
+						elseif(%#matched_index% == 1); // Trade Request expired. Set GUI check state.
+							check_gui     = false;
+						endif;
+						unset(@delivery_cf_match[%#matched_index%]);
+						
+						if(%&echo_command% != "");
+							// Check if we should wait before executing the Echo Command.
+							if(%command_echoed%);
+								#wait_until_ticks = %#last_command_ticks% + 20;
+								if(%#waited_ticks% < %#wait_until_ticks%);
+									do;
+										wait("1t");
+										inc(#waited_ticks);
+									until(%#waited_ticks% >= %#wait_until_ticks%);
+								endif;
+							endif;
+							
+							echo(%&echo_command%);
+							command_echoed      = true;
+							#last_command_ticks = %#waited_ticks%;
+						endif;
+					endif;
+				endif;
+				
+				// 3. Check if we are in the correct GUI, if 'check_gui' is True.
+				if(%check_gui%);
+					&trading_with = getTradePartnerName();
+					if(%&trading_with% == %&minecraft_username%);
+						return_boolean = true;
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until(%return_boolean%);
+			@delivery_cf = false;
+		endif;
+		
+		return(%return_boolean%);
+	endfunction;

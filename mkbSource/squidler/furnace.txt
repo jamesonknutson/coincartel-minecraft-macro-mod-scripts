@@ -1,0 +1,333 @@
+// squidler/furnace.txt
+	// Handles the Furnace Dupe.
+		// Params:
+			// {number} [#start_x=XPOS]     	The expected XPOS value at Start.
+			// {number} [#start_y=YPOS]     	The expected YPOS value at Start.
+			// {number} [#start_z=ZPOS]     	The expected ZPOS value at Start.
+			// {number} [#tick_wait=20]     	Amount of Ticks to wait between repeating any given Action.
+			// {number} [#timeout_sec=30]   	Maximum amount of Seconds Function can run for before timing out and returning &enum_timeout.
+			//                              	Set to <= 0 to disable timeouts.
+			// {boolean} [remove_item=false]	If set to true, will remove the Items from the Furnaces instead of placing it into them.
+	function squidlerFurnace(#start_x=%XPOS%,#start_y=%YPOS%,#start_z=%ZPOS%,#tick_wait=20,#timeout_sec=30,remove_item=false);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9squidlerFurnace&7";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			&enum_success      = "SUCCESS";
+			&enum_timeout      = "ERROR_TIMEOUT";
+			&enum_location     = "ERROR_LOCATION";
+			&enum_server       = "ERROR_SERVER";
+			&enum_inventory    = "ERROR_INVENTORY";
+			&enum_environment  = "ERROR_ENVIRONMENT";
+			debug_log(%debug%,%&script_debug_name%,"remove_item is &d%remove_item%&c.");
+		endif;
+		
+		// Loop Actions until we complete the Function successfully, or we encounter an Error that we cannot recover from.
+		if(true);
+			&furnace_mcid  = %@&squidler_mcid%;
+			&furnace_sbid  = %@&squidler_sbid%;
+			&furnace_name  = %@&squidler_name%;
+			#furnace_stack = %@#squidler_stack%;
+			#furnace_slot  = 0;
+			#tick_wait_min = 1;
+			#tick_wait_max = 2;
+			do_async_looks = true;
+			unset(@#furnace_x[]);
+			unset(@#furnace_y[]);
+			unset(@#furnace_z[]);
+			unset(@furnace_done[]);
+			unset(@furnace_ready);
+			unset(@furnace_entered[]);
+			
+			
+			do;
+				waited = false;
+				
+				// 1. Check for Function Timeout.
+				if((%command_given%) && (%do_timeout%));
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if are on the right server, and if not, get to the correct server.
+				if(true);
+					&skyblock_srv  = getSkyBlockArea();
+					valid_position = ((%XPOS% == %#start_x%) && (%YPOS% == %#start_y%) && (%ZPOS% == %#start_z%));
+					valid_server   = %&skyblock_srv% == "SKYBLOCK_HOME";
+					valid_complete = ((%valid_position%) && (%valid_server%));
+					
+					if(!%valid_complete%);
+						debug_error(%debug%,%&script_debug_name%,"Not at the correct starting position (server: &d%&skyblock_srv%&c, position: %XPOS% %YPOS% %ZPOS%, expected position: %#start_x% %#start_y% %#start_z%).");
+						if(%&skyblock_srv% == "SKYBLOCK_HOME");
+							debug_error(%debug%,%&script_debug_name%,"The /sethome position is not set at the correct spot, cannot fix. Will return '&4%&enum_location%&c'.");
+							&return_string = %&enum_location%;
+							break;
+						endif;
+						
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						got_home           = gotoServer("SKYBLOCK_HOME",100,%#recursive_timeout%);
+						if(!%got_home%);
+							debug_error(%debug%,%&script_debug_name%,"Could not get back Home for some reason. Returning '&4%&enum_server%&c'.");
+							&return_string = %&enum_server%;
+							break;
+						endif;
+					endif;
+				endif;
+				
+				// 3. If we are on the right server and right position, do our Furnace stuff.
+				if(%valid_complete%);
+					// 3a. If we have not yet indexed the positions of the Furnaces around us, do so now.
+					if(!%furnaces_indexed%);
+						for(#offset_x,-2,2);
+							for(#offset_y,-2,2);
+								for(#offset_z,-2,2);
+									#check_x  = %XPOS% + %#offset_x%;
+									#check_y  = %YPOS% + %#offset_y%;
+									#check_z  = %ZPOS% + %#offset_z%;
+									debug_log(%debug%,%&script_debug_name%,"checking at %#check_x% %#check_y% %#check_z%");
+									&check_id = xgetid(%#check_x%,%#check_y%,%#check_z%,,#check_data,&check_vars);
+									if((%&check_id% == "lit_furnace") || (%&check_id% == "furnace"));
+										@#furnace_x[]      = %#check_x%;
+										@#furnace_y[]      = %#check_y%;
+										@#furnace_z[]      = %#check_z%;
+										@furnace_done[]    = false;
+										@furnace_entered[] = false;
+										
+										#spawn_y       = %#check_y% + 1;
+										particle("barrier",%#check_x%,%#spawn_y%,%#check_z%);
+										debug_log(%debug%,%&script_debug_name%,"Found furnace at &d%#check_x% %#check_y% %#check_z%&7, spawned barrier above furnace as marker.");
+									endif;
+								next;
+							next;
+						next;
+						
+						furnaces_indexed = true;
+						#required_stacks = arraysize(@furnace_done[]);
+						if(!%remove_item%);
+							#found_stacks[]  = findItemInv(true,"MCID: %&furnace_mcid%","NAME: %&furnace_name%","SBID: %&furnace_sbid%","STACK: %#furnace_stack%");
+							#found_stacks    = arraysize(#found_stacks[]);
+							if(%#found_stacks% < %#required_stacks%);
+								debug_error(%debug%,%&script_debug_name%,"Found only &4%#found_stacks%x&c stacks of &d%&furnace_sbid%&c in our Inventory, when we need &e%#required_stacks%&c in order to fill up all the Furnaces we found. Checking to see if we have enough Room in our Inventory to purchase the required stacks, and then if so, will purchase from Bazaar and continue as usual.");
+								#available_room  = getStackRoomInventory(%&furnace_sbid%);
+								#purchase_amount = (%#required_stacks% - %#found_stacks%) * %#furnace_stack%;
+								if(%#available_room% >= %#purchase_amount%);
+									debug_log(%debug%,%&script_debug_name%,"Enough Room in the Inventory to purchase the remainder of &d%&furnace_sbid%&7. Will purchase &e%#purchase_amount%x&7 now.");
+									
+									#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+									&bazaar_action     = bazaarProductAction(%&furnace_sbid%,"BUY_INSTANT",%#purchase_amount%,"MATCH_TOP_ORDER",true,true,%#tick_wait%,%#recursive_timeout%);
+									skip_furnace_fill  = true;
+									if(%&bazaar_action% != "SUCCESS");
+										debug_error(%debug%,%&script_debug_name%,"Failed to purchase &d%#purchase_amount%x&c of &4%&furnace_sbid%&c, error code: '&4%&bazaar_action%&c'. Will return this code.");
+										&return_string = %&bazaar_action%;
+										break;
+									endif;
+								else;
+									debug_error(%debug%,%&script_debug_name%,"Do not have enough Room in Inventory to purchase the remainder of &d%&furnace_sbid%&c (only have &d%#available_room%x&c Room). Exiting, will return '&4%&enum_inventory%&c'.");
+									&return_string = %&enum_inventory%;
+									break;
+								endif;
+							endif;
+						endif;
+					endif;
+					
+					// 3b. If we did not just do a Bazaar Refill, try to start filling the Furnaces up.
+					if(!%skip_furnace_fill%);
+						if((!%remove_item%) && (!%command_given%));
+							log("%@&p%Waiting for the Command to be given in chat...");
+							do;
+								wait("1t");
+							until(%@furnace_command%);
+							waited = true;
+							log("%@&p%Command has been given, lets go baby!");
+							command_given  = true;
+							&start_ms_time = getTime(true);
+							#start_time    = %TIMESTAMP%;
+						endif;
+						
+						@furnace_ready = true;
+						#fd            = indexof(@furnace_done[],,false);
+						if(%#fd% != -1);
+							all_furnaces_complete = false;
+							
+							// Check if we need to adjust the view angles.
+							if(true);
+								if(%GUI% != "NONE");
+									localGUI("NONE");
+								endif;
+								
+								#furnace_x = %@#furnace_x[%#fd%]%;
+								#furnace_y = %@#furnace_y[%#fd%]%;
+								#furnace_z = %@#furnace_z[%#fd%]%;
+								
+								if(!%do_async_looks%);
+									calcyawpitch(%#furnace_x%,%#furnace_y%,%#furnace_z%,#calc_yaw,#calc_dist,#calc_pitch);
+									looks(%#calc_yaw%,%#calc_pitch%,"0.050");
+									wait("1t");
+									waited = true;
+									if(((%HITID% != "furnace") && (%HITID% != "lit_furnace")) || (%HITX% != %#furnace_x%) || (%HITY% != %#furnace_y%) || (%HITZ% != %#furnace_z%));
+										debug_error(%debug%,%&script_debug_name%,"Upon adjusting the head angles to look at the Furnace marked at &d%#furnace_x% %#furnace_y% %#furnace_z%&c (head angles: %#calc_yaw%, %#calc_pitch%), we were not looking at the Furnace. Will return '&4%&enum_environment%&c'.");
+										&vars[] = split(" ","HITID HITX HITY HITZ #furnace_x #furnace_y #furnace_z");
+										foreach(&vars[],&var,#v);
+											&val    = "%%&var%%";
+											&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+											&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+											debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+										next;
+										if(%debug%); log(" "); endif;
+										
+										&return_string = %&enum_environment%;
+										break;
+									endif;
+								endif;
+							endif;
+							
+							// Open the Furnace GUI.
+							if(true);
+								#waited_ticks = 0;
+								do;
+									// 1. Check if we are in the Furnace GUI, or if we need to exit whatever GUI we are in.
+									if(true);
+										if(%GUI% == "GUIFURNACE");
+											if(%do_async_looks%);
+												@furnace_entered[%#fd%] = true;
+											endif;
+											break;
+										elseif(%GUI% != "NONE");
+											localGUI("NONE");
+										endif;
+									endif;
+									
+									// 2. Check for Function Timeout.
+									if(%do_timeout%);
+										func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+										if(%func_timeout%);
+											debug_error(%debug%,%&script_debug_name%,"Function timed out");
+											&return_string = %&enum_timeout%;
+											break;
+										endif;
+									endif;
+									
+									// 3. Check if we are looking at the Furnace.
+									if(true);
+										if(!%do_async_looks%);
+											if(((%HITID% != "furnace") && (%HITID% != "lit_furnace")) || (%HITX% != %#furnace_x%) || (%HITY% != %#furnace_y%) || (%HITZ% != %#furnace_z%));
+												debug_error(%debug%,%&script_debug_name%,"Upon adjusting the head angles to look at the Furnace marked at &d%#furnace_x% %#furnace_y% %#furnace_z%&c (head angles: %#calc_yaw%, %#calc_pitch%), we were not looking at the Furnace. Will return '&4%&enum_environment%&c'.");
+												&vars[] = split(" ","HITID HITX HITY HITZ #furnace_x #furnace_y #furnace_z");
+												foreach(&vars[],&var,#v);
+													&val    = "%%&var%%";
+													&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+													&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+													debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+												next;
+												if(%debug%); log(" "); endif;
+												
+												&return_string = %&enum_environment%;
+												break;
+											endif;
+										endif;
+									endif;
+									
+									// 4. If we can attempt to enter the Furnace, do so.
+									if(!%stored_open_furnace%);
+										can_open_furnace = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+									else;
+										can_open_furnace = true;
+									endif;
+									
+									if(%can_open_furnace%);
+										stored_open_furnace = true;
+										if((%GUI% == "NONE") && (((%HITID% == "furnace") || (%HITID% == "lit_furnace")) && (%HITX% == %#furnace_x%) && (%HITY% == %#furnace_y%) && (%HITZ% == %#furnace_z%)));
+											stored_open_furnace = false;
+											pick("air");
+											key("use");
+										endif;
+									endif;
+									
+									wait("1t");
+									waited = true;
+									inc(#waited_ticks);
+								until(%&return_string% != "");
+								if((%GUI% == "GUIFURNACE") && (%do_async_looks%));
+									@furnace_entered[%#fd%] = true;
+								endif;
+							endif;
+							
+							// If we made it into the Furnace GUI, find the Item we are placing inside and fill it up.
+							if(true);
+								if(%&return_string% != "");
+									break;
+								endif;
+								
+								if(%GUI% == "GUIFURNACE");
+									do_furnace_click = false;
+									
+									if(%remove_item%);
+										#furnace_slot = 0;
+										&f_item = getslotitemnbt(%#furnace_slot%,,#f_stack,#f_data,&f_nbt);
+										&f_nbt  = strip(%&f_nbt%);
+										if(%&f_item% != "air");
+											#item_slot_container = %#furnace_slot%;
+											&f_sbid              = getItemSBID(%&f_nbt%);
+											#room_inventory      = getStackRoomInventory(%&f_sbid%);
+											if(%#room_inventory% >= %#f_stack%);
+												do_furnace_click = true;
+											else;
+												debug_error(%debug%,%&script_debug_name%,"Not enough room in the Inventory to remove the item &d%&f_sbid% %#f_stack%x&7 from this Furnace.");
+											endif;
+										endif;
+									else;
+										#item_slot_inventory = findItemInv(false,"MCID: %&furnace_mcid%","NAME: %&furnace_name%","SBID: %&furnace_sbid%","STACK: %#furnace_stack%");
+										if(%#item_slot_inventory% == -1);
+											debug_error(%debug%,%&script_debug_name%,"Could not find any more of '&4%&furnace_sbid%&c' in our Inventory. Exiting, will return '&4%&enum_inventory%&c'.");
+											&return_string = %&enum_inventory%;
+											break;
+										endif;
+										do_furnace_click = true;
+										#item_slot_container = invslot_to_conslot(%#item_slot_inventory%);
+									endif;
+									
+									if(%do_furnace_click%);
+										// wait("1t");
+										slotclick(%#item_slot_container%,"left","true");
+										// localGUI("NONE");
+										// waited = true;
+									endif;
+									wait("1t");
+									press("escape");
+									@furnace_done[%#fd%] = true;
+								endif;
+							endif;
+						else;
+							all_furnaces_complete = true;
+						endif;
+						
+						if(%all_furnaces_complete%);
+							debug_log(%debug%,%&script_debug_name%,"Successfully filled all furnaces, will return '&a%&enum_success%&7'.");
+							&return_string = %&enum_success%;
+							break;
+						endif;
+					else;
+						skip_furnace_fill = false;
+					endif;
+				endif;
+				
+				// if(!%waited%);
+				//	wait("1t");
+				// endif;
+				wait("1t");
+			until(%&return_string% != "");
+			&end_ms_time  = getTime(true);
+			&diff_ms_time = eval("%&end_ms_time% - %&start_ms_time%");
+			debug_log(%debug%,%&script_debug_name%,"Function took &d%&diff_ms_time% sec&7 to execute.");
+			
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'...");
+		return(%&return_string%);
+	endfunction;

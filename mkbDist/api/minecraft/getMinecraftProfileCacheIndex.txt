@@ -1,0 +1,40 @@
+//! @mkb-import-begin
+    // api/minecraft/getMinecraftProfileCacheIndex
+        // Checks if a Minecraft Profile is available in the Cached Arrays (@&cached_mc_ [split_ids, joint_ids, usernames, change_ts]).
+        // If it is, and the Cache is not invalid, the index the entry can be found at is returned. Otherwise, -1 is returned.
+                // Params:
+                //        <string>  &search_term   : The term to search for. Can be the username, dashed UUID, or joint UUID.
+                //      [boolean] check_validity : True to return the index only if it is valid, false to return the index regardless of it's validity.
+                //
+                // Returns the index the Profile can be found at in the Cache.
+        function getMinecraftProfileCacheIndex(&search_term,check_validity=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/api/minecraft.txt:8
+            &script_debug_name = "&9getMinecraftProfileCacheIndex&7";
+            debug              = true;
+        
+            // Check if the search term can be found in any of the caches.
+            if(true);
+                #lookup_index  = -1;
+                #cache_index[] = indexof(@&cached_mc_split_uuids[],,%&search_term%);
+                #cache_index[] = indexof(@&cached_mc_joint_uuids[],,%&search_term%);
+                #cache_index[] = indexof(@&cached_mc_usernames[],,%&search_term%);
+                foreach(#cache_index[],#cache_index);
+                    if(%#cache_index% != -1);
+                        #lookup_index = %#cache_index%;
+                        break;
+                    endif;
+                next;
+        
+                // If we hit a valid cache entry, check if it is valid.
+                if(%#lookup_index% != -1);
+                    #valid_before = %@#cached_mc_valid_until[%#lookup_index%]%;
+                    if((!%check_validity%) || (%#valid_before% >= %TIMESTAMP%));
+                        // Player can't change name yet, the cache is valid.
+                        return(%#lookup_index%);
+                    endif;
+                endif;
+            endif;
+        
+            return(-1);
+        endfunction;
+//! @mkb-import-end

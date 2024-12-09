@@ -1,0 +1,321 @@
+// Handles an onChat '/viewauction <...>' event.
+	// Params:
+		// {string} <&auction_id>	The Auction ID that this Event is regarding (hyphens stripped).
+		// {string} <&event_type>	String ENUM representing the type of Event this is regarding, one of:
+		//                       	AUCTION_OUTBID, AUCTION_SOLD, AUCTION_PURCHASED, AUCTION_EXPIRED.
+	function nertAuctionEvent(&auction_id,&event_type);
+	
+	endfunction;
+	
+// Gets the latest Instructions from Nert's API.
+	// Params: None
+	// Returns an Array:
+		// 0 {boolean} nert_success   	Whether or not the request was successful
+		// 1 {number}  #nert_resp_code	The HTTP Response Code of the request
+		// 2 {string}  &nert_resp_body	The raw Response Body of the request
+		// 3 {number}  #nert_next_time	The timestamp of when we should next send a request to the API to get updated
+		//                            	flip instructions
+		// 4 {number}  #nert_flip_data	The amount of Flip Instruction Objects that are attached to this Array.
+		// X {string}  &nert_flip_data	JSON Flip Instruction Objects. Only provided if #nert_flip_data >= 1.
+	// Example
+		// &nert_instructions[]  = nertGetInstructions();
+		// nert_success         := %&nert_instructions[0]%;
+		// #nert_resp_code      := %&nert_instructions[1]%;
+		// &nert_resp_body       = %&nert_instructions[2]%;
+		// #nert_next_time      := %&nert_instructions[3]%;
+		// #nert_flip_data      := %&nert_instructions[4]%;
+	function nertGetInstructions();
+		debug              = true;
+		&script_debug_name = "&dnertGetInstructions&7";
+		
+		setrequestheader("User-Agent","Minecraft/%UUID%");
+		setrequestheader("Content-Type","application/json");
+		setrequestheader("Cache-Control","no-cache");
+		&api_url         = "http://74.207.242.113:5000/algorithm/allFlips";
+		&nert_resp_body  = httpget(%&api_url%,,#nert_resp_code);
+		&log_path        = "Z:/MMC/MultiMC/instances/New Mods Testing/.minecraft/liteconfig/common/macros/logs/nertRequests/%TIMESTAMP%-request.txt";
+		&master_log_path = "Z:/MMC/MultiMC/instances/New Mods Testing/.minecraft/liteconfig/common/macros/logs/nertRequests/latest-request.txt";
+		nert_success     = #nert_resp_code == 200;
+		if(#nert_resp_code == 200);
+			&nert_next_time    = xJsonGet("timeToNextUpdate",%&nert_resp_body%);
+			#nert_next_time    = xEval("ceil(%&nert_next_time% / 1000)",true);
+			&selected_flips    = jsonget("selectedFlips",%&nert_resp_body%);
+			&selected_flips[]  = getjsonasarray(%&selected_flips%);
+			#selected_flips_sz = arraysize(&selected_flips[]);
+			#selected_flips_sz = %#selected_flips_sz% - 1;
+			if(%#selected_flips_sz% > 0);
+				for(#i,1,%#selected_flips_sz%);
+					debug_log(%debug%,%&script_debug_name%,"(%#i%/%#selected_flips_sz%): pushing instruction: '&d%&selected_flips[%#i%]%&7'.");
+					&instructions[] = %&selected_flips[%#i%]%;
+				next;
+			else;
+				debug_log(%debug%,%&script_debug_name%,"no instructions received from API this time.");
+			endif;
+		endif;
+		
+		#instructions_sz = arraysize(&instructions[]);
+		&return_array[]  = %nert_success%;
+		&return_array[]  = %#nert_resp_code%;
+		&return_array[]  = %&nert_resp_body%;
+		&return_array[]  = %#nert_next_time%;
+		&return_array[]  = %#instructions_sz%;
+		if(%#instructions_sz% >= 1);
+			push(&return_array[],&instructions[*]);
+		endif;
+		
+		&write_lines[] = "nert_success: %nert_success%";
+		&write_lines[] = "#nert_resp_code: %#nert_resp_code%";
+		&write_lines[] = "#nert_next_time: %#nert_next_time%";
+		&write_lines[] = "#instructions_sz: %#instructions_sz%";
+		&write_lines[] = "";
+		&write_lines[] = "%&nert_resp_body%";
+		&file_path     = writefile(%&log_path%,&write_lines[],false);
+		&file_path     = writefile(%&master_log_path%,&write_lines[],false);
+		setclipboard(%&log_path%);
+		debug_log(%debug%,%&script_debug_name%,"logged request variables to: '&d%&log_path%&7' (on clipboard)");
+		return(&return_array[]);
+	endfunction;
+	
+// Gets the Auction ID for a Listing we just put up.
+	// Params:
+		// {string} <&item_name>      	The Display Name of the Item that we just Listed.
+		// {number} <#item_price>     	The Price of the Item that we just Listed.
+		// {string} [...&exempt_ids[]]	An optional Array of Auction UUIDs that are definitely NOT the Auction we are looking for.
+		//                            	This can be used to avoid a situation in which we have listed multiple of a given Item with
+		//                            	the exact same name and price making the Function return the wrong Auction.
+	// Returns the Auction ID, or 'ERROR_<...>' if an Error was encountered. The possible ERROR_ String ENUMs are as follows:
+		// ERROR_NOT_FOUND	The Listing was not found (API data may need a second to update, try again?)
+		// ERROR_API      	Encountered an Error relating to the API.
+	function nertGetPersonalListingID(&item_name,#item_price,...&exempt_ids[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9nertGetPersonalListingID&7";
+			#start_time        = %TIMESTAMP%;
+			
+			&player_uuid = %UUID%;
+			&player_uuid = regexreplace(&player_uuid,"-","");
+			&api_url     = "skyblock/auction?player=%&player_uuid%";
+			&item_name   = lcase(%&item_name%);
+		endif;
+		
+		&api_data[]  = hypixelAPICall(%&api_url%);
+		req_success := %&api_data[0]%; // True if we received response from API, false if we got throttled by CF.
+		api_success := %&api_data[1]%; // The value of the 'success' key in the API response.
+		#api_code   := %&api_data[2]%; // The HTTP Response Code from the API Request.
+		&api_resp    = %&api_data[3]%; // The raw JSON data returned from the Server.
+		
+		if((%req_success%) && (%api_success%));
+			do;
+				&api_auction = jsonget("auctions.%#auction_index%",%&api_resp%);
+				ifnotmatches(%&api_auction%,"^ERROR_");
+					&api_item_name  = jsonget("item_name",%&api_auction%);
+					&api_item_price = xJsonGet("starting_bid",%&api_auction%);
+					#api_item_price = coerceNumber(%&api_item_price%);
+					&api_item_name  = lcase(%&api_item_name%);
+					&api_auction_id = jsonget("uuid",%&api_auction%);
+					#api_id_index   = indexof(&exempt_ids[],,%&api_auction_id%);
+					
+					// (((%#api_item_price% - %#item_price%) <= 1)) || ((%#api_item_price% - %#item_price%) >= 1)))
+					
+					api_item_match  = ((%#api_id_index% == -1) && (%&api_item_name% == %&item_name%) && (((%#api_item_price% - %#item_price%) <= 1) && ((%#api_item_price% - %#item_price%) >= -1)));
+					if(%api_item_match%);
+						&return_string = %&api_auction_id%;
+						break;
+					endif;
+				else;
+					&return_string = "ERROR_NOT_FOUND";
+					break;
+				endif;
+				inc(#auction_index);
+			until(%&return_string% != "");
+		else;
+			&return_string = "ERROR_API";
+		endif;
+		
+		return(%&return_string%);
+	endfunction;
+
+// Gets the timestamp of when an Auction will expire, given it's Auction ID.
+	// Params:
+		// {string} <&auction_id>    	The Auction ID to check the expiry timestamp for.
+		// {string} [&listing_info[]]	Optional Array of Listing Info returned from the auctionsGetListingInfo Function.
+		//                           	Passed along to auctionsOpenListing.
+		// {number} [#tick_wait=20]  	Ticks to wait between Interactions.
+		// {number} [#timeout_sec=30]	Maximum amount of Seconds the Function can run for before Timing Out. Set to <= 0 to disable timeouts.
+	// Returns the Timestamp when the Auction will Expire (as best as we can determine based off the value of the 'Ends in: <...>' Value, which may be rounded),
+	// or if the Function fails to extract this Timestamp, will return an Error ENUM:
+		// ERROR_NOT_FOUND  	The Listing was not found (API data may need a second to update, try again?)
+		// ERROR_API        	Encountered an Error relating to the API.
+		// ERROR_TIMEOUT    	The Function exited early due to a timeout.
+		// ERROR_UNAVAILABLE	The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).
+		// ERROR_EXPIRED    	The function exited due to the Auction being expired by the time we went to go place the Bid for it.
+		// ERROR_UNKNOWN    	The function exited due to an unknown Error.
+		// ERROR_SERVER     	The function exited due to not being able to get onto SkyBlock.
+	// Example:
+		//	&auction_expiry_time  = nertGetAuctionExpiryTimestamp(%&auction_id%,&listing_info[],%#tick_wait%,%#timeout_sec%);
+		//	ifmatches(%&auction_expiry_time%,"^ERROR_");
+		//		// An Error Occurred.
+		//	else;
+		//		#auction_expiry_time := %&auction_expiry_time%;
+		//		
+		//	endif;
+	function nertGetAuctionExpiryTimestamp(&auction_id,&listing_info[],#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9nertGetAuctionExpiryTimestamps&7";
+			#listing_info_sz   = arraysize(&listing_info[]);
+		endif;
+		
+		if(%#listing_info_sz% >= 1);
+			&listing_opened = auctionsOpenListing(%&auction_id%,&listing_info[],%#tick_wait%,%#timeout_sec%);
+		else;
+			&listing_opened = auctionsOpenListing(%&auction_id%,,%#tick_wait%,%#timeout_sec%);
+		endif;
+		
+		if(%&listing_opened% != "SUCCESS");
+			&return_string = %&listing_opened%;
+			debug_error(%debug%,%&script_debug_name%,"Got an Error Code from auctionsOpenListing: '&d%&return_string%&7'. Will return this Error Code.");
+		else;
+			#auction_item_slot = 13;
+			&auction_item      = getslotitemnbt(%#auction_item_slot%,,#auction_stack,#auction_data,&auction_nbt);
+			&auction_nbt       = strip(%&auction_nbt%);
+			&unit_suffixes[]   = split(", ","s, m, h, d");
+			#unit_suffixes[]   = split(", ","1, 60, 3600, 86400");
+			#add_seconds       = 0;
+			ifmatches(%&auction_nbt%,"Ends in: (\d+\w.*)",&ends_in_string,1);
+				&ends_in_components[] = split(" ",%&ends_in_string%);
+				foreach(&ends_in_components[],&ends_in_component,#eic);
+					ifmatches(%&ends_in_component%,"^(\d+)(\w+)");
+						match(%&ends_in_component%,"^(\d+)(\w+)",{#unit_amount,&unit_suffix});
+						#unit_index  = indexof(&unit_suffixes[],,%&unit_suffix%);
+						#unit_ratio  = %#unit_suffixes[%#unit_index%]%;
+						#add_seconds = %#add_seconds% + (%#unit_amount% * %#unit_ratio%);
+					endif;
+				next;
+			endif;
+			
+			#return_number = %TIMESTAMP% + %#add_seconds%;
+			&return_string = %#return_number%;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning '&d%&return_string%&7'...");
+		return(%&return_string%);
+	endfunction;
+	
+// Handles placing a bid for a given Auction.
+	// Params:
+		// {string} <&auction_id>    	The Auction ID to bid on.
+		// {number} <#auction_max>   	The max price we are willing to place a bid for this Auction at.
+		// {string} [&listing_info[]]	Optional Array of Listing Info returned from the auctionsGetListingInfo Function.
+		//                           	Passed along to auctionsOpenListing.
+		// {number} [#tick_wait=20]  	Ticks to wait between Interactions.
+		// {number} [#timeout_sec=30]	Maximum amount of Seconds the Function can run for before Timing Out. Set to <= 0 to disable timeouts.
+	// Returns a String ENUM:
+		// SUCCESS	The bid was successfully placed.
+	// Example:
+		//	&bid_placed = nertPlaceBid(%&auction_id%,%#auction_max%,&listing_info[],%#tick_wait%,%#timeout_sec%);
+		//	if(%&bid_placed% != "SUCCESS");
+		//	
+		//	endif;
+	function nertPlaceBid(&auction_id,#auction_max,&listing_info[],#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			&script_debug_name = "&6nertPlaceBid&7";
+			debug              = true;
+			do_timeout         = %#timeout_sec% > 1;
+			#start_time        = %TIMESTAMP%;
+			&enum_success      = "SUCCESS";
+			&enum_timeout      = "ERROR_TIMEOUT";
+			&enum_price        = "ERROR_PRICE";
+			&enum_expired      = "ERROR_EXPIRED";
+			debug_log(%debug%,%&script_debug_name%,"Hit, &&auction_id: '&d%&auction_id%&7'.");
+		endif;
+		
+		// Loop Actions until an Error is Encountered or the Bid is Placed.
+		if(true);
+			// If we have not already got the &listing_info[] Array, get it now.
+			#listing_info_sz = arraysize(&listing_info[]);
+			if(%#listing_info_sz% == 0);
+				debug_log(%debug%,%&script_debug_name%,"calling auctionsGetListingInfo for &&auction_id: '&d%&auction_id%&7'...");
+				&listing_info[] = auctionsGetListingInfo(%&auction_id%);
+			endif;
+			
+			&listing_type = %&listing_info[2]%;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						&return_string = %&enum_timeout%;
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if we have entered the correct GUI.
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&listing_opened    = auctionsOpenListing(%&auction_id%,&listing_info[],%#tick_wait%,%#recursive_timeout%);
+					if(%&listing_opened% != "SUCCESS");
+						debug_error(%debug%,%&script_debug_name%,"Failed to open the Listing GUI, Error: '&4%&listing_opened%&c'. Will return this Error Code.");
+						&return_string = %&listing_opened%;
+						break;
+					else;
+						debug_log(%debug%,%&script_debug_name%,"Successfully entered Auction Listing GUI.");
+					endif;
+				endif;
+				
+				// 3. Check if the cost of the Bid is within our Limit.
+				if(true);
+					&place_bid_expr = "([\d,]+) coins";
+					if(%&listing_type% == "BIN");
+						#place_bid_slot = 31;
+					elseif(%&listing_type% == "AUCTION");
+						#place_bid_slot = 29;
+					endif;
+					
+					&place_bid_item = getslotitemnbt(%#place_bid_slot%,,#place_bid_stack,#place_bid_data,&place_bid_nbt);
+					&place_bid_nbt  = strip(%&place_bid_nbt%);
+					ifmatches(%&place_bid_nbt%,%&place_bid_expr%,&place_bid_coins,1);
+						#place_bid_coins := regexreplace(&place_bid_coins,",","");
+						if(%#place_bid_coins% <= %#auction_max%);
+							refill_coins        = true;
+							allow_command       = true;
+							#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							debug_log(%debug%,%&script_debug_name%,"Attempting to place bid on Auction...");
+							&auction_bid_placed = auctionsPlaceBid(%&auction_id%,,%refill_coins%,%allow_command%,%#tick_wait%,%#recursive_timeout%);
+							if(%&auction_bid_placed% == "SUCCESS");
+								debug_log(%debug%,%&script_debug_name%,"Successfully placed bid, returning &a%&enum_success%&7.");
+							else;
+								debug_error(%debug%,%&script_debug_name%,"Failed to place bid, error code &4%&auction_bid_placed%&c. Will return this error code.");
+							endif;
+							&return_string = %&auction_bid_placed%;
+						else;
+							debug_error(%debug%,%&script_debug_name%,"Cost of next bid (%#place_bid_coins%) exceeds auction_max (%#auction_max%), returning &4%&enum_price%&c.");
+							&return_string = %&enum_price%;
+						endif;
+						break;
+					elseifmatches(%&place_bid_nbt%,"Someone else purchased the item");
+						debug_error(%debug%,%&script_debug_name%,"Someone beat us to the punch on this Item. Will return &4%&enum_expired%&c. Variable Readout:");
+						&vars[] = split(" ","&place_bid_item #place_bid_stack #place_bid_data &place_bid_nbt");
+						foreach(&vars[],&var,#v);
+							&val    = "%%&var%%";
+							&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+							&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+							debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+						next;
+						if(%debug%); log(" "); endif;
+						&return_string = %&enum_expired%;
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'...");
+		return(%&return_string%);
+	endfunction;

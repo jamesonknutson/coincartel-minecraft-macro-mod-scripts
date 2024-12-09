@@ -1,0 +1,37 @@
+//! @mkb-import-begin
+    // movement/index/splitCoordString
+        // Given a coordinate string, splits it up by tunnel characters and returns an integer array.
+            // Params:
+            //      {string} [&coord_string="%XPOS%|%YPOS%|%ZPOS%"] The coordinate string to split up
+            //
+            // Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS.
+        function splitCoordString(&coord_string="%XPOS%|%YPOS%|%ZPOS%");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:6
+            &pos[] = split("|",%&coord_string%);
+            &x     = %&pos[0]%;
+            &y     = %&pos[1]%;
+            &z     = %&pos[2]%;
+            &arr[] = split(", ","%&x%, %&y%, %&z%");
+            return(&arr[]);
+        endfunction;
+    // movement/index/getMiddlePointCoordRange
+        // Given a minimum and maximum coordinate string, splits both of them, then finds the middle most value.
+            // Params:
+            //      {string} <&min_coord_string>    The minimum coordinate string
+            //      {string} <&max_coord_string>    The maximum coordinate string
+            //
+            // Returns an Array where the 0th element is the XPOS, 1st is YPOS, and 2nd is ZPOS. The value is the
+            // middle point (min X + max X / 2, etc) of each coordinate point.
+        function getMiddlePointCoordRange(&min_coord_string,&max_coord_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/movement/index.txt:105
+            #min_coord[] = splitCoordString(%&min_coord_string%);
+            #max_coord[] = splitCoordString(%&max_coord_string%);
+            
+            #avg_pos_x   = (%#min_coord[0]% + %#max_coord[0]%) / 2;
+            #avg_pos_y   = (%#min_coord[1]% + %#max_coord[1]%) / 2;
+            #avg_pos_z   = (%#min_coord[2]% + %#max_coord[2]%) / 2;
+            
+            log("getMiddlePointCoordRange: avg x %#avg_pos_x%, avg y %#avg_pos_y%, avg z %#avg_pos_z%");
+            return(%#avg_pos_x%,%#avg_pos_y%,%#avg_pos_z%);
+        endfunction;
+//! @mkb-import-end

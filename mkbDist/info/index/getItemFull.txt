@@ -1,0 +1,30 @@
+//! @mkb-import-begin
+    // info/index/getItemFull
+        // Given an Item's ID and Damage Value, joins them together with a <:{#item_damage}> suffix.
+        // If the string already has a damage value suffix, it will not join it with the <#item_damage>
+        // value UNLESS always_join is false, the damage value on the string at default is 0, and the damage
+        // value passed is > 0. If the damage value passed is 0, and always_join is false, it will not join
+        // the string together. If the damage value passed is > 0, it will join the string together.
+            // Params:
+                //    {string} <&item_id>              The Item's ID.
+                //    {number} [#item_damage]          The Item's Damage.
+                //    {boolean} [always_join=false]    Whether or not to always join the Item ID with the Damage Value,
+                //                                     regardless of whether or not the Damage Value == 0.
+        function getItemFull(&item_id,#item_damage=0,always_join=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:232
+            &return_string = %&item_id%;
+            ifmatches(%&return_string%,"(.+):(\d+)$");
+                match(%&return_string%,"(.+):(\d+)$",{&base_id,#base_damage});
+                
+                if(%#base_damage% == 0);
+                    &return_string = %&base_id%;
+                    if(%#item_damage% > 0);
+                        &return_string = "%&base_id%:%#item_damage%";
+                    endif;
+                endif;
+            elseif((%always_join%) || (%#item_damage% > 0));
+                &return_string = "%&item_id%:%#item_damage%";
+            endif;
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

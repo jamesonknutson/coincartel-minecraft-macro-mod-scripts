@@ -1,0 +1,43 @@
+//! @mkb-import-begin
+    // delivery/index/getOnlinePlayers
+        // Gets a list of all the Players on the same server as us.
+            // Params:
+                // {number} [#max_dist=-1]    The maximum distance the Player can be from us to be included in the Return Array.
+                //                            If set to <= -1, will return all Players in this list.
+            // Returns a String Array of all Player Usernames on the same server as us.
+            // Example:
+                //    &server_players[] = getOnlinePlayers();
+        function getOnlinePlayers(#max_dist=-1);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/delivery/index.txt:20
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&5getOnlinePlayers&7";
+                do_dist_validity   = %#max_dist% > 0;
+            endif;
+            
+            if(%do_dist_validity%);
+                foreach("entities(range:%#max_dist%,filter:{type:player})");
+                    &valid_names[] = %ENTITYNAME%;
+                next;
+            endif;
+            
+            foreach("players");
+                if(%PLAYERPING% == 1);
+                    ifmatches(%PLAYERNAME%,"^\w{3,16}$");
+                        is_valid = !%do_dist_validity%;
+                        if(!%is_valid%);
+                            #valid_index = indexof(&valid_names[],,%PLAYERNAME%);
+                            is_valid     = %#valid_index% != -1;
+                        endif;
+                        
+                        if((%PLAYERNAME% != %PLAYER%) && (%is_valid%));
+                            &return_array[] = %PLAYERNAME%;
+                        endif;
+                    endif;
+                endif;
+            next;
+            
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

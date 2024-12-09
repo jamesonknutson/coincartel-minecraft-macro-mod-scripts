@@ -1,0 +1,22 @@
+//! @mkb-import-begin
+    // tablist/index/getCookieExpiryTimestamp
+        // Reads the Tab List to find whether or not the Player has a Booster Cookie effect enabled. If so,
+        // returns the Seconds Timestamp of when that Booster Cookie will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getCookieExpiryTimestamp();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:7
+            &time_expression = "(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,"Cookie Buff\n(.+)",&cookie_buff_time,1);
+                    match(%&cookie_buff_time%,%&time_expression%,{#days,#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+//! @mkb-import-end

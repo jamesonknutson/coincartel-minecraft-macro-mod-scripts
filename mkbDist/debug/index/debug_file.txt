@@ -1,0 +1,126 @@
+//! @mkb-import-begin
+    // debug/index/debug_file
+        // debug/index.txt
+        // Given an Input String, escapes all string variables that might be confused with formatting code
+        // instructions (i.e. '@&foo_bar' => '@&&foo_bar').
+            // Params:
+                // {string} <&input_string>    The string to escape variables in.
+                //
+            // Returns the Escaped String.
+        function stringEscape(&input_string);
+            // We do not want to escape anything that looks like:
+            // &0 &1 &2 &3 &4 &5 &6 &7 &8 &9 &a &b &c &d &e &f &k &l &m &n &o
+            //
+            // We know that variables can only ever start with an alphabetic lowercase character
+            // (i.e. &f). We also know that variables are always all lowercase. If there are any non-
+            // word characters (non-alphanumeric, non-lowercase) in the string, we know that it is not
+            // a variable.
+            
+            &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            &replacement   = "&$1";
+            &output_string = regexreplace(&input_string,%&matcher%,%&replacement%);
+            return(%&output_string%);
+        endfunction;
+        
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+        
+        // Logs a message to chat with an error prefix.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_error(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &error_message = "&4Error > &c%&string%";
+            &error_message = regexreplace(&error_message,"&7","&c");
+            &error_message = "&7%&script_debug_name%&7: %&error_message%";
+            if(%debug_enabled%);
+                log(%&error_message%);
+            endif;
+            return(%&error_message%);
+        endfunction;
+        
+        // Logs a message to chat and halts until SHIFT is held.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_breakpoint(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &break_message = "&7%&script_debug_name%&7: &8Breakpoint (HOLD SHIFT)&7 > %&string%";
+            if(%debug_enabled%);
+                log(%&break_message%);
+                do;wait("1t");until(%SHIFT%);
+                do;wait("1t");while(%SHIFT%);
+            endif;
+            return(%&break_message%);
+        endfunction;
+        
+        // Logs one of two messages to chat depending on whether the <&condition> is 'truthy' or not.
+            // Params:
+                // {boolean} [debug_enabled=true]                   Whether or not Debug is enabled
+                // {string} [&script_debug_name="&8DEBUG_LOG&7"]    The Prefix shown in Chat next to the Conditional.
+                // {string} <&truthy_string>                        The String to print if the Conditional is truthy
+                // {string} <&falsey_string>                        The String to print if the Conditional is falsey
+            // Returns the Printed Message.
+        function debug_conditional(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&condition,&truthy_string,&falsey_string);
+            if(%debug_enabled%);
+                &condition_lcase  = lcase(%&condition%);
+                &booleans_lcase[] = split(", ","true, false, 1, 0");
+                #booleans_index   = indexof(&booleans_lcase[],,%&condition_lcase%);
+                if(%#booleans_index% != -1);
+                    truthy_condition  = ((%&condition_lcase% == "true") || (%&condition_lcase% == "1"));
+                else;
+                    truthy_condition := %&condition%;
+                endif;
+                
+                if(%truthy_condition%);
+                    &return_string = debug_log(%debug_enabled%,%&script_debug_name%,%&truthy_string%);
+                else;
+                    &return_string = debug_error(%debug_enabled%,%&script_debug_name%,%&falsey_string%);
+                endif;
+                return(%&return_string%);
+            endif;
+        endfunction;
+        
+        function debug_file(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:110
+            if(%debug_enabled%);
+                // &matcher         = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+                // &replacement     = "&$1";
+                // &replaced_string = regexreplace(&string,%&matcher%,%&replacement%);
+                &out_string      = "&7%&script_debug_name%&7: %&string%";
+                log(%&out_string%);
+                
+                &log_string = regexreplace(&out_string,"&\w","");
+                logto("event_feed.txt","[%TIMESTAMP%]: fn#debug_file > %&log_string%");
+            endif;
+        endfunction;
+//! @mkb-import-end

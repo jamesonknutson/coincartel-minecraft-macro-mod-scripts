@@ -1,0 +1,300 @@
+// nertFinal/index.txt
+	// Gets the latest batch of Instructions from Nert's API.
+		// Returns a String Array:
+			//	0 {boolean}	nert_api_state             	Whether or not the API request was successful.
+			//	1 {number} 	#nert_api_update           	Timestamp of when to next send a request to the API to get updated instructions.
+			//	X {string} 	...&nert_api_instructions[]	Elements at Index >= 2 will be JSON String Instructions, raw from the API.
+		// Example:
+			//	&nert_api_resp[]        = nertFinalGetInstructions();
+			//	nert_api_state         := %&nert_api_resp[0]%;
+			//	#nert_api_update       := %&nert_api_resp[1]%;
+			//	#nert_api_instructions  = arraylength(&nert_api_resp[]);
+			//	if(%#api_instructions% >= 2);
+			//		for(#nert_api_index,2,%#nert_api_instructions%);
+			//			&nert_api_instruction = %&nert_api_resp[%#api_index%]%;
+			//			
+			//		next;
+			//	endif;
+	function nertFinalGetInstructions();
+		debug              = true;
+		&script_debug_name = "&8NERT_GET_INSTRUCTIONS&7";
+		&nert_api_url      = "http://74.207.242.113:5000/algorithm/allFlips";
+		&nert_api_resp     = httpget(%&nert_api_url%,,#nert_api_resp);
+		nert_api_state     = %#nert_api_resp% == 200;
+		#nert_api_update   = %TIMESTAMP% + 5;
+		if(%#nert_api_resp% == 200);
+			&nert_api_update = xJsonGet(%&nert_api_resp%,"timeToNextUpdate");
+			#nert_api_update = xEval("ceil(%&nert_api_update% / 1000)",true);
+			#sel_flip_index  = 0;
+			do;
+				&nert_api_instruction = xJsonGet(%&nert_api_resp%,"selectedFlips.%#sel_flip_index%");
+				ifnotmatches(%&nert_api_instruction%,"^ERROR");
+					&nert_api_instructions[] = %&nert_api_instruction%;
+					inc(#sel_flip_index);
+				endif;
+			untilmatches(%&nert_api_instruction%,"^ERROR_");
+		endif;
+		&return_array[]           = split(", ","%nert_api_state%, %#nert_api_update%");
+		#nert_api_instructions_sz = arraysize(&nert_api_instructions[]);
+		if(%#nert_api_instructions_sz% >= 1);
+			push(&return_array[],&nert_api_instructions[*]);
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Takes input of a valid Nert Flip Instruction Object from the API and parses it out into a standardized Data Set.
+		// Params:
+			//	{string} <&nert_instruction>     	The Raw JSON String Instruction Object from the API to Parse.
+			//	{boolean} [include_listings=true]	Whether or not to include (and thus send API requests for) the Listings included
+			//	                                 	in this Instruction.
+		// Returns a String Array:
+			//	0 {boolean}	<inst_valid>         	Whether or not the Instruction is still Valid (will be false if any of the Listings are already done).
+			//	1 {string} 	<&inst_type>         	The Type of the Instruction. A String ENUM of: REGRESSION, MARKETMANIPULATION, AH2BIN, BIN2BIN.
+			//	2 {string} 	<&inst_mcid>         	The MCID of the Listing(s) in the Instruction.
+			//	3 {string} 	<&inst_sbid>         	The SBID of the Listing(s) in the Instruction.
+			//	4 {number} 	<#sum_cost>          	The Sum Cost to place Bids on each of the Listing(s) in the Instruction.
+			//	5 {number} 	<#sum_profit>        	The Sum (expected) Profit to be had if this Instruction goes as planned.
+			//	6 {number} 	<#max_bid>           	The Maximum Price in Coins that we should bid on any of the Listing(s) in the Instruction.
+			//	7 {number} 	<#flip_price>        	The Target Price in Coins that we should set as the BIN Price for any of the Listing(s) that we win in this Instruction.
+			//	X {string} 	<...&inst_listings[]>	Elements at Index >= 8 will be the `auctionsGetListingInfo();` Tunnel Joint Array Strings for each Listing in this Instruction.
+		// Example:
+			//	&inst_data[]      = nertFinalParseInstruction(%&nert_instruction%);
+			//	inst_valid       := %&inst_data[0]%;
+			//	&inst_type        = %&inst_data[1]%;
+			//	&inst_mcid        = %&inst_data[2]%;
+			//	&inst_sbid        = %&inst_data[3]%;
+			//	#sum_cost        := %&inst_data[4]%;
+			//	#sum_profit      := %&inst_data[5]%;
+			//	#max_bid         := %&inst_data[6]%;
+			//	#flip_price      := %&inst_data[7]%;
+			//	&inst_listings[]  = xArraySlice(&inst_data[],8);
+	function nertFinalParseInstruction(&nert_instruction,include_listings=true);
+		debug              = true;
+		&script_debug_name = "&5NERT_FINAL_PARSEINST&7";
+		if(true);
+			&inst_type   = xJsonGet(%&nert_instruction%,"type");
+			&inst_type   = ucase(%&inst_type%);
+			&inst_sbid   = xJsonGet(%&nert_instruction%,"name");
+			&item_data[] = getItemInfoSB(%&inst_sbid%);
+			&inst_mcid   = %&item_data[2]%;
+			
+			// Extract Type-Specific Keyed Variables
+			if(true);
+				if(%&inst_type% == "REGRESSION");
+					dec_flip_price      = true;
+					&inst_listing_ids[] = xJsonGet(%&nert_instruction%,"uuid");
+					&sum_cost           = xJsonGet(%&nert_instruction%,"lowestPrice");
+					&sum_profit         = xJsonGet(%&nert_instruction%,"predictedProfit");
+					&max_bid            = %&sum_cost%;
+					&flip_price         = xJsonGet(%&nert_instruction%,"targetPrice");
+				elseif(%&inst_type% == "AH2BIN");
+					dec_flip_price      = true;
+					&inst_listing_ids[] = xJsonGet(%&nert_instruction%,"uuid");
+					&sum_cost           = xJsonGet(%&nert_instruction%,"currentPrice");
+					&sum_profit         = xJsonGet(%&nert_instruction%,"predictedProfit");
+					&max_bid            = %&sum_cost%;
+					&flip_price         = xJsonGet(%&nert_instruction%,"lowestPrice");
+				elseif(%&inst_type% == "BIN2BIN");
+					&inst_listing_ids[] = xJsonGet(%&nert_instruction%,"uuid");
+					&sum_profit         = xJsonGet(%&nert_instruction%,"predictedProfit");
+					singlebin_variant   = xJsonGet(%&nert_instruction%,"singleBin");
+					if(%singlebin_variant%);
+						&sum_cost   = xJsonGet(%&nert_instruction%,"lowestPrice");
+						&max_bid    = %&sum_cost%;
+						&flip_price = xJsonGet(%&nert_instruction%,"targetPrice");
+					else;
+						dec_flip_price = true;
+						&sum_cost      = xJsonGet(%&nert_instruction%,"lowestPrice");
+						&max_bid       = %&sum_cost%;
+						&flip_price    = xJsonGet(%&nert_instruction%,"secondLowestPrice");
+					endif;
+				elseif(%&inst_type% == "MARKETMANIPULATION");
+					#inst_listing_id_index = 0;
+					do;
+						&inst_listing_id = xJsonGet(%&nert_instruction%,"uuidList.%#inst_listing_id_index%");
+						ifnotmatches(%&inst_listing%,"^ERROR_");
+							&inst_listing_ids[] = %&inst_listing_id%;
+							inc(#inst_listing_id_index);
+						endif;
+					untilmatches(%&inst_listing_id%,"^ERROR_");
+				endif;
+				
+				#sum_cost   := xFormatNumber(%&sum_cost%,0,true);
+				#sum_profit := xFormatNumber(%&sum_profit%,0,true);
+				#max_bid    := xFormatNumber(%&max_bid%,0,true);
+				#flip_price := xFormatNumber(%&flip_price%,0,true);
+				inst_valid   = true;
+				if(%include_listings%);
+					foreach(&inst_listing_ids[],&inst_listing_id,#ili);
+						&inst_api_data[]   = auctionsGetListingInfo(%&inst_listing_id%);
+						listing_hit       := %&inst_api_data[0]%;
+						listing_ended     := %&inst_api_data[5]%;
+						listing_claimed   := %&inst_api_data[6]%;
+						#listing_end_time := %&inst_api_data[15]%;
+						if((!%listing_hit%) || (%listing_ended%) || (%TIMESTAMP% >= %#listing_end_time%));
+							inst_valid = false;
+							break;
+						endif;
+						&decode_auctions[%#ili%] = join("|",&inst_api_data[]);
+					next;
+				endif;
+				
+				&return_array[] = split(", ","%inst_valid%, %&inst_type%, %&inst_mcid%, %&inst_sbid%, %#sum_cost%, %#sum_profit%, %#max_bid%, %#flip_price%");
+				if((%inst_valid%) && (%include_listings%));
+					push(&return_array[],&decode_auctions[*]);
+				endif;
+			endif;
+			return(&return_array[]);
+		endif;
+	endfunction;
+	
+	// Given a Nert Instruction, Parses it to get the Maximum Bid for the Listing, then tries to place the Bid for the Listing.
+		// Params:
+			// {string} <&nert_instruction>	The JSON String Object to parse for Instructions.
+			// {string} <&listing_data[]>  	Return Array from `auctionsGetListingInfo();` for the Listing that we are placing
+			//                             	a bid for.
+		// Returns a String ENUM indicating whether the bid was placed, and if not, why.
+			// ERROR_MAX_BID    	The cost of the Auction exceeded the maximum alloted bid in the Instruction.
+			// ERROR_EXPIRED    	The Auction was Expired by the time we got to it.
+			// ERROR_COINS      	We did not have enough Coins to place a bid on the Listing.
+			// ERROR_NOT_FOUND  	Could not find the Listing.
+			// ERROR_TIMEOUT    	The Function exited early due to a timeout.
+			// ERROR_UNAVAILABLE	The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_UNKNOWN    	The function exited due to an unknown Error.
+			// ERROR_SERVER     	The function exited due to not being able to get onto SkyBlock.
+			// <Valid Number>   	The Function completed successfully, and the bid was placed. The Number Returned is the Amount of Coins
+			//                  	spent on the Bid.
+		// Example:
+			//	&nert_bid_placed = nertFinalPlaceBid(%&nert_instruction%,&listing_data[]);
+			//	ifnotmatches(%&nert_bid_placed%,"^\d$");
+			//		if(%&nert_bid_placed% == "ERROR_MAX_BID");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The cost of the Auction exceeded the maximum alloted bid in the Instruction.");
+			//		elseif(%&nert_bid_placed% == "ERROR_EXPIRED");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The Auction was Expired by the time we got to it.");
+			//		elseif(%&nert_bid_placed% == "ERROR_COINS");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c We did not have enough Coins to place a bid on the Listing.");
+			//		elseif(%&nert_bid_placed% == "ERROR_NOT_FOUND");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c Could not find the Listing.");
+			//		elseif(%&nert_bid_placed% == "ERROR_TIMEOUT");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The Function exited early due to a timeout.");
+			//		elseif(%&nert_bid_placed% == "ERROR_UNAVAILABLE");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).");
+			//		elseif(%&nert_bid_placed% == "ERROR_UNKNOWN");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The function exited due to an unknown Error.");
+			//		elseif(%&nert_bid_placed% == "ERROR_SERVER");
+			//			debug_error(%debug%,%&script_debug_name%,"&4Failed to Place Bid:&c The function exited due to not being able to get onto SkyBlock.");
+			//		endif;
+			//	endif;
+	function nertFinalPlaceBid(&nert_instruction,&listing_data[]);
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6NERT_PLACE_BID&7";
+			&enum_success      = "SUCCESS";
+			&enum_max_bid      = "ERROR_MAX_BID";
+			&enum_expired      = "ERROR_EXPIRED";
+			&enum_coins        = "ERROR_COINS";
+			&enum_not_found    = "ERROR_NOT_FOUND";
+			&enum_timeout      = "ERROR_TIMEOUT";
+			&enum_unavailable  = "ERROR_UNAVAILABLE";
+			&enum_unknown      = "ERROR_UNKNOWN";
+			&enum_server       = "ERROR_SERVER";
+			&return_string     = "";
+			#timeout_sec       = 30;
+			#tick_wait         = 20;
+			#start_time        = %TIMESTAMP%;
+			allow_command      = true;
+			
+			if(true);
+				&inst_listings[]     = xArraySlice(&inst_data[],8);
+				&nert_instruction[]  = nertFinalParseInstruction(%&nert_instruction%,false);
+				#max_bid            := %&inst_data[6]%;
+				
+				// Setup 'Next Bid' Item
+				if(true);
+					#curr_purse    = getPurse();
+					&next_bid_mcid = "gold_nugget";
+					&next_bid_name = "Submit Bid";
+					&next_bid_expr = "([\d,]+) coins";
+					if(%&listing_type% == "BIN");
+						&next_bid_name = "Buy Item Right Now";
+					endif;
+				endif;
+				
+				// Loop Actions until we have Opened up the View Auction GUI, or we encounter an Error.
+				do;
+					// 1. Check for Function Timeout
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,true);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to Timeout!");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+					
+					// 2. Open up into the correct GUI.
+					if(true);
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,true);
+						&listing_opened    = auctionsOpenListing(%&listing_id%,&listing_info[],%#tick_wait%,#recursive_timeout);
+						if(%&listing_opened% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to Error Code from auctionsOpenListing(): '&4%&listing_opened%&c'.");
+							&return_string = %&listing_opened%;
+							break;
+						endif;
+					endif;
+					
+					// 3. Read the cost of the next bid for this Listing, and check if we can afford it.
+					if(true);
+						#next_bid_slot = findItemContainer(false,"MCID: %&next_bid_mcid%","NAME: %&next_bid_name%");
+						if(%#next_bid_slot% != -1);
+							&next_bid_item = getslotitemnbt(%#next_bid_slot%,,#next_bid_stack,#next_bid_data,&next_bid_nbt);
+							&next_bid_nbt  = strip(%&next_bid_nbt%);
+							&next_bid_name = getItemName(%&next_bid_nbt%,%&next_bid_item%);
+							ifmatches(%&next_bid_nbt%,%&next_bid_expr%,&next_bid_coins,1);
+								#next_bid_coins = replace(&next_bid_coins,",");
+								if(%#next_bid_coins% >= %#max_bid%);
+									debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to the Price of the Listing (&6%#next_bid_coins% coins&7) exceeding the Max Bid for this Listing (&4%#max_bid% coins&7).");
+									&return_string = %&enum_max_bid%;
+									break;
+								elseif(%#next_bid_coins% >= %#curr_purse%);
+									if(!%coin_refill_attempted%);
+										coin_refill_attempted = true;
+										#refill_coins_amount  = %#curr_purse% - %#next_bid_coins%;
+										coins_refilled        = refillCoins(%#refill_coins_amount%);
+										if(%coins_refilled%);
+											debug_log(%debug%,%&script_debug_name%,"Successfully refilled enough Coins to purchase this Listing, will try again.");
+											#curr_purse = getPurse();
+										else;
+											debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to not having enough Coins (&6%#curr_purse% coins in purse&7, need &4%#next_bid_coins% coins&7) to place Bid.");
+											&return_string = %&enum_coins%;
+											break;
+										endif;
+									else;
+										debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to not having enough Coins (&6%#curr_purse% coins in purse&7, need &4%#next_bid_coins% coins&7) to place Bid.");
+										&return_string = %&enum_coins%;
+										break;
+									endif;
+								else;
+									#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,true);
+									&auction_bid_placed = auctionsPlaceBid(%&listing_id%,0,true,%allow_command%,%#tick_wait%,%#recursive_timeout%);
+									&return_string      = %&auction_bid_placed%;
+									if(%&auction_bid_placed% == "SUCCESS");
+										debug_log(%debug%,%&script_debug_name%,"Successfully placed Bid on Listing ID '&d%&listing_id%&7'.");
+										#final_purse   = getPurse();
+										#spent_coins   = %#curr_purse% - %#final_purse%;
+										&return_string = %#spent_coins%;
+									else;
+										debug_error(%debug%,%&script_debug_name%,"Function has to Exit due to Error Code from auctionsPlaceBid(): '&4%&auction_bid_placed%&7'.");
+									endif;
+									break;
+								endif;
+							endif;
+						endif;
+					endif;
+					
+					wait("1t");
+				until(%&return_string% != "");
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7' for Listing ID '&e%&listing_id%&7'.");
+		return(%&return_string%);
+	endfunction;

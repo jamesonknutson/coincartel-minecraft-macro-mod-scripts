@@ -1,0 +1,29 @@
+//! @mkb-import-begin
+    // array/index/arrayLength
+        // Returns the zero-indexed length of an Array.
+            // Params:
+            //        <array> <&array[]>    The Array to measure the length of.
+            //
+            // Returns the zero-indexed length of the Array (arraysize - 1).
+        function arrayLength(&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:6
+            #array_size   = arraysize(&array[]);
+            #array_length = #array_size - 1;
+            return(%#array_length%);
+        endfunction;
+    // array/index/arrayLastElement
+        // Returns the Element at the last index of an Array.
+            // Params:
+            //        {array} <&array[]>    The Source Array to take the final element from.
+            //
+            // Returns the Element at the last index of <&array[]>, or an empty string if the Array does not exist.
+        function arrayLastElement(&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:267
+            #array_len = arrayLength(&array[]);
+            if(%#array_len% == -1);
+                return("");
+            else;
+                return(%&array[%#array_len%]%);
+            endif;
+        endfunction;
+//! @mkb-import-end

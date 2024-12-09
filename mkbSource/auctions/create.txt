@@ -1,0 +1,871 @@
+// auctions/create.txt
+	// Creates a new Auction Listing for a given Item.
+		// Params:
+			// {string} <&filter_params[]>   	An Array of Strings in format: [<PARAM_ENUM>: <FILTER>], where PARAM_ENUM can be any of:
+			//                               	MCID|ITEM, DATA, STACK, NAME, SBID, NBT, or UUID.
+			//                               	<FILTER> can be a Regular Expression or an Exact String.
+			//                               	If Passing an Expression, prefix the Filter with 'r$'. All characters following the 'r$' will be used
+			//                               	as the Expression. Used to find the Item we want to try to create a Listing for.
+			// {number} <#inventory_slot>    	Inventory Indexed Inventory Slot that contains the Item we wish to list on the Auction House (9 - 43).
+			// {number} [#starting_bid=0]    	The Starting Bid for the Item. Set to <= 0 to use whatever the Default Value for the Starting Bid is
+			//                               	for listing the Item.
+			// {number} [#duration_minutes=5]	Amount of Minutes to make the Auction Last for. Minimum and Default Value is 5 (5 minutes), maximum is 20,160
+			//                               	(14 days x 24 hours x 60 minutes = 20,160 minutes in 14 days).
+			// {string} [&auction_type=BIN]  	String ENUM of 'BIN' or 'AUCTION'. Defaults to 'BIN'.
+			// {boolean} [refill_coins=true] 	Whether or not to allow the automatic refilling of Coins should we not have enough to
+			//                               	place the bid.
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /ah Command, so long as a Booster Cookie is
+			//                               	enabled, and/or the current SkyBlock Server Type is HUB.
+			// {number} [#tick_wait=20]      	The amount of Ticks to wait in between click interactions.
+			// {number} [#timeout_sec=30]    	The maximum amount of seconds this Function can run for before timing out and returning
+			//                               	an Error. Set to <= 0 to disable timeouts.
+		// Returns a String ENUM:
+			// SUCCESS           	The Function executed as expected and was successful.
+			// ERROR_TIMEOUT     	Exited early due to a timeout.
+			// ERROR_UNAVAILABLE 	Auction House was closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_NOT_FOUND   	Exited due to not being able to find an Item matching the identifiers passed in <...&item_identifiers[]> in the Inventory.
+			// ERROR_COINS       	Not enough Coins available to cover the Auction Creation fee.
+			// ERROR_UNKNOWN     	Exited due to an unknown Error.
+			// ERROR_SERVER      	Exited due to not being able to get onto SkyBlock.
+			// ERROR_DURATION    	Invalid Duration passed to Function.
+			// ERROR_STARTING_BID	Invalid Starting Bid passed to Function.
+			// ERROR_AUCTION_TYPE	Invalid Auction Type passed to Function.
+			// ERROR_NOT_LISTABLE	Auction Item is not Listable.
+			// ERROR_LIMIT       	At maximum Auctions Limit.
+			// ERROR_INVENTORY   	Invalid Item in Listing Slot, and no Room for Item in Inventory.
+		// Example:
+			//	&filter_params[] = split(", ","MCID: golden_horse_armor, NAME: im a horsey neigh, UUID: 8ecf37ae-b3b5-4753-a274-d0c266047403");
+			//	&auction_created = auctionsCreateListing(&filter_params[],%#starting_bid%,%#duration_minutes%,%&auction_type%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+			//	if(%&auction_created% == "SUCCESS");
+			//	else;
+			//		if(%&auction_created% == "ERROR_TIMEOUT");
+			//		elseif(%&auction_created% == "ERROR_UNAVAILABLE");
+			//		elseif(%&auction_created% == "ERROR_NOT_FOUND");
+			//		elseif(%&auction_created% == "ERROR_COINS");
+			//		elseif(%&auction_created% == "ERROR_UNKNOWN");
+			//		elseif(%&auction_created% == "ERROR_SERVER");
+			//		elseif(%&auction_created% == "ERROR_DURATION");
+			//		elseif(%&auction_created% == "ERROR_STARTING_BID");
+			//		elseif(%&auction_created% == "ERROR_AUCTION_TYPE");
+			//		elseif(%&auction_created% == "ERROR_NOT_LISTABLE");
+			//		elseif(%&auction_created% == "ERROR_INVENTORY");
+			//		endif;
+			//	endif;
+	function auctionsCreateListing(&filter_params[],#starting_bid=0,#duration_minutes=5,&auction_type="BIN",refill_coins=true,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug               = true;
+			&script_debug_name  = "&6auctionsCreateListing&7";
+			#start_time         = %TIMESTAMP%;
+			do_timeout          = %#timeout_sec% > 0;
+			&enum_success       = "SUCCESS";
+			&enum_timeout       = "ERROR_TIMEOUT";
+			&enum_unavailable   = "ERROR_UNAVAILABLE";
+			&enum_not_found     = "ERROR_NOT_FOUND";
+			&enum_coins         = "ERROR_COINS";
+			&enum_unknown       = "ERROR_UNKNOWN";
+			&enum_server        = "ERROR_SERVER";
+			&enum_duration      = "ERROR_DURATION";
+			&enum_starting_bid  = "ERROR_STARTING_BID";
+			&enum_auction_type  = "ERROR_AUCTION_TYPE";
+			&enum_not_listable  = "ERROR_NOT_LISTABLE";
+			&enum_listing_limit = "ERROR_LIMIT";
+			&enum_inventory     = "ERROR_INVENTORY";
+			
+			// Validate Parameters
+			if(true);
+				// Validate Filter Parameters
+				if(true);
+					#inventory_slot = findItemInv(false,...&filter_params[]);
+					if(%#inventory_slot% == -1);
+						//! TODO: Look into making this check attempt to put itself off until we are in the Auctions Create Listing GUI.
+						&filter_params = join("&7, &d");
+						debug_error(%debug%,%&script_debug_name%,"Could not find an Inventory Slot that contained the specified Filter Parameters: '&d%&filter_params%&c'. Returning '&4%&enum_not_found%&c'.");
+						return(%&enum_not_found%);
+					else;
+						&listing_item = getslotiteminv(%#inventory_slot%,,#list_stack,#list_data,&listing_nbt);
+						&listing_nbt  = strip(%&listing_nbt%);
+						if(%&listing_item% == "air");
+							debug_error(%debug%,%&script_debug_name%,"Inventory Slot (&4%#inventory_slot%&c) contains Air!");
+							return(%&enum_not_found%);
+						endif;
+						
+						&listing_name        = getItemName(%&listing_nbt%,%&listing_item%);
+						&listing_sbid        = getItemSBID(%&listing_nbt%);
+						&listing_uuid        = getItemUUID(%&listing_nbt%);
+						&sb_info_data[]      = getItemInfoSB(%&listing_sbid%,true);
+						&sb_info_name        = %&sb_info_data[0]%;
+						&sb_info_sbid        = %&sb_info_data[1]%;
+						&sb_info_mcid        = %&sb_info_data[2]%;
+						#sb_info_data       := %&sb_info_data[3]%;
+						#sb_info_sell       := %&sb_info_data[4]%;
+						#sb_info_stack      := %&sb_info_data[5]%;
+						&sb_info_tier        = %&sb_info_data[6]%;
+						&sb_info_category    = %&sb_info_data[7]%;
+						sb_info_bazaar      := %&sb_info_data[8]%;
+						#npc_sell_price      = %#sb_info_sell% * %#list_stack%;
+						#non_rare_max_price  = %#npc_sell_price% * 5;
+						
+						&append_vars[]     = split(", ","MCID, DATA, STACK, NAME, SBID, UUID");
+						&append_pointers[] = split(", ","&listing_item, #list_data, #list_stack, &listing_name, &listing_sbid, &listing_uuid");
+						&existing_params   = join(", ",&filter_params[]);
+						foreach(&append_vars[],&append_var,#av);
+							&append_value = "%%&append_pointers[%#av%]%%";
+							if(%&append_value% != "");
+								ifnotcontains(%&existing_params%,"%&append_var%:");
+									&filter_params[] = "%&append_var%: %&append_value%";
+								endif;
+							endif;
+						next;
+					endif;
+				endif;
+				
+				// Validate Inventory Slot
+				if(false);
+					if((%#inventory_slot% < 9) || (%#inventory_slot% > 43));
+						debug_error(%debug%,%&script_debug_name%,"Inventory Slot is out of Inventory Indexed Range (range is: 9 - 43, inventory_slot is: &4%#inventory_slot%&c). Returning '&4%&enum_not_found%&c'.");
+						return(%&enum_not_found%);
+					endif;
+					
+					&listing_item = getslotiteminv(%#inventory_slot%,,#list_stack,#list_data,&listing_nbt);
+					&listing_nbt  = strip(%&listing_nbt%);
+					if(%&listing_item% == "air");
+						debug_error(%debug%,%&script_debug_name%,"Inventory Slot (&4%#inventory_slot%&c) contains Air!");
+						return(%&enum_not_found%);
+					endif;
+					
+					&listing_name        = getItemName(%&listing_nbt%,%&listing_item%);
+					&listing_sbid        = getItemSBID(%&listing_nbt%);
+					&sb_info_data[]      = getItemInfoSB(%&listing_sbid%,true);
+					&sb_info_name        = %&sb_info_data[0]%;
+					&sb_info_sbid        = %&sb_info_data[1]%;
+					&sb_info_mcid        = %&sb_info_data[2]%;
+					#sb_info_data       := %&sb_info_data[3]%;
+					#sb_info_sell       := %&sb_info_data[4]%;
+					#sb_info_stack      := %&sb_info_data[5]%;
+					&sb_info_tier        = %&sb_info_data[6]%;
+					&sb_info_category    = %&sb_info_data[7]%;
+					sb_info_bazaar      := %&sb_info_data[8]%;
+					#npc_sell_price      = %#sb_info_sell% * %#list_stack%;
+					#non_rare_max_price  = %#npc_sell_price% * 5;
+					
+					if(%sb_info_bazaar%);
+						debug_error(%debug%,%&script_debug_name%,"Inventory Slot %#inventory_slot% holds SBID &d%&listing_sbid%&c, which is available on Bazaar and therefore not Auctionable. Returning '&4%&enum_not_listable%&c'.");
+						return(%&enum_not_listable%);
+					endif;
+				endif;
+				
+				// Validate Starting Bid
+				if(true);
+					use_default_bid = %#starting_bid% <= 0;
+					if((!%use_default_bid%) && (%#starting_bid% < 10));
+						debug_error(%debug%,%&script_debug_name%,"Starting bid cannot be less than 10 coins. Returning '&4%&enum_starting_bid%&7'.");
+						return(%&enum_starting_bid%);
+					elseif((!%use_default_bid%) && (%#starting_bid% < %#npc_sell_price%));
+						debug_error(%debug%,%&script_debug_name%,"NPC Sell Price for &d%#list_stack%x&7 of &e%&listing_sbid%&7 would be &6%#npc_sell_price% coins&7. Auction List Price must be at least this many Coins (starting_bid: &4%#starting_bid% coins&c). Returning '&4%&enum_starting_bid%&c'.");
+						return(%&enum_starting_bid%);
+					elseif((!%use_default_bid%) && (((%&sb_info_tier% == "COMMON") || (%&sb_info_tier% == "UNCOMMON")) && (%#starting_bid% > (%#npc_sell_price% * 5))));
+						debug_error(%debug%,%&script_debug_name%,"Maximum Price for COMMON/UNCOMMON Rarity Tier Items is 5x their NPC Price (%#list_stack%x %&listing_sbid% @ %#sb_info_sell%/ea = %#non_rare_max_price% coins). Starting bid exceeds this maximum price (&4%#starting_bid% coins&c). Returning '&4%&enum_starting_bid%&c'.");
+						return(%&enum_starting_bid%);
+					endif;
+					
+					// debug_breakpoint(%debug%,%&script_debug_name%,"Starting Bid will be set to: &6%#starting_bid% coins&7.");
+					debug_log(%debug%,%&script_debug_name%,"Starting Bid will be set to: &6%#starting_bid% coins&7.");
+					#start_time = %TIMESTAMP%;
+				endif;
+				
+				// Validate Duration
+				if(true);
+					if((%#duration_minutes% < 5) || (%#duration_minutes% > 20160));
+						debug_error(%debug%,%&script_debug_name%,"Auction Duration (measured in minutes) cannot be less than 5, nor greater than 20160 (duration_minutes: &4%#duration_minutes%&c). Returning '&4%&enum_duration%&c'.");
+						return(%&enum_duration%);
+					endif;
+					
+					&map_time_unit_terms[] = split(", ","m, h, d");
+					#map_time_unit_ratio[] = split(", ","1, 60, 1440");
+					foreach(#map_time_unit_ratio[],#map_time_unit_ratio,#mturi);
+						if(%#duration_minutes% >= %#map_time_unit_ratio%);
+							#duration_rem_precision = mod(%#duration_minutes%,%#map_time_unit_ratio%);
+							#duration_min_precision = (%#duration_minutes% / %#map_time_unit_ratio%) * %#map_time_unit_ratio%;
+							#duration_max_precision = ((%#duration_minutes% / %#map_time_unit_ratio%) + %#duration_rem_precision%) * %#map_time_unit_ratio%;
+						endif;
+					next;
+					debug_log(%debug%,%&script_debug_name%,"duration_min_precision: &d%#duration_min_precision% minutes&7, max: &d%#duration_max_precision% minutes&7.");
+					
+					// Setup 'Quick Click' Duration Slots
+					if(true);
+						// 1h, 6h, 12h, 24h, 2d
+						#duration_quick_hours[] = split(", ","1, 6, 12, 24, 48");
+						&duration_quick_names[] = split(", ","1 Hour, 6 Hours, 12 Hours, 24 Hours, 2 Days");
+						foreach(#duration_quick_hours[],#duration_quick_hour,#dqh);
+							#converted_minutes = %#duration_quick_hour% * 60;
+							if(%#duration_minutes% == %#converted_minutes%);
+								duration_quick_slot  = true;
+								&duration_quick_name = %&duration_quick_names[%#dqh%]%;
+								&duration_quick_mcid = "stained_hardened_clay";
+								debug_log(%debug%,%&script_debug_name%,"Will use Duration Quick Slot '&d%&duration_quick_name%&7' (#duration_minutes: %#duration_minutes% == #converted_minutes: %#converted_minutes% (derived from: #duration_quick_hour: %#duration_quick_hour% * 60)");
+								break;
+							endif;
+						next;
+					endif;
+				endif;
+				
+				// Validate Auction Type
+				&auction_type = miscValidate(%&auction_type%,0,"BIN","AUCTION");
+				
+				// Validate that we will have enough Coins to cover the Auction Listing Fee
+				if(false);
+					// Starting Price Component:   round(starting_price / 100)
+					// Auction Duration Component: 
+					
+					// Calculate Auction Duration Component
+					if(true);
+						if(%#duration_minutes% <= 59);
+							#fee_duration = 50;
+						else;
+							// static 15 coin offset from start
+							#fee_duration = 15;
+							
+							// 1 - 7h @ 5/hr
+							#tranche_cutoffs[]  = 7;
+							#tranche_per_hour[] = 5;
+							
+							// 8 - 12h @ 10/hr
+							#tranche_cutoffs[]  = 12;
+							#tranche_per_hour[] = 10;
+							
+							// 13h - 23h @ 20/hr
+							#tranche_cutoffs[]  = 23;
+							#tranche_per_hour[] = 20;
+							
+							// 24h - 
+							
+							// tranche0: 1 hours to  7 hours = 15 + ((hours >= 7 ? 7 : hours) * 5)
+							// tranche1: 8 hours to 12 hours = sum(tranches[0]) + ((hours - sum(tranch_hours[0])) * 10)
+							// tranche2: 13 hours to 
+							// h6 = 45 coins
+							// h7 = 50 coins
+							// h8 = 60 coins
+							// h9 = 70 coins
+						endif;
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		// Loop Actions until the Auction is Listed or an Error that we cannot recover from is detected.
+		if(true);
+			// Setup GUI Terms, Types, ENUMs, and Actions
+			if(true);
+				&gui_enums[] = "BASE";
+				&gui_regex[] = "^(?:Co-op )?Auction House$";
+				
+				&gui_enums[] = "MANAGE";
+				&gui_regex[] = "^Manage Auctions$";
+				
+				&gui_enums[] = "CREATE_LISTING";
+				&gui_regex[] = "^Create (?:BIN )?Auction$";
+				
+				&gui_enums[] = "EDIT_DURATION";
+				&gui_regex[] = "^Auction Duration$";
+				
+				&gui_enums[] = "CONFIRM_LISTING";
+				&gui_regex[] = "^Confirm (?:BIN )?Auction$";
+				
+				&gui_enums[] = "VIEW_LISTING";
+				&gui_regex[] = "^View (?:BIN )?Auction$";
+			endif;
+			
+			// Unset Chat Filter Pointers
+			if(true);
+				&init_unset_pointers[] = split(", ","@ah_failure, @&ah_failure_string, @ah_confirm");
+				&fail_pointers[]       = split(", ","@ah_failure");
+				&good_pointers[]       = split(", ","@ah_confirm");
+				foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+					unset(%&init_unset_pointer%);
+				next;
+			endif;
+			
+			placeholder_empty = true;
+			do;
+				// 1. Check if the Function has timed out
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check for Pointers
+				if(true);
+					// 2a. Check for Good Pointers
+					if(true);
+						foreach(&good_pointers[],&good_pointer,#gp);
+							good_pointer := "%%&good_pointer%%";
+							if(%good_pointer%);
+								debug_log(%debug%,%&script_debug_name%,"Successfully created Auction!");
+								&return_string = %&enum_success%;
+								break;
+							endif;
+						next;
+						if(%&return_string% != "");
+							break;
+						endif;
+					endif;
+					
+					// 2b. Check for Bad Pointers
+					if(true);
+						&failure_string = %@&ah_failure_string%;
+						unset(&failed_pointers[]);
+						foreach(&fail_pointers[],&fail_pointer,#fp);
+							fail_value := "%%&fail_pointer%%";
+							if(%fail_value%);
+								&failed_pointers[] = %&fail_pointer%;
+								failed_pointer     = true;
+							endif;
+						next;
+						
+						if(%failed_pointer%);
+							#ah_failure_index = indexof(&failed_pointers[],,"@ah_failure");
+							if(%#ah_failure_index% != -1);
+								ifmatches(%&failure_string%,"Reached the active auctions limit!");
+									debug_error(%debug%,%&script_debug_name%,"At Active Auctions Limit. Returning '&4%&enum_listing_limit%&c'.");
+									&return_string = %&enum_listing_limit%;
+								elseifmatches(%&failure_string%,"Couldn't load your auctions! Try again!");
+								  	debug_error(%debug%,%&script_debug_name%,"Encountering 'couldnt load your auctions! try again' bug. Returning '&4%&enum_unavailable%&c'.");
+								  	&return_string = %&enum_unavailable%;
+								//	elseifmatches(%&failure_string%,"Couldn't read this number!");
+								//		if(%&gui_enum% == "CREATE_LISTING");
+								//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for staring bid. Returning '&4%&enum_starting_bid%&c'.");
+								//			&return_string = %&enum_starting_bid%;
+								//		elseif(%&gui_enum% == "EDIT_DURATION");
+								//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for auction duration. Returning '&4%&enum_duration%&c'.");
+								//			&return_string = %&enum_duration%;
+								//		else;
+								//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for unknown GUI_ENUM. Returning '&4%&enum_unknown%&c'.");
+								//			&return_string = %&enum_unknown%;
+								//		endif;
+								elseifmatches(%&failure_string%,"Can't create a BIN auction for this item for a PRICE this LOW!");
+									debug_error(%debug%,%&script_debug_name%,"Encountering Pricing Error (failure string: '&4%&failure_string%&c'). Returning '&4%&enum_starting_bid%&c'.");
+									&return_string = %&enum_starting_bid%;
+								elseifmatches(%&failure_string%,"Minimum duration is ([\d,.]+) (seconds|minutes|hours|days)");
+									debug_error(%debug%,%&script_debug_name%,"Encountering Duration Error (failure_string: '&4%&failure_string%&c'). Returning '&4%&enum_duration%&c'.");
+									&return_string = %&enum_duration%;
+								elseifmatches(%&failure_string%,"(?:Your starting bid must be|You must set it to) at least ([\d,.]+)(?: coins)?!",&min_starting_bid,1);
+									debug_error(%debug%,%&script_debug_name%,"Encountering Pricing Error (failure_string: '&4%&failure_string%&c'). Returning '&4%&enum_starting_bid%&c'.");
+									&return_string = %&enum_starting_bid%;
+								else;
+									debug_error(%debug%,%&script_debug_name%,"Encountered Unknown Error (failure_string: '&4%&failure_string%&c'). Ignoring since no special case is made for this Error.");
+									unset(@ah_failure);
+									unset(@&ah_failure_string);
+								endif;
+							endif;
+							
+							if(%&return_string% != "");
+								break;
+							endif;
+							
+							failed_pointer = false;
+						endif;
+					endif;
+				endif;
+				
+				// 3. Execute GUI Actions, or wait for Pointers depending on previous State.
+				if(true);
+					if(%wait_for_pointers%);
+						#elapsed_seconds  = %TIMESTAMP% - %#wait_for_pointers_time%;
+						wait_for_pointers = %#elapsed_seconds% <= 5;
+					else;
+						&action_type    = "CALL";        	// CALL, CLICK, TEXT
+						&action_data    = "auctionsOpen";	// Function Name, Slot to Click, or Text to Type
+						#action_timeout = 0;             	// Ticks until Timeout while executing Action. <= 0 for no Timeout (other than Standard Function Timeout).
+						
+						#gui_index = -1;
+						foreach(&gui_regex[],&gui_regex,#gr);
+							ifmatches(%CONTAINERNAME%,%&gui_regex%);
+								#gui_index = %#gr%;
+								break;
+							endif;
+						next;
+						
+						if(%#gui_index% != -1);
+							&gui_enum = %&gui_enums[%#gui_index%]%;
+							if(%wait_for_pointers%);
+								if((%&last_gui_enum% == "CONFIRM_LISTING") && (%confirm_ready%));
+									debug_log(%debug%,%&script_debug_name%,"Successfully created Auction!");
+									&return_string = %&enum_success%;
+									break;
+								endif;
+								#elapsed_seconds  = %TIMESTAMP% - %#wait_for_pointers_time%;
+								wait_for_pointers = %#elapsed_seconds% <= 5;
+							else;
+								if(%&gui_enum% == "BASE");
+									#manage_slot = 15;
+									
+									// 1. Check if we are at Active Auctions Limit.
+									if(true);
+										&manage_item = getslotitemnbt(%#manage_slot%,,#manage_stack,#manage_data,&manage_nbt);
+										&manage_nbt  = strip(%&manage_nbt%);
+										match(%&manage_nbt%,"You own (\d+) auctions in",#active_auctions,1,0);
+										if(%#active_auctions% >= 17);
+											debug_error(%debug%,%&script_debug_name%,"At Active Auctions Limit. Returning '&4%&enum_listing_limit%&c'.");
+											&return_string = %&enum_listing_limit%;
+											break;
+										endif;
+									endif;
+									
+									// 2. Figure out which Slot to click in our Inventory.
+									if(true);
+										// !TEST:	Check if the changes made (setting placeholder_empty = false in GUI_ENUM CREATE_LISTING) will successfully
+										// !     	recover from a "Couldn't read this number!" Error.
+										// !     	
+										// !     	If it does not, we can look into trying to get into the Create Listing GUI anyways, then checking if the Item
+										// !     	in that slot matches the variables we extracted @ create.txt:79
+										
+										if(!%placeholder_empty%);
+											&action_type = "CLICK";
+											&action_data = %#manage_slot%;
+										else;
+											// Check to see if we can find the Item in our Inventory.
+											#shortcut_slot = findItemInv(false,...&filter_params[]);
+											if(%#shortcut_slot% != -1);
+												found_once        = true;
+												&action_type      = "CLICK";
+												&action_data      = invslot_to_conslot(%#shortcut_slot%);
+												placeholder_empty = false;
+												#action_timeout   = 20;
+											elseif(%found_once%);
+												&action_type = "CLICK";
+												&action_data = %#manage_slot%;
+											else;
+												debug_error(%debug%,%&script_debug_name%,"Cannot find Shortcut Item &4%&sb_info_mcid% %&sb_info_sbid% %&listing_name%&c in the Inventory. Returning '&4%&enum_not_found%&c'.");
+												&return_string = %&enum_not_found%;
+												break;
+											endif;
+										endif;
+									endif;
+								elseif(%&gui_enum% == "MANAGE");
+									#create_slot = findItemContainer(false,"MCID: golden_horse_armor","NAME: Create Auction");
+									if(%#create_slot% != -1);
+										&create_item = getslotitemnbt(%#create_slot%,,#create_stack,#create_data,&create_nbt);
+										&create_nbt  = strip(%&create_nbt%);
+										
+										// 1. Check if we are at Active Auctions Limit.
+										ifmatches(%&create_nbt%,"You reached the maximum number");
+											debug_error(%debug%,%&script_debug_name%,"At Active Auctions Limit. Returning '&4%&enum_listing_limit%&c'.");
+											&return_string = %&enum_listing_limit%;
+											break;
+										endif;
+										
+										&action_type = "CLICK";
+										&action_data = %#create_slot%;
+									endif;
+								elseif(%&gui_enum% == "CREATE_LISTING");
+									if(%GUI% == "GUICHEST");
+										#placeholder_slot   = 13;
+										#create_slot        = 29;
+										#edit_price_slot    = 31;
+										#edit_duration_slot = 33;
+										#edit_type_slot     = 48;
+										
+										// 1. Check if there is an Item in the Listing Slot.
+										if(true);
+											&placeholder_item   = getslotitemnbt(%#placeholder_slot%,,#placeholder_stack,#placeholder_data,&placeholder_nbt);
+											&placeholder_nbt    = strip(%&placeholder_nbt%);
+											placeholder_valid   = %&placeholder_item% != "air";
+											placeholder_correct = false;
+											if(%&placeholder_item% != "air");
+												&placeholder_name = getItemName(%&placeholder_nbt%,%&placeholder_item%);
+												&placeholder_sbid = getItemSBID(%&placeholder_nbt%);
+												placeholder_empty = ((%&placeholder_name% == "Click an item in your inventory!") && (%&placeholder_item% == "stone_button"));
+												ifmatches(%&placeholder_nbt%,%&listing_name%);
+													placeholder_correct = ((%&placeholder_sbid% == %&listing_sbid%) && (%&placeholder_item% == %&listing_item%) && (%&placeholder_name% == "AUCTION FOR ITEM:"));
+												endif;
+												
+												if(!%placeholder_correct%);
+													if(!%placeholder_empty%);
+														#placeholder_room = getStackRoomInventory(%&placeholder_sbid%);
+														if(%#placeholder_room% >= %#placeholder_stack%);
+															&action_type = "CLICK";
+															&action_data = %#placeholder_slot%;
+														else;
+															debug_error(%debug%,%&script_debug_name%,"Placeholder Slot Item &d%&placeholder_sbid%&7 is incorrect, and we do not have enough Room in our Inventory to move it into our Inventory without issue (required room: %#placeholder_stack%, current room: %#placeholder_room%). Returning '&4%&enum_inventory%&c'.");
+															&return_string = %&enum_inventory%;
+															break;
+														endif;
+													else;
+														#shortcut_slot = findItemInv(false,"MCID: %&sb_info_mcid%","SBID: %&sb_info_sbid%","NAME: %&listing_name%");
+														if(%#shortcut_slot% == -1);
+															debug_error(%debug%,%&script_debug_name%,"Cannot find Shortcut Item &4%&sb_info_mcid% %&sb_info_sbid% %&listing_name%&c in the Inventory. Returning '&4%&enum_not_found%&c'.");
+															&return_string = %&enum_not_found%;
+															break;
+														endif;
+														
+														&action_type      = "CLICK";
+														&action_data      = invslot_to_conslot(%#shortcut_slot%);
+														placeholder_empty = false;
+													endif;
+												endif;
+											endif;
+										endif;
+										
+										// 2. If there is an Item in the Listing Slot, and it is Correct, iteratively check all the other Conditions.
+										if(true);
+											type_correct     = false;
+											price_correct    = false;
+											duration_correct = false;
+											fee_correct      = false;
+											create_ready     = false;
+											
+											// 2a. Check if the Type is Correct.
+											if(%placeholder_correct%);
+												type_correct = (((%&auction_type% == "BIN") && (%CONTAINERNAME% == "Create BIN Auction")) || ((%&auction_type% == "AUCTION") && (%CONTAINERNAME% == "Create Auction")));
+												if(!%type_correct%);
+													&action_type = "CLICK";
+													&action_data = %#edit_type_slot%; 
+												endif;
+											endif;
+											
+											// 2b. Check if the Price is Correct.
+											if(%type_correct%);
+												&edit_price_item = getslotitemnbt(%#edit_price_slot%,,#edit_price_stack,#edit_price_data,&edit_price_nbt);
+												&edit_price_nbt  = strip(%&edit_price_nbt%);
+												ifmatches(%&edit_price_nbt%,"(?:Item price|Starting bid): ([\d,.]+) coins",&current_price,1);
+													#current_price := regexreplace(&current_price,",");
+													price_correct   = ((%use_default_bid%) || (%#current_price% == %#starting_bid%));
+													if(!%price_correct%);
+														&action_type = "CLICK";
+														&action_data = %#edit_price_slot%;
+													endif;
+												endif;
+											endif;
+											
+											// 2c. Check if the Duration is Correct.
+											if(%price_correct%);
+												&edit_duration_item = getslotitemnbt(%#edit_duration_slot%,,#edit_duration_stack,#edit_duration_data,&edit_duration_nbt);
+												&edit_duration_nbt  = strip(%&edit_duration_nbt%);
+												&edit_duration_name = getItemName(%&edit_duration_nbt%,%&edit_duration_item%);
+												ifmatches(%&edit_duration_name%,"Duration: (\d+) (m|h|d)");
+													match(%&edit_duration_name%,"Duration: (\d+) (m|h|d)",{#current_duration_amount,&current_duration_unit});
+													#current_duration_index   = indexof(&map_time_unit_terms[],,%&current_duration_unit%);
+													#current_duration_minutes = %#map_time_unit_ratio[%#current_duration_index%]% * %#current_duration_amount%;
+													duration_correct          = ((%#current_duration_minutes% >= %#duration_min_precision%) && (%#current_duration_minutes% <= %#duration_max_precision%));
+													if(!%duration_correct%);
+														&action_type = "CLICK";
+														&action_data = %#edit_duration_slot%;
+													endif;
+												endif;
+											endif;
+											
+											// 2d. Check if we can afford the Fee.
+											if(%duration_correct%);
+												&create_item = getslotitemnbt(%#create_slot%,,#create_stack,#create_data,&create_nbt);
+												&create_nbt  = strip(%&create_nbt%);
+												ifmatches(%&create_nbt%,"Creation fee: ([\d,]+) coins",&creation_fee,1);
+													#creation_fee := regexreplace(&creation_fee,",");
+													#purse_coins   = getPurseCoins();
+													fee_correct    = %#purse_coins% >= %#creation_fee%;
+													if(!%fee_correct%);
+														debug_error(%debug%,%&script_debug_name%,"Cannot afford Auction Creation fee (&4%#creation_fee% coins&7). Will try to Refill Coins if possible.");
+														if(%refill_coins%);
+															#refill_coins  = %#creation_fee% - %#purse_coins%;
+															coins_refilled = refillCoins(%#refill_coins%);
+														endif;
+														
+														if(!%coins_refilled%);
+															debug_error(%debug%,%&script_debug_name%,"Could not refill enough Coins to cover the cost of the Creation Fee. Will return '&4%&enum_coins%&c'.");
+															&return_string = %&enum_coins%;
+															break;
+														endif;
+													else;
+														debug_log(%debug%,%&script_debug_name%,"placeholder, type, price, duration and fee are all correct, will progress onto confirm listing GUI.");
+														&action_type = "CLICK";
+														&action_data = %#create_slot%;
+													endif;
+												endif;
+											endif;
+											
+											create_ready = ((%placeholder_correct%) && (%type_correct%) && (%price_correct%) && (%duration_correct%) && (%fee_correct%));
+										endif;
+									elseif(%GUI% == "GUIEDITSIGN");
+										&action_type = "TEXT";
+										&action_data = %#starting_bid%;
+										if(%use_default_bid%);
+											&action_data = %#npc_sell_price% * 2;
+											debug_breakpoint(%debug%,%&script_debug_name%,"Overriding typed sell price from %#starting_bid% (#starting_bid) to %&action_data% (#npc_sell_price * 2)");
+										endif;
+									endif;
+								elseif(%&gui_enum% == "EDIT_DURATION");
+									if(%GUI% == "GUICHEST");
+										if(%duration_quick_slot%);
+											#duration_quick_slot = findItemContainer(false,"MCID: %&duration_quick_mcid%","NAME: %&duration_quick_name%");
+											if(%#duration_quick_slot% != -1);
+												&action_type = "CLICK";
+												&action_data = %#duration_quick_slot%;
+											else;
+												&log_path = containerLog("~/liteconfig/common/macros/logs/auctionFailures/%TIMESTAMP%-createAuction-auctionNBT.txt",false,"Caller: %&script_debug_name%");
+												debug_error(%debug%,%&script_debug_name%,"Could not find any Slot in the Container matching MCID %&duration_quick_mcid%, NAME %&duration_quick_name%. The contents of the current Container can be found in: '&c%&log_path%&7'.");
+												
+												unset(&action_type);
+												unset(&action_data);
+											endif;
+										else;
+											#edit_duration_slot = 16;
+											&action_type        = "CLICK";
+											&action_data        = %#edit_duration_slot%;
+										endif;
+									elseif(%GUI% == "GUIEDITSIGN");
+										&action_type = "TEXT";
+										&action_data = %#duration_minutes%;
+									endif;
+								elseif(%&gui_enum% == "CONFIRM_LISTING");
+									confirm_ready = false;
+									#cancel_slot  = 15;
+									#confirm_slot = 11;
+									&action_type  = "";
+									&action_data  = "";
+									
+									
+									if(%create_ready%);
+										&confirm_item       = getslotitemnbt(%#confirm_slot%,,,,&confirm_nbt);
+										&confirm_nbt        = strip(%&confirm_nbt%);
+										&test_expressions[] = split(", ","(?:Auctioning|Selling): (\d+)x (.+?)\".*Cost: ([\d,.]+) coins, (?:Auctioning|Selling): (.+?)\".*Cost: ([\d,.]+) coins");
+										nbt_match_found     = false
+										foreach(&test_expressions[],&test_expression,#te);
+											ifmatches(%&confirm_nbt%,%&test_expression%);
+												nbt_match_found = true;
+												if(%#te% == 0);
+													match(%&confirm_nbt%,%&test_expression%,{#confirm_stack,&confirm_name,&confirm_cost});
+												else;
+													match(%&confirm_nbt%,%&test_expression%,{&confirm_name,&confirm_cost});
+													#confirm_stack = 1;
+												endif;
+												break;
+											endif;
+										next;
+										
+										if(%nbt_match_found%);
+											#confirm_cost := regexreplace(&confirm_cost,",");
+											debug_log(%debug%,%&script_debug_name%,"match found against confirm_nbt");
+											confirm_ready = ((%#confirm_cost% == %#creation_fee%) && (%#confirm_stack% == %#placeholder_stack%) && (%&confirm_name% == %&listing_name%));
+											&vars[]       = split(" ","#confirm_stack #placeholder_stack &confirm_name &listing_name &confirm_cost #confirm_cost #creation_fee confirm_ready");
+											foreach(&vars[],&var,#v);
+												&val    = "%%&var%%";
+												&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+												&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+												debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+											next;
+											if(%debug%); log(" "); endif;
+										elseif(%&confirm_item% != "air");
+											setclipboard(%&confirm_nbt%);
+											debug_breakpoint(%debug%,%&script_debug_name%,"no match found against confirm_nbt (on clipboard)");
+										endif;
+									else;
+										&action_type = "CALL";
+										&action_data = "auctionsOpen";
+									endif;
+									
+									if(%confirm_ready%);
+										&action_type            = "CLICK";
+										&action_data            = %#confirm_slot%;
+										wait_for_pointers_after = true;
+									endif;
+								elseif(%&gui_enum% == "VIEW_LISTING");
+									#close_or_last_gui_slot = findItemContainer(false,"MCID: arrow","NAME: Go Back","MCID: barrier","NAME: Close");
+									if(%#close_or_last_gui_slot% != -1);
+										&close_or_last_gui_item = getslotitemnbt(%#close_or_last_gui_slot%,,#close_or_last_gui_stack,#close_or_last_gui_data,&close_or_last_gui_nbt);
+										&close_or_last_gui_nbt  = strip(%&close_or_last_gui_nbt%);
+										if(%&close_or_last_gui_item% == "arrow");
+											&action_type = "CLICK";
+											&action_data = %#close_or_last_gui_slot%;
+										elseif(%&close_or_last_gui_item% == "barrier");
+											debug_error(%debug%,%&script_debug_name%,"At Active Auctions Limit. Returning '&4%&enum_listing_limit%&c'.");
+											&return_string = %&enum_listing_limit%;
+											break;
+										endif;
+									endif;
+								endif;
+								&last_gui_enum = %&gui_enum%;
+								
+							endif;
+						endif;
+						
+						if(!%wait_for_pointers%);
+							debug_log(%debug%,%&script_debug_name%,"&&gui_enum: '&d%&gui_enum%&7', &&action_type: '&d%&action_type%&7', &&action_data: '&d%&action_data%&7'.");
+							if(%&action_type% == "CALL");
+								if(%&action_data% == "auctionsOpen");
+									if(%GUI% != "NONE");
+										localGUI("NONE");
+									endif;
+									
+									// Save the state of our Pointers before calling the Function.
+									foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+										&save_state[%#iup%] = "%%&init_unset_pointer%%";
+									next;
+									
+									#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+									&auctions_opened   = auctionsOpen(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+									if(%&auctions_opened% != "SUCCESS");
+										debug_error(%debug%,%&script_debug_name%,"auctionsOpen returned Error: '&4%&auctions_opened%&c'. Returning this error code.");
+										&return_string = %&auctions_opened%;
+										break;
+									endif;
+									
+									// Restore the state of our Pointers after calling the Function.
+									foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+										set(%&init_unset_pointer%,%&save_state[%#iup%]%);
+									next;
+								endif;
+							elseif(%&action_type% != "");
+								if(%&action_type% == "CLICK");
+									&init_gui = getContainerString(true);
+								endif;
+								
+								#action_ticks   = 0;
+								entered_new_gui = false;
+								do;
+									// 1. Check if the Function has timed out
+									if(true);
+										if(%do_timeout%);
+											func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+											if(%func_timeout%);
+												debug_error(%debug%,%&script_debug_name%,"Function timed out");
+												&return_string = %&enum_timeout%;
+												break;
+											endif;
+										endif;
+										
+										if((%#action_timeout% > 0) && (%#action_ticks% >= %#action_timeout%));
+											debug_error(%debug%,%&script_debug_name%,"action_ticks %#action_ticks% exceeded action_timeout %#action_timeout%, breaking.");
+											break;
+										endif;
+									endif;
+																
+									// 2. Check if we have entered a new GUI.
+									if(true);
+										if(%&action_type% == "TEXT");
+											entered_new_gui = %GUI% == "GUICHEST";
+										elseif(%&action_type% == "CLICK");
+											entered_new_gui = enteredNewGUI(%&init_gui%,true);
+										endif;
+										
+										if(%entered_new_gui%);
+											break;
+										endif;
+									endif;
+									
+									// 3. Check if we can do our Action.
+									do_action = canDoInteraction(%#action_ticks%,%#tick_wait%);
+									if(%do_action%);
+										if((%GUI% == "GUIEDITSIGN") && (%&action_type% == "TEXT"));
+											debug_log(%debug%,%&script_debug_name%,"Typing &&action_data '&d%&action_data%&7'...");
+											wait("5t");
+											type(%&action_data%);
+											wait("5t");
+											press("escape");
+										elseif((%GUI% == "GUICHEST") && (%&action_type% == "CLICK"));
+											debug_log(%debug%,%&script_debug_name%,"Clicking slot &&action_data '&d%&action_data%&7'...");
+											slotclick(%&action_data%,"right");
+										endif;
+									endif;
+									
+									// 4. Check for Pointers
+									if(true);
+										// 4a. Check for Good Pointers
+										if(true);
+											foreach(&good_pointers[],&good_pointer,#gp);
+												good_pointer := "%%&good_pointer%%";
+												if(%good_pointer%);
+													debug_log(%debug%,%&script_debug_name%,"Successfully created Auction!");
+													&return_string = %&enum_success%;
+													break;
+												endif;
+											next;
+											if(%&return_string% != "");
+												break;
+											endif;
+										endif;
+										
+										// 4b. Check for Bad Pointers
+										if(true);
+											&failure_string = %@&ah_failure_string%;
+											unset(&failed_pointers[]);
+											foreach(&fail_pointers[],&fail_pointer,#fp);
+												fail_value := "%%&fail_pointer%%";
+												if(%fail_value%);
+													&failed_pointers[] = %&fail_pointer%;
+													failed_pointer     = true;
+												endif;
+											next;
+											
+											if(%failed_pointer%);
+												#ah_failure_index = indexof(&failed_pointers[],,"@ah_failure");
+												if(%#ah_failure_index% != -1);
+													ifmatches(%&failure_string%,"Reached the active auctions limit!");
+														debug_error(%debug%,%&script_debug_name%,"At Active Auctions Limit. Returning '&4%&enum_listing_limit%&c'.");
+														&return_string = %&enum_listing_limit%;
+													elseifmatches(%&failure_string%,"Couldn't load your auctions! Try again!");
+													  	debug_error(%debug%,%&script_debug_name%,"Encountering 'couldnt load your auctions! try again' bug. Returning '&4%&enum_unavailable%&c'.");
+													  	&return_string = %&enum_unavailable%;
+													//	elseifmatches(%&failure_string%,"Couldn't read this number!");
+													//		if(%&gui_enum% == "CREATE_LISTING");
+													//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for staring bid. Returning '&4%&enum_starting_bid%&c'.");
+													//			&return_string = %&enum_starting_bid%;
+													//		elseif(%&gui_enum% == "EDIT_DURATION");
+													//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for auction duration. Returning '&4%&enum_duration%&c'.");
+													//			&return_string = %&enum_duration%;
+													//		else;
+													//			debug_error(%debug%,%&script_debug_name%,"Encountering invalid number parse after running input for unknown GUI_ENUM. Returning '&4%&enum_unknown%&c'.");
+													//			&return_string = %&enum_unknown%;
+													//		endif;
+													elseifmatches(%&failure_string%,"Can't create a BIN auction for this item for a PRICE this LOW!");
+														debug_error(%debug%,%&script_debug_name%,"Encountering Pricing Error (failure string: '&4%&failure_string%&c'). Returning '&4%&enum_starting_bid%&c'.");
+														&return_string = %&enum_starting_bid%;
+													elseifmatches(%&failure_string%,"Minimum duration is ([\d,.]+) (seconds|minutes|hours|days)");
+														debug_error(%debug%,%&script_debug_name%,"Encountering Duration Error (failure_string: '&4%&failure_string%&c'). Returning '&4%&enum_duration%&c'.");
+														&return_string = %&enum_duration%;
+													elseifmatches(%&failure_string%,"(?:Your starting bid must be|You must set it to) at least ([\d,.]+)(?: coins)?!",&min_starting_bid,1);
+														debug_error(%debug%,%&script_debug_name%,"Encountering Pricing Error (failure_string: '&4%&failure_string%&c'). Returning '&4%&enum_starting_bid%&c'.");
+														&return_string = %&enum_starting_bid%;
+													else;
+														debug_error(%debug%,%&script_debug_name%,"Encountered Unknown Error (failure_string: '&4%&failure_string%&c'). Ignoring since no special case is made for this Error.");
+														unset(@ah_failure);
+														unset(@&ah_failure_string);
+													endif;
+												endif;
+												
+												if(%&return_string% != "");
+													break;
+												endif;
+												
+												failed_pointer = false;
+											endif;
+										endif;
+									endif;
+									
+									inc(#action_ticks);
+									wait("1t");
+								until((%&return_string% != "") || (%entered_new_gui%));
+								if(%&return_string% != "");
+									break;
+								endif;
+							endif;
+						endif;
+						
+						if(%wait_for_pointers_after%);
+							wait_for_pointers       = true;
+							#wait_for_pointers_time = %TIMESTAMP%;
+							wait_for_pointers_after = false;
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'...");
+		return(%&return_string%);
+	endfunction;

@@ -1,0 +1,131 @@
+	// Collects an Active Bazaar Order given it's Order String (from bazaarIndexOrders).
+		// Params:
+			// {string} <&order_string>      	The Order String from bazaarIndexOrders.
+			// {boolean} [allow_command=true]	Whether or not we want to allow the usage of the /bz command.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait in between Actions (clicks).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before timing out. Set to <= 0 to disable.
+		// Returns a Boolean indicating whether or not the Order was successfully collected.
+	function bazaarCollectOrder(&order_string,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bazaarCollectOrder";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			&order_data[]      = split("|",%&order_string%);
+			&order_sbid        = %&order_data[0]%;
+			&order_type        = %&order_data[1]%;
+			&price_per_unit    = %&order_data[2]%;
+			#items_filled     := %&order_data[3]%;
+			#items_total      := %&order_data[4]%;
+			#amount_claimable := %&order_data[5]%;
+			order_expired     := %&order_data[6]%;
+			
+			#order_index = getBazaarIndex(%&order_sbid%);
+			if(%#order_index% == -1);
+				debug_error(%debug%,%&script_debug_name%,"Invalid Order String provided.");
+				return(False);
+			else;
+				&r_name = "%&order_type%: %@&mkb_baz_names[%#order_index%]%";
+			endif;
+			
+			#order_index = getDatamapItemIndex(%&order_sbid%);
+			if(%#order_index% != -1);
+				&r_item = %@&sb_datamap_item_mcids[%#order_index%]%;
+			endif;
+		endif;
+		
+		// Start looping until we get into the Manage Orders GUI, or we encounter an Error that cannot be remedied.
+		if(true);
+			
+			&target_gui = "ORDER_MANAGE";
+			do;
+				// 1. Check if the Function has timed out
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					exit_condition_reached = true;
+					debug_error(%debug%,%&script_debug_name%,"Function timed out.");
+					break;
+				endif;
+				
+				// 2. Check what Bazaar GUI we are in. If we are in a GUI that has access to the Manage Orders Button, progress to it.
+				if(true);
+					&bazaar_gui[] = getBazaarGUIType();
+					&bazaar_enum  = %&bazaar_gui[0]%;
+					&bazaar_path  = %&bazaar_gui[1]%;
+					if(%&bazaar_enum% == %&target_gui%);
+						#r_start  = 0;
+						#r_end    = %CONTAINERSLOTS% - 37;
+						#r_offset = 0;
+						for(#r_slot,%#r_start%,%#r_end%);
+							#f_slot = %#r_slot%;
+							if(%&r_item%);
+								getslot(%&r_item%,#f_slot,%#r_offset%);
+							endif;
+							
+							if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+								#r_offset = %#f_slot% + 1;
+								&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+								&f_nbt    = strip(%&f_nbt%);
+								&f_name   = getItemName(%&f_nbt%,%&f_item%);
+								if(%&f_name% == %&r_name%);
+									match(%&f_nbt%,%&price_per_unit_regex%,&f_price_per_unit,1,"0");
+									match(%&f_nbt%,%&items_filled_regex%,&f_items_filled,1,"0");
+									match(%&f_nbt%,%&items_total_regex%,&f_items_total,1,"0");
+									match(%&f_nbt%,%&amount_claimable%,&f_amount_claimable,1,"0");
+									&f_order_name       = _matchExpressionNBT(%&f_name%,"^(?:BUY|SELL): (.+)");
+									#f_order_index      = getBazaarIndex(%&f_order_name%);
+									&f_order_sbid       = %@&mkb_baz_sbids[%#order_index%]%;
+									if(%&f_order_sbid% == %&order_sbid%);
+										#f_items_filled     = stringToNumber(%&f_items_filled%);
+										#f_items_total      = stringToNumber(%&f_items_total%);
+										#f_amount_claimable = stringToNumber(%&f_amount_claimable%);
+										
+										if((%#f_items_total% == %#items_total%) && (%&f_price_per_unit% == %&price_per_unit%));
+											
+										endif;
+									endif;
+								endif;
+							else;
+								break;
+							endif;
+						next;
+						
+						#r_start  = 0;
+						#r_end    = %CONTAINERSLOTS% - 37;
+						for(#f_slot,%#r_start%,%#r_end%);
+							&f_item = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+							&f_nbt  = strip(%&f_nbt%);
+							if((%&f_item% != "air") && (%&f_item% != "stained_glass_pane") && (%&f_item% != "arrow"));
+								&f_name = getItemName(%&f_nbt%,%&f_item%);
+								ifmatches(%&f_name%,"^(BUY|SELL)",&order_type,1);
+									match(%&f_nbt%,%&price_per_unit_regex%,&price_per_unit,1,"0");
+									match(%&f_nbt%,%&items_filled_regex%,&items_filled,1,"0");
+									match(%&f_nbt%,%&items_total_regex%,&items_total,1,"0");
+									match(%&f_nbt%,%&amount_claimable%,&amount_claimable,1,"0");
+									&order_name       = _matchExpressionNBT(%&f_name%,"^%&order_type%: (.+)");
+									#order_index      = getBazaarIndex(%&order_name%);
+									&order_sbid       = %@&mkb_baz_sbids[%#order_index%]%;
+									#items_filled     = stringToNumber(%&items_filled%);
+									#items_total      = stringToNumber(%&items_total%);
+									#amount_claimable = stringToNumber(%&amount_claimable%);
+									&output_array[]   = "%&order_sbid%|%&order_type%|%&price_per_unit%|%#items_filled%|%#items_total%|%#amount_claimable%";
+								endif;
+							endif;
+						next;
+					else;
+						#recurse_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						in_orders_gui    = bazaarOpenOrders(%allow_command%,%#tick_wait%,%#recurse_timeout%);
+						if(!%in_orders_gui%);
+							debug_error(%debug%,%&script_debug_name%,"Could not enter Orders GUI.");
+							exit_condition_reached = true;
+							break;
+						endif;
+					endif;
+				endif;
+			until(%exit_condition_reached%);
+		endif;
+		
+		return(%exit_condition_reached%);
+
+	endfunction;

@@ -1,0 +1,42 @@
+//! @mkb-import-begin
+    // gui/index/localGUI
+        // Changes the current GUI to a local GUI.
+            // Params:
+            //      {string} [&target_gui="NONE"]         - The Target GUI to switch to. Can be any of the following strings:
+            //                                              "NONE", "GUIINVENTORY", "GUICHAT".
+            //      {number} [#wait_ticks=@#def_wait_ticks]- Amount of ticks (1t = 50ms) to wait between each action (press/GUI).
+            //
+            // Returns a boolean indicating whether or not GUI == <&target_gui> at end of function.
+        function localGUI(&target_gui="NONE",#wait_ticks=20);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:11
+            &valid_guis[] = split(", ","NONE, GUIINVENTORY, GUICHAT");
+            #valid_gui    = indexof(&valid_guis[],,%&target_gui%);
+            if(#valid_gui == -1);
+                #valid_gui = 0;
+            endif;
+            &target_gui = ucase(%&valid_guis[%#valid_gui%]%);
+            
+            do;
+                if(%GUI% == %&target_gui%);
+                    break;
+                elseif(%GUI% != "NONE");
+                    press("escape");
+                    do(%#wait_ticks%);
+                        wait("1t");
+                    until(%GUI% == "NONE");
+                else;
+                    if(%&target_gui% == "GUIINVENTORY");
+                        gui("inventory");
+                    elseif(%&target_gui% == "GUICHAT");
+                        gui("chat");
+                    endif;
+                    
+                    do(%#wait_ticks%);
+                        wait("1t");
+                    until(%GUI% != "NONE");
+                endif;
+            until(%GUI% == %&target_gui%);
+            return_boolean = %GUI% == %&target_gui%;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

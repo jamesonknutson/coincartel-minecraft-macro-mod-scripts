@@ -1,0 +1,98 @@
+//! @mkb-import-begin
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // bazaar/index/bazaarItemCheck
+        // Iterates over all available Slots, looking for a match for each Item defined in the &find_items[] and &find_names[] Arrays.
+        // If a match for each item is found, will return True. Else, returns False. Checks Mouse as well.
+            // Params:
+                // {string} <&find_items[]>    The MCIDs of the Items to look for
+                // {string} <&find_names[]>    The Names of the Items to look for
+            // Returns a Boolean indicating whether or not every single Item was found in the GUI, Inventory, or Mouse.
+        function bazaarItemCheck(&find_items[],&find_names[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:219
+            return_boolean = true;
+            foreach(&find_items[],&find_item,#fi);
+                &find_name = %&find_names[%#fi%]%;
+                f_match    = false;
+                
+                // Look for the Item in all available Slots.
+                if(true);
+                    // Check the Container
+                    if(%CONTAINERSLOTS% > 0);
+                        #r_start  = 0;
+                        #r_end    = %CONTAINERSLOTS% - 37;
+                        #r_offset = 0;
+                        for(#r_slot,%#r_start%,%#r_end%);
+                            getslot(%&find_item%,#f_slot,%#r_offset%);
+                            if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                                #r_offset = %#f_slot% + 1;
+                                &f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                                &f_nbt    = strip(%&f_nbt%);
+                                &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                                f_match   = ((%&f_item% == %&find_item%) && (%&f_name% == %&find_name%));
+                                if(%f_match%);
+                                    break;
+                                endif;
+                            else;
+                                break;
+                            endif;
+                        next;
+                    endif;
+                    
+                    // Check the Mouse
+                    if(!%f_match%);
+                        &m_item = getmouseitem(,#m_stack,#m_data,&m_nbt);
+                        &m_nbt  = strip(%&m_nbt%);
+                        &m_name = getItemName(%&m_nbt%,%&m_item%);
+                        f_match = ((%&m_item% == %&find_item%) && (%&m_name% == %&find_name%));
+                    endif;
+                    
+                    // Check the Inventory
+                    if(!%f_match%);
+                        #r_start  = 9;
+                        #r_end    = 43;
+                        #r_offset = 9;
+                        for(#r_slot,%#r_start%,%#r_end%);
+                            getslotinv(%&find_item%,#f_slot,%#r_offset%);
+                            if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                                #r_offset = %#f_slot% + 1;
+                                &f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                                &f_nbt    = strip(%&f_nbt%);
+                                &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                                f_match   = ((%&f_item% == %&find_item%) && (%&f_name% == %&find_name%));
+                                if(%f_match%);
+                                    break;
+                                endif;
+                            else;
+                                break;
+                            endif;
+                        next;
+                    endif;
+                endif;
+                
+                // Break early if we did not find a match for this Item.
+                if(!%f_match%);
+                    return_boolean = false;
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

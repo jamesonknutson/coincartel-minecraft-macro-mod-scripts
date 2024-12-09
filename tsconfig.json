@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "esModuleInterop": true,
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "declarationDir": "./declarations",
+        "sourceMap": true,
+        "module": "CommonJS"
+    },
+    "include": [
+        "**/*"
+    ]
+}

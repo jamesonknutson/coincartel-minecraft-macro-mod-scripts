@@ -1,0 +1,75 @@
+//! @mkb-import-begin
+    // bazaar/index/getPartsPath
+        // Gets the Path corresponding to an Array of Parts.
+            // Params:
+                // {string} <&parts[]>    The Parts of the Path to join together.
+                //
+            // Returns the Path String.
+        function getPartsPath(&parts[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1001
+            #parts = arraysize(&parts[]);
+            if((%#parts% >= 1) && (%&parts[0]% != ""));
+                &path = join(".",&parts[]);
+            endif;
+            return(%&path%);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // bazaar/index/getPathParts
+        // Returns an Array of the 'parts' of a given Path.
+            // Params:
+                // {string} <&path>    The Path to get the 'parts' of.
+                //
+            // Returns a String Array.
+        function getPathParts(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:989
+            if(%&path% != "");
+                &parts[] = split(".",%&path%);
+            endif;
+            return(&parts[]);
+        endfunction;
+    // bazaar/index/getCommonAncestorPath
+        // Finds the Common Ancestor Path String between the Origin Path and the Target Path.
+            // Params:
+                // {string} <&origin_path>    The Origin JSON Path in @&mkb_baz_json
+                // {string} <&target_path>    The Target JSON Path in @&mkb_baz_json
+            // Returns the Path to the Common Ancestor, or an empty String if the Root JSON is the Common Ancestor.
+        function getCommonAncestorPath(&origin_path,&target_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1014
+            debug              = true;
+            &script_debug_name = "&6getCommonAncestorPath";
+            
+            &origin_parts[]    = getPathParts(%&origin_path%);
+            &target_parts[]    = getPathParts(%&target_path%);
+            foreach(&origin_parts[],&origin_part,#opi);
+                &target_part = %&target_parts[%#opi%]%;
+                if(%&origin_part% == %&target_part%);
+                    debug_log(%debug%,%&script_debug_name%,"%#opi% > origin_part = %&origin_part%, target_part = %&target_part%");
+                    &ancestor_parts[] = %&origin_part%;
+                else;
+                    break;
+                endif;
+            next;
+            &ancestor_path = getPartsPath(&ancestor_parts[]);
+            debug_log(%debug%,%&script_debug_name%,"ancestor path is %&ancestor_path%");
+            return(%&ancestor_path%);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // array/index/xArrayIncludes
+        // Checks if the specified Search Term is found within the specified Array.
+            // Params:
+                // {string} <&search_term>    The Search Term to check for presence of in the Array.
+                // {string} <...&array[]>     The Array to check for the Search Term's Presence of within.
+            // Returns a Boolean.
+            // Example:
+                //    is_in_list = xArrayIncludes("foo","bar","baz","bat","foo");
+        function xArrayIncludes(&search_term,...&array[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:399
+            #search_index  = indexof(&array[],,%&search_term%);
+            return_boolean = %#search_index% != -1;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,732 @@
+//! @mkb-import-begin
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getBazaarIndex
+        // Given a Search Term (Display Name or SBID), searches for the specified Product in @&mkb_baz_sbids & @&mkb_baz_names. If a Product
+        // is found, it's Index is returned. If not, -1 is returned.
+            // Params:
+                // {string} <&search_term>    The Product's Display Name or SBID to search up.
+                //
+            // Returns the Index of the Search Term in the @&mkb_baz_[sbids|names|paths] Arrays, or -1 if it is not found.
+        function getBazaarIndex(&search_term);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:128
+            #sbid_index = indexof(@&mkb_baz_sbids[],,%&search_term%);
+            if(%#sbid_index% != -1);
+                return(%#sbid_index%);
+            endif;
+            
+            #name_index = indexof(@&mkb_baz_names[],,%&search_term%);
+            if(%#name_index% != -1);
+                return(%#name_index%);
+            endif;
+            
+            #path_index = indexof(@&mkb_baz_paths[],,%&search_term%);
+            return(%#path_index%);
+        endfunction;
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // bazaar/index/getCurrentBazaarProductPath
+        // Finds the Currently Selected Bazaar Product's Path.
+        function getCurrentBazaarProductPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:515
+            &return_string = "NONE";
+            ifmatches(%CONTAINERNAME%,"\u279c");
+                // Check the Item Slots that we can expect to contain the Item's Name or SBID.
+                if(true);
+                    #check_slots[] = split(", ","13, 10, 11, 15, 16");
+                    &check_names[] = split(", ","NULL, Buy Instantly, Sell Instantly, Create Buy Order, Create Sell Offer");
+                    #found_index   = -1;
+                    foreach(#check_slots[],#check_slot,#csi);
+                        &check_name = %&check_names[%#csi%]%;
+                        &f_item     = getslotitemnbt(%#check_slot%,,#f_stack,#f_data,&f_nbt);
+                        &f_nbt      = strip(%&f_nbt%);
+                        &f_name     = getItemName(%&f_nbt%,%&f_item%);
+                        if((%&check_name% == "NULL") || (%&check_name% == %&f_name%));
+                            if(%&check_name% == "NULL");
+                                // Can do lookup from the Name we got.
+                                #found_index = getBazaarIndex(%&f_name%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                                
+                                // Name lookup didn't work, check if we can get anything with the SBID.
+                                &f_sbid      = getItemSBID(%&f_nbt%);
+                                #found_index = getBazaarIndex(%&f_sbid%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                            else;
+                                // Do lookup from the Lore of the Item.
+                                &name_from_lore = jsonget("display.Lore.0",%&f_nbt%);
+                                #found_index    = getBazaarIndex(%&name_from_lore%);
+                                if(%#found_index% != -1);
+                                    break;
+                                endif;
+                            endif;
+                        endif;
+                    next;
+                    if(%#found_index% != -1);
+                        &return_string = %@&mkb_baz_paths[%#found_index%]%;
+                    endif;
+                endif;
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getCurrentBazaarSubcategoryPath
+        // Finds the Currently Selected Bazaar Subcategory's Path.
+            // Params: None
+            // Returns the JSON dot-separated path of the Subcategory that is currently selected, or "NONE" if not found.
+        function getCurrentBazaarSubcategoryPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:478
+            &return_string = "NONE";
+            ifmatches(%CONTAINERNAME%,"(Farming|Mining|Combat|Woods & Fishes|Oddities) \u279c",&category_name,1);
+                // Find the Index of this Category.
+                if(true);
+                    #category_index = -1;
+                    for(#i,0,4);
+                        &button_name = jsonget("holds.%#i%.button.name",%@&mkb_baz_json%);
+                        if(%&button_name% == %&category_name%);
+                            #category_index = %#i%;
+                            break;
+                        endif;
+                    next;
+                    
+                    if(%#category_index% == -1);
+                        return("NONE");
+                    endif;
+                endif;
+                
+                // Find the Subcategory within the Parent Category who's exp_container value matches whatever ours is.
+                if(true);
+                    for(#i,0,99);
+                        &subentry_expr = jsonget("holds.%#category_index%.holds.%#i%.button.exp_container",%@&mkb_baz_json%);
+                        ifmatches(%CONTAINERNAME%,%&subentry_expr%);
+                            &return_string = "holds.%#category_index%.holds.%#i%";
+                            break;
+                        elseifmatches(%&subentry_expr%,"^ERROR_");
+                            break;
+                        endif;
+                    next;
+                endif;
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getCurrentBazaarCategoryPath
+        // Finds the Currently Selected Bazaar Category's Path.
+            // Params: None
+            // Returns the JSON dot-separated path of the Category that is currently selected, or "NONE" if not found.
+        function getCurrentBazaarCategoryPath();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:463
+            &return_string = "NONE";
+            for(#i,0,4);
+                &container_expr = jsonget("holds.%#i%.button.exp_container",%@&mkb_baz_json%);
+                ifmatches(%CONTAINERNAME%,%&container_expr%);
+                    &return_string = "holds.%#i%";
+                    break;
+                endif;
+            next;
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/searchItemNBT
+        // Searches for an Item with a given Name in the Container, Mouse, and/or Inventory. If found, returns the NBT of that Item. Otherwise, empty string.
+            // Params:
+                // {string} [&item_name='Go Back']    The Name of the Item to search for.
+                // {string} [&item_mcid='arrow']      The MCID of the Item to search for.
+            // Returns the NBT of the Item if it was found, or an empty string if it was not.
+        function searchItemNBT(&item_name="Go Back",&item_mcid="arrow");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:378
+            &r_item = %&item_mcid%;
+            &r_name = %&item_name%;
+            
+            // Check the Container first.
+            if(%CONTAINERSLOTS% > 0);
+                #r_offset = 0;
+                #r_start  = 0;
+                #r_end    = %CONTAINERSLOTS% - 37;
+                for(#r_slot,%#r_start%,%#r_end%);
+                    #f_slot = %#r_slot%;
+                    if(%&r_item%);
+                        getslot(%&r_item%,#f_slot,%#r_offset%);
+                    endif;
+                    
+                    if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                        #r_offset = %#f_slot% + 1;
+                        &f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                        &f_nbt    = strip(%&f_nbt%);
+                        &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                        m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+                        m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+                        m_match   = ((%m_item%) && (%m_name%));
+                        if(%m_match%);
+                            &return_string = %&f_nbt%;
+                            break;
+                        endif;
+                    else;
+                        break;
+                    endif;
+                next;
+                if(%&return_string% != "");
+                    return(%&return_string%);
+                endif;
+            endif;
+            
+            // Check the Mouse.
+            if(true);
+                &m_item = getmouseitem(,#m_stack,#m_data,&m_nbt);
+                if(%&m_item% == %&r_item%);
+                    &m_nbt  = strip(%&m_nbt%);
+                    &m_name = getItemName(%&m_nbt%,%&m_item%);
+                    if(%&m_name% == %&r_name%);
+                        return(%&m_nbt%);
+                    endif;
+                endif;
+            endif;
+            
+            // Check the Inventory.
+            if(true);
+                if(true);
+                    #r_offset = 9;
+                    #r_start  = 9;
+                    #r_end    = 44;
+                    for(#r_slot,%#r_start%,%#r_end%);
+                        #f_slot = %#r_slot%;
+                        if(%&r_item%);
+                            getslotinv(%&r_item%,#f_slot,%#r_offset%);
+                        endif;
+                        
+                        if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                            #r_offset = %#f_slot% + 1;
+                            &f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                            &f_nbt    = strip(%&f_nbt%);
+                            &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                            m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+                            m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+                            m_match   = ((%m_item%) && (%m_name%));
+                            if(%m_match%);
+                                &return_string = %&f_nbt%;
+                                break;
+                            endif;
+                        else;
+                            break;
+                        endif;
+                    next;
+                endif;
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/bazaarNameCheck
+        // Identical to bazaarItemCheck, except does not use GETSLOT, instead uses GETSLOTITEMEXT and checks if all Item Names are found.
+            // Params:
+                // {string} <&find_names[]>    The Names of the Items to look for
+            // Returns a Boolean indicating whether or not every single Item was found in the GUI, Inventory, or Mouse.
+        function bazaarNameCheck(&find_names[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:293
+            return_boolean = false;
+            foreach(&find_names[],&find_name,#fi);
+                found_names[%#fi%] = false;
+            next;
+            
+            if(true);
+                // Look for the Item in all available Slots.
+                if(true);
+                    // Check the Container
+                    if(%CONTAINERSLOTS% > 0);
+                        #r_start  = 0;
+                        #r_end    = %CONTAINERSLOTS% - 37;
+                        for(#f_slot,%#r_start%,%#r_end%);
+                            getslotitemext(%#f_slot%,&f_item,,,&t);
+                            if((%&f_item% != "air") && (%&f_item% != "stained_glass_pane"));
+                                &f_name   = strip(%&t%);
+                                #f_index  = indexof(&find_names[],,%&f_name%);
+                                if(%#f_index% != -1);
+                                    found_names[%#f_index%] = true;
+                                    #false_index            = indexof(found_names[],,false);
+                                    if(%#false_index% == -1);
+                                        full_break = true;
+                                        break;
+                                    endif;
+                                endif;
+                            endif;
+                        next;
+                        if(%full_break%);
+                            return(True);
+                        endif;
+                    endif;
+                    
+                    // Check the Mouse
+                    if(!%f_match%);
+                        &m_item = getmouseitem(,#m_stack,#m_data,&m_nbt);
+                        if(%&m_item% != "air");
+                            &m_nbt  = strip(%&m_nbt%);
+                            &m_name = getItemName(%&m_nbt%,%&m_item%);
+                            #f_index  = indexof(&find_names[],,%&m_name%);
+                            if(%#f_index% != -1);
+                                found_names[%#f_index%] = true;
+                                #false_index            = indexof(found_names[],,false);
+                                if(%#false_index% == -1);
+                                    return(True);
+                                endif;
+                            endif;
+                        endif;
+                    endif;
+                    
+                    // Check the Inventory
+                    if(!%f_match%);
+                        #r_start  = 9;
+                        #r_end    = 43;
+                        for(#f_slot,%#r_start%,%#r_end%);
+                            &f_item = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                            if((%&f_item% != "air") && (%&f_item% != "stained_glass_pane"));
+                                &f_nbt   = strip(%&f_nbt%);
+                                &f_name  = getItemName(%&f_nbt%,%&f_item%);
+                                #f_index = indexof(&find_names[],,%&f_name%);
+                                if(%#f_index% != -1);
+                                    found_names[%#f_index%] = true;
+                                    #false_index            = indexof(found_names[],,false);
+                                    if(%#false_index% == -1);
+                                        break;
+                                    endif;
+                                endif;
+                            endif;
+                        next;
+                    endif;
+                endif;
+            endif;
+            
+            #false_index = indexof(found_names[],,false);
+            if(%#false_index% == -1);
+                return(True);
+            endif;
+            return(False);
+        endfunction;
+    // bazaar/index/bazaarItemCheck
+        // Iterates over all available Slots, looking for a match for each Item defined in the &find_items[] and &find_names[] Arrays.
+        // If a match for each item is found, will return True. Else, returns False. Checks Mouse as well.
+            // Params:
+                // {string} <&find_items[]>    The MCIDs of the Items to look for
+                // {string} <&find_names[]>    The Names of the Items to look for
+            // Returns a Boolean indicating whether or not every single Item was found in the GUI, Inventory, or Mouse.
+        function bazaarItemCheck(&find_items[],&find_names[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:219
+            return_boolean = true;
+            foreach(&find_items[],&find_item,#fi);
+                &find_name = %&find_names[%#fi%]%;
+                f_match    = false;
+                
+                // Look for the Item in all available Slots.
+                if(true);
+                    // Check the Container
+                    if(%CONTAINERSLOTS% > 0);
+                        #r_start  = 0;
+                        #r_end    = %CONTAINERSLOTS% - 37;
+                        #r_offset = 0;
+                        for(#r_slot,%#r_start%,%#r_end%);
+                            getslot(%&find_item%,#f_slot,%#r_offset%);
+                            if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                                #r_offset = %#f_slot% + 1;
+                                &f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                                &f_nbt    = strip(%&f_nbt%);
+                                &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                                f_match   = ((%&f_item% == %&find_item%) && (%&f_name% == %&find_name%));
+                                if(%f_match%);
+                                    break;
+                                endif;
+                            else;
+                                break;
+                            endif;
+                        next;
+                    endif;
+                    
+                    // Check the Mouse
+                    if(!%f_match%);
+                        &m_item = getmouseitem(,#m_stack,#m_data,&m_nbt);
+                        &m_nbt  = strip(%&m_nbt%);
+                        &m_name = getItemName(%&m_nbt%,%&m_item%);
+                        f_match = ((%&m_item% == %&find_item%) && (%&m_name% == %&find_name%));
+                    endif;
+                    
+                    // Check the Inventory
+                    if(!%f_match%);
+                        #r_start  = 9;
+                        #r_end    = 43;
+                        #r_offset = 9;
+                        for(#r_slot,%#r_start%,%#r_end%);
+                            getslotinv(%&find_item%,#f_slot,%#r_offset%);
+                            if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                                #r_offset = %#f_slot% + 1;
+                                &f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                                &f_nbt    = strip(%&f_nbt%);
+                                &f_name   = getItemName(%&f_nbt%,%&f_item%);
+                                f_match   = ((%&f_item% == %&find_item%) && (%&f_name% == %&find_name%));
+                                if(%f_match%);
+                                    break;
+                                endif;
+                            else;
+                                break;
+                            endif;
+                        next;
+                    endif;
+                endif;
+                
+                // Break early if we did not find a match for this Item.
+                if(!%f_match%);
+                    return_boolean = false;
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+    // bazaar/index/getBazaarGUIType
+        // Reads variables regarding the currently opened Bazaar GUI to determine it's Type.
+            // Params: None
+            // Returns a String ENUM of:
+                //    CATEGORY, SUBCATEGORY, PRODUCT,
+                //    BUY_INSTANT_QTY, BUY_INSTANT_QTY_SIGN, BUY_INSTANT_CONFIRM,
+                //    BUY_ORDER_QTY, BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE, BUY_ORDER_PRICE_SIGN, BUY_ORDER_CONFIRM, BUY_ORDER_MANAGE, BUY_ORDER_FLIP,
+                //    SELL_INSTANT_QTY, SELL_INSTANT_INVENTORY,
+                //    SELL_ORDER_QTY, SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE, SELL_ORDER_PRICE_SIGN, SELL_ORDER_CONFIRM, SELL_ORDER_MANAGE,
+                //    ORDER_MANAGE,
+                //    GRAPHS,
+                //    NONE
+            // If not currently in a Bazaar GUI, "NONE" will be returned.
+                //  ENUM                      |    VALUE
+                //  CATEGORY                  |    Category Path
+                //  SUBCATEGORY               |    Subcategory Path
+                //  PRODUCT                   |    Product Path
+                //  BUY_INSTANT_QTY           |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  BUY_INSTANT_QTY_SIGN      |    NULL
+                //  BUY_INSTANT_CONFIRM       |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  BUY_ORDER_QTY             |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  BUY_ORDER_QTY_SIGN        |    NULL
+                //  BUY_ORDER_PRICE           |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  BUY_ORDER_PRICE_SIGN      |    NULL
+                //  BUY_ORDER_CONFIRM         |    Product Path (Buy Order nbt => display.lore.4 == /Order: .*?x (?<itemName>.+)/)
+                //  BUY_ORDER_MANAGE          |    NULL
+                //  BUY_ORDER_FLIP            |    NULL
+                //  SELL_INSTANT_QTY          |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  SELL_INSTANT_INVENTORY    |    NULL
+                //  SELL_ORDER_QTY            |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  SELL_ORDER_QTY_SIGN       |    NULL
+                //  SELL_ORDER_PRICE          |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  SELL_ORDER_PRICE_SIGN     |    NULL
+                //  SELL_ORDER_CONFIRM        |    Product Path (Buy Order nbt => display.lore.4 == /Selling: .*?x (?<itemName>.+)/)
+                //  SELL_ORDER_MANAGE         |    NULL (Category), Subcategory Path, Product Path (Go Back Arrow's nbt => display.lore.0 == /To (?<ambiguous>.+)/)
+                //  ORDER_MANAGE              |    NULL
+                //  GRAPHS                    |    Product Path (Go Back Arrow's nbt => display.Lore.0 == /To (?<itemName>.+)/)
+                //  NONE                      |    NULL
+        function getBazaarGUIType();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:598
+            // Setup GUI Type Path Arrays to influence our logic on how to find the Path to the current GUI.
+            if(true);
+                // GUI Types where we should not attempt to determine the Path.
+                &gui_nulls[] = split(", ","BUY_INSTANT_QTY_SIGN, BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE_SIGN, BUY_ORDER_MANAGE, BUY_ORDER_FLIP, SELL_INSTANT_INVENTORY, SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE_SIGN, SELL_ORDER_MANAGE, ORDER_MANAGE, NONE, SELL_ORDER_MANAGE");
+                
+                // GUI Types where we should attempt to determine the Path by finding the Go Back Arrow and reading the Item Name.
+                &gui_path_back_arrow[] = split(", ","BUY_INSTANT_QTY, BUY_ORDER_QTY, BUY_ORDER_PRICE, SELL_INSTANT_QTY, SELL_ORDER_QTY, SELL_ORDER_PRICE, GRAPHS");
+                
+                // GUI Types that have a function to extract the Path.
+                &gui_path_functions[] = split(", ","CATEGORY, SUBCATEGORY, PRODUCT");
+                
+                // GUI Types that have a non-standard Path determining logic
+                &gui_path_non_standard[] = split(", ","BUY_ORDER_CONFIRM, SELL_ORDER_CONFIRM, BUY_INSTANT_CONFIRM");
+            endif;
+            
+            if((%GUI% == "GUICHEST") || (%GUI% == "GUIEDITSIGN"));
+                if(%GUI% == "GUICHEST");
+                    // Can be any of:
+                        // CATEGORY, SUBCATEGORY, PRODUCT, BUY_INSTANT_QTY, BUY_INSTANT_CONFIRM, BUY_ORDER_QTY, BUY_ORDER_PRICE, BUY_ORDER_CONFIRM, BUY_ORDER_MANAGE,
+                        // SELL_INSTANT_QTY, SELL_INSTANT_INVENTORY, SELL_ORDER_QTY, SELL_ORDER_PRICE, SELL_ORDER_CONFIRM, SELL_ORDER_MANAGE, ORDER_MANAGE, GRAPHS, NONE
+                    
+                    // Rule out simple CONTAINERNAME Checks
+                        // After this check, can be any of:
+                        // CATEGORY, SUBCATEGORY, PRODUCT, BUY_INSTANT_QTY, BUY_ORDER_MANAGE, SELL_INSTANT_QTY, SELL_ORDER_MANAGE, GRAPHS, NONE
+                    if(true);
+                        &exact_containers[]  = split(", ","How many do you want?, How much do you want to pay?, Confirm Buy Order, How many are you selling?, At what price are you selling?, Confirm Sell Offer, Co-op Bazaar Orders, Your Bazaar Orders, Confirm Instant Buy, Are you sure?");
+                        &exact_gui_types[]   = split(", ","BUY_ORDER_QTY, BUY_ORDER_PRICE, BUY_ORDER_CONFIRM, SELL_ORDER_QTY, SELL_ORDER_PRICE, SELL_ORDER_CONFIRM, ORDER_MANAGE, ORDER_MANAGE, BUY_INSTANT_CONFIRM, SELL_INSTANT_INVENTORY");
+                        #exact_container_idx = indexof(&exact_containers[],,%CONTAINERNAME%);
+                        if(%#exact_container_idx% != -1);
+                            &bazaar_gui = %&exact_gui_types[%#exact_container_idx%]%;
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a Category
+                        // After this check, can be any of:
+                        // SUBCATEGORY, PRODUCT, BUY_INSTANT_QTY, BUY_ORDER_MANAGE, SELL_INSTANT_QTY, SELL_ORDER_MANAGE, GRAPHS, NONE
+                    if(%&bazaar_gui% == "");
+                        ifmatches(%CONTAINERNAME%,"^Bazaar \u279c (?:Farming|Mining|Combat|Woods & Fishes|Oddities)$");
+                            &bazaar_gui = "CATEGORY";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a Subcategory GUI. Subcategory GUIs will have Sell Inventory Now (Chest), Go Back (Arrow), Manage Orders (Book).
+                        // After this check, can be any of:
+                        // PRODUCT, BUY_INSTANT_QTY, BUY_ORDER_MANAGE, SELL_INSTANT_QTY, SELL_ORDER_MANAGE, GRAPHS, NONE
+                    if(%&bazaar_gui% == "");
+                        &check_items[]  = split(", ","chest, book");
+                        &check_names[]  = split(", ","Sell Inventory Now, Manage Orders");
+                        subcategory_gui = bazaarItemCheck(&check_items[],&check_names[]);
+                        if(%subcategory_gui%);
+                            &bazaar_gui = "SUBCATEGORY";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a Product GUI. Product GUIs will have View Graphs item.
+                        // After this check, can be any of:
+                        // BUY_INSTANT_QTY, BUY_ORDER_MANAGE, SELL_INSTANT_QTY, SELL_ORDER_MANAGE, GRAPHS, NONE
+                    if(%&bazaar_gui% == "");
+                        &check_items[] = split(", ","paper, filled_map");
+                        &check_names[] = split(", ","View Graphs, Create Buy Order");
+                        product_gui    = bazaarItemCheck(&check_items[],&check_names[]);
+                        if(%product_gui%);
+                            &bazaar_gui = "PRODUCT";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a Order Manage GUI.
+                        // After this check, can be any of:
+                        // BUY_INSTANT_QTY, SELL_INSTANT_QTY, GRAPHS, NONE
+                    if((%&bazaar_gui% == "") && (%CONTAINERNAME% == "Order options"));
+                        &check_items[]       = split(", ","stained_hardened_clay, name_tag");
+                        &check_names[]       = split(", ","Cancel Order, Flip Order");
+                        buy_order_manage_gui = bazaarItemCheck(&check_items[],&check_names[]);
+                        if(%buy_order_manage_gui%);
+                            &bazaar_gui = "BUY_ORDER_MANAGE";
+                        else;
+                            &bazaar_gui = "SELL_ORDER_MANAGE";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a BUY_INSTANT_QTY GUI.
+                        // After this check, can be any of:
+                        // SELL_INSTANT_QTY, GRAPHS, NONE
+                    if(%&bazaar_gui% == "");
+                        &check_names[]      = split(", ","Buy only one!, Fill my inventory!");
+                        buy_instant_qty_gui = bazaarNameCheck(&check_names[]);
+                        if(%buy_instant_qty_gui%);
+                            &bazaar_gui = "BUY_INSTANT_QTY";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a SELL_INSTANT_QTY GUI.
+                        // After this check, can be any of:
+                        // GRAPHS, NONE
+                    if(%&bazaar_gui% == "");
+                        &check_names[]       = split(", ","Sell a single item!, Sell a stack!");
+                        sell_instant_qty_gui = bazaarNameCheck(&check_names[]);
+                        if(%sell_instant_qty_gui%);
+                            &bazaar_gui = "SELL_INSTANT_QTY";
+                        endif;
+                    endif;
+                    
+                    // Check if we are in a GRAPHS GUI.
+                        // After this check, can be any of:
+                        // NONE
+                    if(%&bazaar_gui% == "");
+                        &check_names[] = split(", ","Buy Price 31d 7d 24h, Buy Orders Volume 31d 7d 24h");
+                        &check_items[] = split(", ","paper, paper");
+                        graphs_gui     = bazaarItemCheck(&check_items[],&check_names[]);
+                        if(%graphs_gui%);
+                            &bazaar_gui = "GRAPHS";
+                        endif;
+                    endif;
+                elseif(%GUI% == "GUIEDITSIGN");
+                    // Can be any of:
+                        // BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE_SIGN, BUY_ORDER_FLIP, SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE_SIGN, BUY_INSTANT_QTY_SIGN, NONE
+                        //
+                        
+                    // Rule out simple CONTAINERNAME Checks
+                        // After this check, can be any of:
+                        // BUY_INSTANT_QTY_SIGN, NONE
+                    if(true);
+                        &exact_containers[]  = split(", ","How many do you want?, How much do you want to pay?, How many are you selling?, At what price are you selling?, Order options");
+                        &exact_gui_types[]   = split(", ","BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE_SIGN, SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE_SIGN, BUY_ORDER_FLIP");
+                        #exact_container_idx = indexof(&exact_containers[],,%CONTAINERNAME%);
+                        if(%#exact_container_idx% != -1);
+                            &bazaar_gui = %&exact_gui_types[%#exact_container_idx%]%;
+                        endif;
+                    endif;
+                    
+                    // Check if we are in BUY_INSTANT_QTY_SIGN GUI.
+                        // After this check, can be any of:
+                        // NONE
+                    if(%&bazaar_gui% == "");
+                        // CONTAINERNAME will always be maximum of 31 characters long, in format:
+                        // <product> <arrow> Instant Buy
+                        // <arrow> Instant Buy length = 14
+                        // <product> + <...arrow> = 31
+                        
+                        &try_suffixes[]         = split(", "," \u279c Instant Buy, \u279c Instant Bu,  \u279c Instant B,  \u279c Instant ,  \u279c Instant,  \u279c Instan,  \u279c Insta,  \u279c Inst,  \u279c Ins,  \u279c In,  \u279c I,  \u279c ,  \u279c,  ");
+                        #enforce_max_len_at_idx = 10; // If we match any of the suffixes above past this Index, only accept it if CONTAINERNAME's length >= 31.
+                        #container_name_length  = strlen(%CONTAINERNAME%);
+                        foreach(&try_suffixes[],&try_suffix,#tsi);
+                            ifmatches(%CONTAINERNAME%,"%&try_suffix%$");
+                                if((%#tsi% < %#enforce_max_len_at_idx%) || (%#container_name_length% >= 31));
+                                    buy_instant_qty_gui = true;
+                                    break;
+                                elseif((%#tsi% >= %#enforce_max_len_at_idx%) && (%#container_name_length% < 31));
+                                    break;
+                                endif;
+                            endif;
+                        next;
+                        
+                        if(%buy_instant_qty_gui%);
+                            &bazaar_gui = "BUY_INSTANT_QTY_SIGN";
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            // Apply GUI Path Detection Logic
+            if(true);
+                if(%&bazaar_gui% == "");
+                    &bazaar_gui = "NONE";
+                endif;
+                
+                #null_index         = indexof(&gui_nulls[],,%&bazaar_gui%);
+                #arrow_index        = indexof(&gui_path_back_arrow[],,%&bazaar_gui%);
+                #non_standard_index = indexof(&gui_path_non_standard[],,%&bazaar_gui%);
+                #function_index     = indexof(&gui_path_functions[],,%&bazaar_gui%);
+                if(true);
+                    if(%#null_index% != -1);
+                        &bazaar_path = "NULL";
+                    elseif(%#arrow_index% != -1);
+                        &arrow_nbt = searchItemNBT("Go Back","arrow");
+                        ifmatches(%&arrow_nbt%,".");
+                            &match_string = jsonget("display.Lore.0",%&arrow_nbt%);
+                            ifmatches(%&match_string%,"To (.+)",&previous_name,1);
+                                #product_index = getBazaarIndex(%&previous_name%);
+                                if(%#product_index% == -1);
+                                    &bazaar_path = "ERROR_NOT_FOUND";
+                                else;
+                                    &bazaar_path = %@&mkb_baz_paths[%#product_index%]%;
+                                endif;
+                            endif;
+                        endif;
+                    elseif(%#non_standard_index% != -1);
+                        &gui_enums[]                 = split(", ","BUY_INSTANT_CONFIRM, BUY_ORDER_CONFIRM, SELL_ORDER_CONFIRM");
+                        &gui_names[]                 = split(", ","Custom Amount, Buy Order, Sell Offer");
+                        &gui_lore_regex[]            = split("!, ","(.+)!, Order: [\d\.,\-]+x (.+)!, Selling: [\d\.,\-]+x (.+)");
+                        #gui_lore_index[]            = split(", ","0, 4, 4");
+                        #gui_enum_index              = indexof(&gui_enums[],,%&bazaar_gui%);
+                        if(%#gui_enum_index% != -1);
+                            &search_nbt = searchItemNBT(%&gui_names[%#gui_enum_index%]%,"");
+                            ifmatches(%&search_nbt%,".");
+                                &gui_lore_string = jsonget("display.Lore.%#gui_lore_index[%#gui_enum_index%]%",%&search_nbt%);
+                                ifmatches(%&gui_lore_string%,"^ERROR_");
+                                    log("&4Error: Could not extract a Lore String from index &c%#gui_lore_index[%#gui_enum_index%]%&4 from NBT: &c%&search_nbt%&4!");
+                                    &bazaar_path = "ERROR_NOT_FOUND";
+                                elseifmatches(%&gui_lore_string%,%&gui_lore_regex[%#gui_enum_index%]%,&capture_group,1);
+                                    log("&aFound capture group &d%&capture_group%&a from string &d%&gui_lore_string%&a.");
+                                    #product_index = getBazaarIndex(%&capture_group%);
+                                    if(%#product_index% == -1);
+                                        &bazaar_path = "ERROR_NOT_FOUND";
+                                        log("&4Error: Could not find index of &d%&capture_group%&7 as a Bazaar Product!");
+                                    else;
+                                        &bazaar_path = %@&mkb_baz_paths[%#product_index%]%;
+                                        log("&aFound index of &d%&capture_group%&a to be &e%#product_index%&a!");
+                                    endif;
+                                else;
+                                    &bazaar_path = "ERROR_NOT_FOUND";
+                                    log("&4Error: Could not match &d%&gui_lore_regex[%#gui_enum_index%]%&4 against Lore String: &c%&gui_lore_string%&4.");
+                                endif;
+                            else;
+                                &bazaar_path = "ERROR_NOT_FOUND";
+                                log("&4Error: Could not find any Item named &d%&gui_names[%#gui_enum_index%]%&4 in the Current GUI!");
+                            endif;
+                        else;
+                            &bazaar_path = "ERROR_NOT_FOUND";
+                            log("&4Error: Could not find &&bazaar_gui &c%&bazaar_gui%&4 in &gui_enums[]!");
+                        endif;
+                    elseif(%#function_index% != -1);
+                        if(%&bazaar_gui% == "CATEGORY");
+                            &bazaar_path = getCurrentBazaarCategoryPath();
+                        elseif(%&bazaar_gui% == "SUBCATEGORY");
+                            &bazaar_path = getCurrentBazaarSubcategoryPath();
+                        elseif(%&bazaar_gui% == "PRODUCT");
+                            &bazaar_path = getCurrentBazaarProductPath();
+                        endif;
+                    endif;
+                endif;
+            endif;
+            
+            return(%&bazaar_gui%,%&bazaar_path%);
+        endfunction;
+    // bazaar/index/isPathSiblingOf
+        // Checks if the Current Path is a Sibling (same Subcategory) as the Other Path.
+            // Params:
+                // {string} <&other_path>
+                // {string} [&current_path]    If omitted, will calculate
+            // Returns a Boolean
+        function isPathSiblingOf(&other_path,&current_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1231
+            if(%&current_path% == "");
+                &current_path[] = getBazaarGUIType();
+                if(%&current_path[0]% == "NONE");
+                    return(False);
+                endif;
+                &current_path = %&current_path[1];
+            endif;
+            
+            &other_parts[] = split(".",%&other_path%);
+            &curr_parts[]  = split(".",%&current_path%);
+            foreach(&other_parts[],&other_part,#op);
+                &curr_part = %&curr_parts[%#op%]%;
+                if(%&other_part% != %&curr_part%);
+                    break;
+                else;
+                    &matched_parts[] = %&other_part%;
+                    &matched_path    = join(".",&matched_parts[]);
+                    &matched_type    = jsonget("%&matched_path%.type",%@&mkb_baz_json%);
+                    if(%&matched_type% == "SUBCATEGORY");
+                        return_boolean = true;
+                    endif;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

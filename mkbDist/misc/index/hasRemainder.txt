@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // misc/index/hasRemainder
+        // Checks if the quotient of <#dividend> / <#divisor> > 0. Returns a Boolean.
+            // Params:
+                // {number} <#dividend>    The Number we are dividing the Divisor by
+                // {number} <#divisor>     The Number being divided by the Dividend
+            // Returns a Boolean indicating whether or not the Product has a remainder.
+        function hasRemainder(#dividend,#divisor);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:27
+            #quotient = mod(%#dividend%,%#divisor%);
+            if(%#quotient% >= 1);
+                return(True);
+            endif;
+            return(False);
+        endfunction;
+//! @mkb-import-end

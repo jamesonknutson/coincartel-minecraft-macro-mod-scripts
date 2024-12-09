@@ -1,0 +1,36 @@
+//! @mkb-import-begin
+    // array/index/arrayLastIndexOf
+        // Returns the last index of <&element> in <&array[]> that is <= [#start].
+            // Params:
+            //        {array} <&array[]>      The Source Array to find the last index of <&element> in.
+            //        {string} <&element>     The Element to find in the Source Array.
+            //        {string} [&start=""]    The index in the Source Array to start the search from. Defaults
+            //                                to {arr.length - 1}, i.e. the whole array will be searched. If the
+            //                                index is >= the length of the Array, the whole array will be searched.
+            //                                If the index is negative, it is taken as the offset from the end of the Array.
+            //
+            // Returns the last integer index that the <&element> occurs at in the Array, or -1 if could not be found.
+        function arrayLastIndexOf(&array[],&element,&start="");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:239
+            #last_index = -1;
+            #array_size = arraysize(&array[]);
+            #array_len  = #array_size - 1;
+            #start_int := %&start%;
+            &element    = lcase(%&element%);
+            if((%&start% == "") || (%#start_int% >= %#array_len%));
+                #start_int = #array_len;
+            elseif(%#start_int% < 0);
+                #start_int = #array_len + #start_int;
+            endif;
+            
+            for(#index,%#start_int%,0);
+                &array_element = lcase(%&array[%#index%]%);
+                if(%&array_element% == %&element%);
+                    #last_index = %#index%;
+                    break;
+                endif;
+            next;
+            
+            return(%#last_index%);
+        endfunction;
+//! @mkb-import-end

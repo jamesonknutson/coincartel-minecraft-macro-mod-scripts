@@ -1,0 +1,196 @@
+//! @mkb-import-begin
+    // bazaar/index/getPartsPath
+        // Gets the Path corresponding to an Array of Parts.
+            // Params:
+                // {string} <&parts[]>    The Parts of the Path to join together.
+                //
+            // Returns the Path String.
+        function getPartsPath(&parts[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1001
+            #parts = arraysize(&parts[]);
+            if((%#parts% >= 1) && (%&parts[0]% != ""));
+                &path = join(".",&parts[]);
+            endif;
+            return(%&path%);
+        endfunction;
+    // bazaar/index/getPathParts
+        // Returns an Array of the 'parts' of a given Path.
+            // Params:
+                // {string} <&path>    The Path to get the 'parts' of.
+                //
+            // Returns a String Array.
+        function getPathParts(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:989
+            if(%&path% != "");
+                &parts[] = split(".",%&path%);
+            endif;
+            return(&parts[]);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // bazaar/index/getPathJSON
+        // Gets the JSON Object found at the specified Path.
+            // Params:
+                // {string} <&path>    The Path to the JSON Object to retrieve from @&mkb_baz_json.
+                //
+            // Returns the JSON String Object.
+        function getPathJSON(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1039
+            debug              = true;
+            &script_debug_name = "&9getPathJSON";
+            
+            if(%&path% != "");
+                debug_log(%debug%,%&script_debug_name%,"path %&path% not null");
+                &object = jsonget(%&path%,%@&mkb_baz_json%);
+                ifbeginswith(%&object%,"[");
+                    &path_parts[] = getPathParts(%&path%);
+                    pop(&path_parts[]);
+                    &call_path  = getPartsPath(&path_parts[]);
+                    debug_log(%debug%,%&script_debug_name%,"path is array, recursive calling with %&call_path%");
+                    &path_json  = call("getPathJSON",%&call_path%);
+                    return(%&path_json%);
+                endif;
+                return(%&object%);
+            endif;
+            debug_log(%debug%,%&script_debug_name%,"returning root");
+            return(%@&mkb_baz_json%);
+        endfunction;
+    // bazaar/index/getPathType
+        // Gets the Type of the JSON Object found at the specified Path.
+            // Params:
+                // {string} <&path>    The Path to the JSON Object to retrieve from @&mkb_baz_json.
+                //
+            // Returns the JSON Object's Type: ROOT, CATEGORY, SUBCATEGORY, SUBPRODUCT, PRODUCT, BUTTON.
+        function getPathType(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1065
+            &path_json = getPathJSON(%&path%);
+            &path_type = jsonget("type",%&path_json%);
+            return(%&path_type%);
+        endfunction;
+    // bazaar/index/getPathDepth
+        // Calculates the 'depth' of a Path based off it's Type property in the mkb_baz_json Object.
+            // Params:
+                // {string} <&path>    The Path to calculate the Depth of.
+                //
+            // Returns the Integer 'depth' of the Path.
+        function getPathDepth(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1076
+            &path_type = getPathType(%&path%);
+            if(%&path_type% == "ROOT");
+                #path_depth = 0;
+            elseif(%&path_type% == "CATEGORY");
+                #path_depth = 1;
+            elseif((%&path_type% == "PRODUCT") || (%&path_type% == "SUBCATEGORY"));
+                #path_depth = 2;
+            else;
+                #path_depth = 3;
+            endif;
+            return(%#path_depth%);
+        endfunction;
+    // bazaar/index/getCommonAncestorPath
+        // Finds the Common Ancestor Path String between the Origin Path and the Target Path.
+            // Params:
+                // {string} <&origin_path>    The Origin JSON Path in @&mkb_baz_json
+                // {string} <&target_path>    The Target JSON Path in @&mkb_baz_json
+            // Returns the Path to the Common Ancestor, or an empty String if the Root JSON is the Common Ancestor.
+        function getCommonAncestorPath(&origin_path,&target_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1014
+            debug              = true;
+            &script_debug_name = "&6getCommonAncestorPath";
+            
+            &origin_parts[]    = getPathParts(%&origin_path%);
+            &target_parts[]    = getPathParts(%&target_path%);
+            foreach(&origin_parts[],&origin_part,#opi);
+                &target_part = %&target_parts[%#opi%]%;
+                if(%&origin_part% == %&target_part%);
+                    debug_log(%debug%,%&script_debug_name%,"%#opi% > origin_part = %&origin_part%, target_part = %&target_part%");
+                    &ancestor_parts[] = %&origin_part%;
+                else;
+                    break;
+                endif;
+            next;
+            &ancestor_path = getPartsPath(&ancestor_parts[]);
+            debug_log(%debug%,%&script_debug_name%,"ancestor path is %&ancestor_path%");
+            return(%&ancestor_path%);
+        endfunction;
+    // bazaar/index/getFromOriginCost
+        // Calculates the amount of Clicks required to get us from <&origin_path> to <&target_path>.
+            // Params:
+                // {string} <&origin_path>      JSON dot Path
+                // {string} <&target_path>      JSON dot Path
+                // {string} [&origin_type]      String ENUM of GUI Type: BUY_INSTANT_QTY, BUY_INSTANT_QTY_SIGN, BUY_INSTANT_CONFIRM, BUY_ORDER_QTY, BUY_ORDER_QTY_SIGN,
+                //                              BUY_ORDER_CONFIRM, BUY_ORDER_MANAGE, BUY_ORDER_FLIP, SELL_INSTANT_QTY, SELL_INSTANT_INVENTORY, SELL_ORDER_QTY, SELL_ORDER_QTY_SIGN,
+                //                              SELL_ORDER_PRICE, SELL_ORDER_PRICE_SIGN, SELL_ORDER_CONFIRM, SELL_ORDER_MANAGE, ORDER_MANAGE, GRAPHS
+                // {string} [&ancestor_path]    The Ancestor Path between Origin and Target, if known. Will calculate if not known.
+        function getFromOriginCost(&origin_path,&target_path,&origin_type,&ancestor_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1098
+            debug              = true;
+            &script_debug_name = "getFromOriginCost";
+            
+            // Calculate the additional cost of whatever Origin Type we are in.
+            if(true);
+                &cost_inf[] = split(", ","SELL_INSTANT_INVENTORY, NONE");
+                &cost_one[] = split(", ","BUY_INSTANT_QTY, BUY_INSTANT_QTY_SIGN, BUY_ORDER_QTY, BUY_ORDER_QTY_SIGN, BUY_ORDER_PRICE, BUY_ORDER_PRICE_SIGN, BUY_ORDER_CONFIRM, SELL_INSTANT_QTY, SELL_ORDER_QTY, SELL_ORDER_QTY_SIGN, SELL_ORDER_PRICE, SELL_ORDER_PRICE_SIGN, SELL_ORDER_CONFIRM, ORDER_MANAGE, GRAPHS");
+                &cost_two[] = split(", ","BUY_INSTANT_CONFIRM, SELL_ORDER_MANAGE, BUY_ORDER_MANAGE, BUY_ORDER_FLIP");
+                #inf_index  = indexof(&cost_inf[],,%&origin_type%);
+                #one_index  = indexof(&cost_one[],,%&origin_type%);
+                #two_index  = indexof(&cost_two[],,%&origin_type%);
+                if(%#inf_index% != -1);
+                    return(999);
+                elseif(%#one_index% != -1);
+                    #add_cost = 1;
+                elseif(%#two_index% != -1);
+                    #add_cost = 2;
+                endif;
+            endif;
+            
+            // 1a. Find Common Ancestor between Origin and Target Path.
+            if(%&ancestor_path% == "");
+                &ancestor_path = getCommonAncestorPath(%&origin_path%,%&target_path%);
+            endif;
+            
+            // 1b. Find all Path's Depths
+            #ancestor_depth = getPathDepth(%&ancestor_path%);
+            #origin_depth   = getPathDepth(%&origin_path%);
+            #target_depth   = getPathDepth(%&target_path%);
+            
+            // 2a. Calculate the distance from the Origin to the Common Ancestor Path.
+            #origin_to_ancestor_dist = %#origin_depth% - %#ancestor_depth%;
+            
+            // 2b. Calculate the distance from the Common Ancestor to the Target Path.
+            &ancestor_type = getPathType(%&ancestor_path%);
+            if(%&ancestor_type% == "ROOT");
+                #ancestor_augment = 1;
+            endif;
+            #ancestor_to_target_dist = (%#target_depth% - %#ancestor_depth%) - %#ancestor_augment%;
+            
+            // 3a. Calculate and return the sum of the distances
+            #sum_dist = (%#origin_to_ancestor_dist% + %#ancestor_to_target_dist%) + %#add_cost%;
+            
+            &vars[] = split(" ","&ancestor_path #ancestor_depth &origin_path #origin_depth &target_path #target_depth #origin_to_ancestor_dist &ancestor_type #ancestor_augment #ancestor_to_target_dist #add_cost #sum_dist");
+            foreach(&vars[],&var,#v);
+                &val = %%&var%%;
+                &logvar = regexreplace(&var,"(?<!&)&","&&");
+                debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar% : %&val%");
+            next;
+            return(%#sum_dist%);
+        endfunction;
+//! @mkb-import-end

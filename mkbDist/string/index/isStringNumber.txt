@@ -1,0 +1,60 @@
+//! @mkb-import-begin
+    // string/index/isStringFormattedNumber
+        // Checks if a String is a valid Float/Number (with commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Formatted Number.
+        function isStringFormattedNumber(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:80
+            ifmatches(%&check_string%,"^[\d-]+,[\d.,-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+    // string/index/isStringInteger
+        // Checks if a String is a valid Integer.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Integer.
+        function isStringInteger(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:58
+            ifmatches(%&check_string%,"^[0-9-]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+    // string/index/isStringFloat
+        // Checks if a String is a valid Float (without commas).
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringFloat(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:69
+            ifmatches(%&check_string%,"^[0-9-]*\.[0-9]+$");
+                bool = true
+            endif;
+            return(%bool%);
+        endfunction;
+    // string/index/isStringNumber
+        // Checks if a String is a valid Number, coercable to a Float of some sort.
+            // Params:
+                // {string} <&check_string> The String to Check
+            // Returns a Boolean indicating whether or not the String can be coerced to a valid Float.
+        function isStringNumber(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:91
+            &call_functions[] = split(", ","isStringInteger, isStringFloat, isStringFormattedNumber");
+            foreach(&call_functions[],&call_function,#cfi);
+                if(%&call_function% == "isStringInteger");
+                    return_boolean = isStringInteger(%&check_string%);
+                elseif(%&call_function% == "isStringFloat");
+                    return_boolean = isStringFloat(%&check_string%);
+                elseif(%&call_function% == "isStringFormattedNumber");
+                    return_boolean = isStringFormattedNumber(%&check_string%);
+                endif;
+                if(%return_boolean%);
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,26 @@
+// api/slothpixel.txt
+	// Gets a player's Hypixel SkyBlock Profiles from Slothpixel's API.
+		// Params:
+		//		{string} [&search_term=%UUID%]	The player username/UUID to search for. If left blank, defaults to player's UUID.
+		//
+		// Returns an array:
+		//	0     	{boolean}	success   	Whether or not we were able to get any data from the API (false if request fails)
+		//	1, ...	{string} 	&profile[]	The JSON Objects of the Profiles. Only provided if success == true and profiles !== null.
+	function slothpixelGetSkyBlockProfiles(&search_term=%UUID%);
+		&player_data[]   = getMinecraftProfile(%&search_term%);
+		player_success  := %&player_data[0]%;
+		&return_array[0] = "False";
+		if(%player_success%);
+			&player_joint_uuid = %&player_data[2]%;
+			&api_endpoint      = "https://api.slothpixel.me/api/skyblock/profiles/%&player_joint_uuid%";
+			&api_response      = httpget(%&api_endpoint%,,#api_code);
+			if(%#api_code% == 200);
+				&return_array[0] = "True";
+				&profile_ids[]   = getjsonkeys(%&api_response%);
+				foreach(&profile_ids[],&profile_id,#pii);
+					&return_array[] = jsonget(%&profile_id%,%&api_response%);
+				next;
+			endif;
+		endif;
+		return(&return_array[]);
+	endfunction;

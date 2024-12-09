@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // gui/index/regexTest
+        // Tests if the regular expression <&expression> matches against <&input_string>.
+            // Params:
+            //      {string} <&input_string>    The input string to test against <&expression>.
+            //      {string} <&expression>      The regular expression to test against <&input_string>.
+            //
+            // Returns a boolean indicating whether or not the <&expression> matches against the <&input_string>.
+        function regexTest(&input_string,&expression);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/gui/index.txt:49
+            ifmatches(%&input_string%,%&expression%);
+                return_bool = true;
+            endif;
+            return(%return_bool%);
+        endfunction;
+//! @mkb-import-end

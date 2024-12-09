@@ -1,0 +1,538 @@
+//	Types of Prompts
+  	//	1.	String Prompts
+  	  	//	- Selection
+  	  	//	- Custom Input
+  	  	//	- Input Validation (expressions, string matching)
+  	//	2.	Number Prompts
+  	  	//	- Selection
+  	  	//	- Custom Input
+  	  	//	- Input Validation (min/max, etc)
+//	Additional Notes and Features
+  	//	1.	Support Sound Effects
+  	//	2.	Support Common Input Conversions
+  	  	//	a.	Time String to Seconds
+  	  	  	//	10h => 10*60*60 Seconds
+  	  	  	//	1.5h => 1.5*60*60 Seconds
+  	  	  	//  10 hour => 10*60*60 Seconds
+  	  	//	b.	Metric String to Number/Float
+  	  	  	//	1K => 1000
+  	  	  	//	1.5K => 1500
+  	  	  	//	0.5M => 500000
+  	//	3.	Support Coloured Options in Selection Menus
+  	//	4.	Support Selection Validation
+
+// prompt/index.txt
+	// Takes an optional input Array of Sound Overrides, then returns an Array of Standardized Sounds to use in Prompt GUIs.
+		// Params:
+			// {string} [...&overrides[]]	An optional Array of Sound Overrides in Format: '<SOUND_TYPE>: <SOUND_FILE>'. Valid
+			//                           	SOUND_TYPE ENUMs are:
+			//                           	'IN'           : Sound played when entering a Prompt GUI. Defaults to 'block.piston.extend'
+			//                           	'OUT'          : Sound played when exiting a Prompt GUI. Defaults to 'block.piston.contract'
+			//                           	'GENERIC'      : Sound for generic actions (e.g. toggling an option off). Defaults to 'ui.button.click'.
+			//                           	'NEGATIVE_1'   : Sound played for negative feedback (e.g. disabling an option). Defaults to 'entity.villager.no'
+			//                           	'NEGATIVE_2'   : Negative feedback for special errors (e.g. unexpected input). Defaults to 'entity.chicken.hurt'
+			//                           	'POSITIVE_1'   : Sound played for positive feedback (e.g. enabling an option). Defaults to 'entity.villager.yes'
+			//                           	'POSITIVE_2'   : Sound played for positive feedback (e.g. when a new patch is found). Defaults to 'entity.arrow.hit_player'
+			//                           	'POSITIVE_3'   : Sound played for positive feedback (e.g. when a new module is accessed). Defaults to 'entity.player.levelup'
+		// Returns a String Array of the Sound Values, with any overrides applied.
+			// {string} &sound_in         = [0];	// The sound played when entering a GUI.
+			// {string} &sound_out        = [1];	// The sound played when leaving a GUI.
+			// {string} &sound_generic    = [2];	// A generic UI interaction sound.
+			// {string} &sound_negative_1 = [3];	// A negative sound played for negative feedback, e.g. disabling an option.
+			// {string} &sound_negative_2 = [4];	// A negative sound played for special negative feedback, e.g. unexpected error.
+			// {string} &sound_positive_1 = [5];	// A positive sound played for positive feedback, e.g. enabling an option.
+			// {string} &sound_positive_2 = [6];	// A positive sound played for positive feedback, e.g. when a new patch is found.
+			// {string} &sound_positive_3 = [7];	// A positive sound played for positive feedback, e.g. when a new module is accessed.
+		// Example:
+			//	&prompt_sounds[]  = promptGetSounds();
+			//	&sound_in         = %&prompt_sounds[0]%;
+			//	&sound_out        = %&prompt_sounds[1]%;
+			//	&sound_generic    = %&prompt_sounds[2]%;
+			//	&sound_negative_1 = %&prompt_sounds[3]%;
+			//	&sound_negative_2 = %&prompt_sounds[4]%;
+			//	&sound_positive_1 = %&prompt_sounds[5]%;
+			//	&sound_positive_2 = %&prompt_sounds[6]%;
+			//	&sound_positive_3 = %&prompt_sounds[7]%;
+	function promptGetSounds(...&overrides[]);
+		&sound_in         = "block.piston.extend";
+		&sound_out        = "block.piston.contract";
+		&sound_generic    = "ui.button.click";
+		&sound_negative_1 = "entity.villager.no";
+		&sound_negative_2 = "entity.chicken.hurt";
+		&sound_positive_1 = "entity.villager.yes";
+		&sound_positive_2 = "entity.arrow.hit_player";
+		&sound_positive_3 = "entity.player.levelup";
+		foreach(&overrides[],&override,#o);
+			ifmatches(%&override%,"^(\w+): (.+)$");
+				match(%&override%,"^(\w+): (.+)$",{&sound_key,&sound_val});
+				&sound_key = lcase(%&sound_key%);
+				&sound_var = "&sount_%&sound_key%";
+				set(%&sound_var%,%&sound_val%);
+			endif;
+		next;
+		return(%&sound_in%,%&sound_out%,%&sound_generic%,%&sound_negative_1%,%&sound_negative_2%,%&sound_positive_1%,%&sound_positive_2%,%&sound_positive_3%);
+	endfunction;
+	
+	// Prompts the User to provide a Custom Number.
+		// Params:
+			// {string}  [...&options[]]	Optional Array of `<ENUM>: <VALUE>` pairs to dictate what restrictions to place
+			//                          	on the User's Response, and how the Function should behave. Valid Settings are:
+			//                          		PROMPT      	[{string}]      	The Prompt String to show in the GUI. Will replace /(?<=&)&[\da-fk-or]/ with Section Symbol.
+			//                          		DEFAULT     	[{string}]      	Default Value to return if the User exits the GUI.
+			//                          		FLOAT       	[{boolean}]     	Whether or not to accept Floating Point Numbers in the User's Response.
+			//                          		SOUND       	[{boolean}]     	Whether or not to play Sounds in the Menu.
+			//                          		<SOUND_TYPE>	[{<SOUND_FILE}] 	Sound Overrides to pass along to `promptGetSounds();` if we are playing Sounds.
+			//                          		MIN         	[{number|float}]	Minimum number to accept from the User. If omitted, will not validate a min boundary.
+			//                          		MAX         	[{number|float}]	Maximum number to accept from the User. If omitted, will not validate a max boundary.
+			//                          		EXIT        	[{boolean}]     	Whether or not to Return after the User provides an invalid response or to keep looping
+			//                          		            	                	with an Error Message to instruct them on how to correct their input. If TRUE, will Exit.
+			//                          		HINT        	[{string}]      	The 'Hint' to show to the User in the Prompt GUI.
+			//                          	The Default Settings used for each Key are:
+			//                          		PROMPT 	"Provide an Integer"
+			//                          		DEFAULT	""
+			//                          		FLOAT  	false
+			//                          		SOUND  	true
+			//                          		EXIT   	false
+			//                          		HINT   	number
+		// Returns the Number provided by the User if their response passed validations,
+		// or the DEFAULT value if the User exited the GUI / provided an invalid response.
+		// Example:
+			// #min_delay = promptNumber("prompt: How long to wait between actions? Current Value: &e%#min_delay%","default: %#min_delay%","min: 0","max: 20");
+	function promptNumber(...&options[]);
+		// Setup Function Defaults
+		if(true);
+			&sound   = true;
+			&float   = false;
+			&exit    = false;
+			&default = "";
+			&hint    = "integer";
+			&prompt  = "Provide an Integer";
+			&min     = "";
+			&max     = "";
+			
+			// Override Defaults with Parameters Passed
+			foreach(&options[],&option,#o);
+				ifmatches(%&option%,"^(prompt|default|float|sound|min|max|exit|hint):\s*?\b(.*)$");
+					match(%&option%,"^(prompt|default|float|sound|min|max|exit|hint):\s*?\b(.*)$",{&option_key,&option_value});
+					&option_var = lcase("&%&option_key%");
+					set(%&option_var%,%&option_value%);
+				endif;
+			next;
+			
+			// Do additional post-processing before prompting the User for Input
+			if(true);
+				sound      := %&sound%;
+				float      := %&float%;
+				error_exit := %&exit%;
+				
+				// Setup Min and/or Max Bounds
+				if(true);
+					min = isStringNumber(%&min%);
+					max = isStringNumber(%&max%);
+					if(%min%);
+						&min            = replace(&min,",");
+						&min_string     = xFormatNumber(%&min%);
+						&min_string     = convertToMetric(%&min_string%);
+						&bound_string[] = "&9greater than&c or equal to &b%&min_string%&c";
+					endif;
+					if(%max%);
+						&max            = replace(&max,",");
+						&max_string     = xFormatNumber(%&max%);
+						&max_string     = convertToMetric(%&max_string%);
+						&bound_string[] = "&eless than&c or equal to &6%&max_string%&c";
+					endif;
+					&bound_string = join(", and ",&bound_string[]);
+					
+					if((%min%) && (!%max%));
+						&max = "99999999999999999999999999";
+					elseif((!%min%) && (%max%));
+						&min = "-99999999999999999999999999";
+					endif;
+				endif;
+				
+				// Setup Sounds
+				if(%sound%);
+					&prompt_sounds[]  = promptGetSounds(...&options[]);
+					&sound_in         = %&prompt_sounds[0]%;
+					&sound_out        = %&prompt_sounds[1]%;
+					&sound_generic    = %&prompt_sounds[2]%;
+					&sound_negative_1 = %&prompt_sounds[3]%;
+					&sound_negative_2 = %&prompt_sounds[4]%;
+					&sound_positive_1 = %&prompt_sounds[5]%;
+					&sound_positive_2 = %&prompt_sounds[6]%;
+					&sound_positive_3 = %&prompt_sounds[7]%;
+				endif;
+				
+				// Parse Prompt String
+				if(true);
+					&color_char     = char("167");
+					&expr_unescaped = "(?<!&)&(?=[\da-fk-or])";
+					&expr_escaped   = "&&(?=[\da-fk-or])";
+					&prompt         = regexreplace(&prompt,%&expr_unescaped%,%&color_char%);
+					&prompt         = regexreplace(&prompt,%&expr_escaped%,"&");
+				endif;
+				
+				// Setup the 'Valid Number' string to show on Error.
+				if(%float%);
+					&valid_number = "Number";
+				else;
+					&valid_number = "Integer";
+				endif;
+				
+				// Ensure that the Input Hint is valid.
+				ifmatches(%&hint%,"[^a-z0-9]");
+					&hint = lcase(%&valid_number%);
+				elseif(%&hint% == "");
+					&hint = lcase(%&valid_number%);
+				endif;
+			endif;
+		endif;
+		
+		// Start looping prompts until we get a valid response from the User, or we hit an Error we cannot recover from.
+		if(true);
+			do;
+				if(%sound%);
+					playsound(%&sound_in%,"25");
+				endif;
+				&response = prompt(,"$$[%&hint%]",%&prompt%,true,"Exit Menu");
+				&response = lcase(%&response%);
+				&response = strip(%&response%);
+				&response = trim(%&response%);
+				&response = replace(&response,",");
+				if((%&response% == "exit menu") || (%&response% == ""));
+					if(%sound%);
+						playsound(%&sound_out%);
+					endif;
+					&return_string = %&default%;
+					break;
+				else;
+					&parsed = convertMetricString(%&response%)
+					if(%float%);
+						num_valid = isStringNumber(%&parsed%);
+					else;
+						num_valid = isStringInteger(%&parsed%);
+					endif;
+					
+					if(%num_valid%);
+						if((%min%) || (%max%));
+							num_valid = floatWithinBounds(%&parsed%,%&max%,%&min%);
+						endif;
+						
+						if(%num_valid%);
+							if(%sound%);
+								playsound(%&sound_positive_1%,"25");
+							endif;
+							&return_string = %&parsed%;
+							break;
+						else;
+							if(%sound%);
+								playsound(%&sound_negative_1%,"25");
+							endif;
+							
+							log("&4Error: &cYour response (you typed: '&4%&response%&c') is outside the accepted boundaries of %&bound_string%&c.");
+							
+							if(%error_exit%);
+								&return_string = %&default%;
+								break;
+							endif;
+						endif;
+					else;
+						if(%sound%);
+							playsound(%&sound_negative_1%,"25");
+						endif;
+						
+						log("&4Error: &cYou did not provide a valid %&valid_number% (you typed: '&4%&response%&c').");
+						
+						if(%error_exit%);
+							&return_string = %&default%;
+							break;
+						endif;
+					endif;
+				endif;
+			while(%&return_string% == "");
+		endif;
+		return(%&return_string%);			
+	endfunction;
+	
+	// Prompts the User to select a Choice from a List.
+		// Params:
+			// {string} <&selections[]> An Array of Strings to provide as Selections to choose from. Will replace /(?<=&)&[\da-fk-or]/ with the Section Symbol.
+			//                         	Any commas in the Strings will be removed.
+			// {string} [...&options[]]	Optional Array of `<ENUM>: <VALUE>` pairs to dictate what restrictions to place
+			//                         	on the User's Response, and how the Function should behave. Valid Settings are:
+			//                         		PROMPT      	[{string}]     	The Prompt String to show in the GUI. Will replace /(?<=&)&[\da-fk-or]/ with Section Symbol.
+			//                         		DEFAULT     	[{string}]     	Default Value to return if the User exits the GUI.
+			//                         		SOUND       	[{boolean}]    	Whether or not to play Sounds in the Menu.
+			//                         		<SOUND_TYPE>	[{<SOUND_FILE}]	Sound Overrides to pass along to `promptGetSounds();` if we are playing Sounds.
+			//                         		EXIT        	[{boolean}]    	Whether or not to Return after the User provides an invalid response or to keep looping
+			//                         		            	               	with an Error Message to instruct them on how to correct their input. If TRUE, will Exit.
+			//                         		HINT        	[{string}]     	The 'Hint' to show to the User in the Prompt GUI.
+			//                         		REGEX       	[{expression}] 	An optional expression to match against Custom input the User provides to still consider
+			//                         		            	               	as being valid. If provided, the expression will be tested against the stripped, trimmed,
+			//                         		            	               	and lowercase variant of the User's input.
+			//                         	The Default Settings used for each Key are:
+			//                         		PROMPT 	"Make a Selection"
+			//                         		DEFAULT	""
+			//                         		SOUND  	true
+			//                         		EXIT   	false
+			//                         		HINT   	"choice"
+		// Returns the String that the User selected, or the DEFAULT value
+		// if the User exited the GUI / provided an invalid response.
+		// Example:
+			//	&selections[]    = "&7Choice A: &bBlue";
+			//	&selections[]    = "&7Choice B: &cRed";
+			//	&selection       = promptSelection(&selections[],"prompt: What's your favorite colour?");
+			//	#selection_index = indexof(&selections[],,%&selection%);
+	function promptSelection(&selections[],...&options[]);
+		// Setup Function Defaults
+		if(true);
+			&prompt  = "Make a Selection";
+			&default = "";
+			&sound   = true;
+			&exit    = false;
+			&hint    = "choice";
+			
+			// Parse Option Overrides
+			foreach(&options[],&option,#o);
+				ifmatches(%&option%,"^(prompt|default|sound|exit|hint|regex):\s*(.+)$");
+					match(%&option%,"^(prompt|default|sound|exit|hint|regex):\s*(.+)$",{&option_key,&option_val});
+					&option_var = lcase("&%&option_key%");
+					set(%&option_var%,%&option_val%);
+				endif;
+			next;
+			
+			// Do additional post-processing before prompting the User for Input
+			if(true);
+				sound      := %&sound%;
+				error_exit := %&exit%;
+				try_regex   = %&regex% != "";
+				
+				// Setup Sounds
+				if(%sound%);
+					&prompt_sounds[]  = promptGetSounds(...&options[]);
+					&sound_in         = %&prompt_sounds[0]%;
+					&sound_out        = %&prompt_sounds[1]%;
+					&sound_generic    = %&prompt_sounds[2]%;
+					&sound_negative_1 = %&prompt_sounds[3]%;
+					&sound_negative_2 = %&prompt_sounds[4]%;
+					&sound_positive_1 = %&prompt_sounds[5]%;
+					&sound_positive_2 = %&prompt_sounds[6]%;
+					&sound_positive_3 = %&prompt_sounds[7]%;
+				endif;
+				
+				// Parse Prompt String
+				if(true);
+					&color_char     = char("167");
+					&expr_unescaped = "(?<!&)&(?=[\da-fk-or])";
+					&expr_escaped   = "&&(?=[\da-fk-or])";
+					&prompt         = regexreplace(&prompt,%&expr_unescaped%,%&color_char%);
+					&prompt         = regexreplace(&prompt,%&expr_escaped%,"&");
+				endif;
+				
+				// Ensure that the Input Hint is valid.
+				ifmatches(%&hint%,"[^a-z0-9]");
+					&hint = "selection";
+				elseif(%&hint% == "");
+					&hint = "selection";
+				endif;
+				
+				// Convert all Color Codes in Selections and strip out Commas
+				foreach(&selections[],&selection,#s);
+					if(%#s% == 0);
+						&validated_selections[] = "%&color_char%Exit Menu";
+						&stripped_selections[]  = "Exit Menu";
+					endif;
+					&validated_selection        = regexreplace(&selection,%&expr_unescaped%,%&color_char%);
+					&validated_selection        = regexreplace(&validated_selection,%&expr_escaped%,"&");
+					&validated_selection        = replace(&validated_selection,",");
+					&validated_selections[%#s%] = %&validated_selection%;
+					&stripped_selections[%#s%]  = strip(%&validated_selection%);
+				next;
+			endif;
+		endif;
+		
+		// Loop prompt calls until we have a return value
+		if(true);
+			&selections = join(",",&validated_selections[]);
+			do;
+				if(%sound%);
+					playsound(%&sound_in%);
+				endif;
+				&raw_response      = prompt(,"$$[%&hint%[%&selections%]]",%&prompt%,true,"Exit Menu");
+				&stripped_response = strip(%&raw_response%);
+				#response_index    = indexof(&stripped_selections[],,%&stripped_response%);
+				if(%#response_index% == 0);
+					if(%sound%);
+						playsound(%&sound_out%,"25");
+					endif;
+					&return_string = %&default%;
+					break;
+				elseif(%#response_index% != -1);
+					if(%sound%);
+						playsound(%&sound_positive_1%,"25");
+					endif;
+					#origin_index  = %#response_index% - 1;
+					&return_string = &selections[%#origin_index%]%;
+					break;
+				elseif(%try_regex%);
+					&test_response = lcase(%&stripped_response%);
+					&test_response = trim(%&stripped_response%);
+					ifmatches(%&test_response%,%&regex%);
+						if(%sound%);
+							playsound(%&sound_positive_1%,"25");
+						endif;
+						&return_string = %&test_response%;
+						break;
+					endif;
+				endif;
+				
+				if(%sound%);
+					playsound(%&sound_negative_1%,"25");
+				endif;
+				
+				if(%try_regex%);
+					log("&4Error: &cYou must pick one of the options presented, or a valid custom string.");
+				else;
+					log("&4Error: &cYou must pick one of the options presented.");
+				endif;
+				
+				if(%error_exit%);
+					&return_string = %&default%;
+					break;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		return(%&return_string%);
+	endfunction;
+	
+	// Prompts the User to type an input, then validates it against a Regular Expression.
+		// Params:
+			// {string} <&expression>  	The Regular Expression to match the User's Input against.
+			// {string} [...&options[]]	Optional Array of `<ENUM>: <VALUE>` pairs to dictate what restrictions to place
+			//                         	on the User's Response, and how the Function should behave. Valid Settings are:
+			//                         		PROMPT      	[{string}]     	The Prompt String to show in the GUI. Will replace /(?<=&)&[\da-fk-or]/ with Section Symbol.
+			//                         		DEFAULT     	[{string}]     	Default Value to return if the User exits the GUI.
+			//                         		SOUND       	[{boolean}]    	Whether or not to play Sounds in the Menu.
+			//                         		<SOUND_TYPE>	[{<SOUND_FILE}]	Sound Overrides to pass along to `promptGetSounds();` if we are playing Sounds.
+			//                         		EXIT        	[{boolean}]    	Whether or not to Return after the User provides an invalid response or to keep looping
+			//                         		            	               	with an Error Message to instruct them on how to correct their input. If TRUE, will Exit.
+			//                         		HINT        	[{string}]     	The 'Hint' to show to the User in the Prompt GUI.
+			//                         	The Default Settings used for each Key are:
+			//                         		PROMPT 	"Type your Input"
+			//                         		DEFAULT	""
+			//                         		SOUND  	true
+			//                         		EXIT   	false
+			//                         		HINT   	"input"
+		// Returns the String that the User selected, or the DEFAULT value
+		// if the User exited the GUI / provided an invalid response.
+		// Example:
+			//	&input = promptRegex("^https:","prompt: What is your Discord Webhook URL?","default: %@&discord_url%","hint: URL");
+	function promptRegex(&expression,...&options[]);
+		// Setup Function Defaults
+		if(true);
+			&prompt  = "Type your Input";
+			&default = "";
+			&sound   = true;
+			&exit    = false;
+			&hint    = "input";
+			
+			// Parse Option Overrides
+			foreach(&options[],&option,#o);
+				ifmatches(%&option%,"^(prompt|default|sound|exit|hint):\s*(.+)$");
+					match(%&option%,"^(prompt|default|sound|exit|hint):\s*(.+)$",{&option_key,&option_val});
+					&option_var = lcase("&%&option_key%");
+					set(%&option_var%,%&option_val%);
+				endif;
+			next;
+			
+			// Do additional post-processing before prompting the User for Input
+			if(true);
+				sound      := %&sound%;
+				error_exit := %&exit%;
+				
+				// Setup Sounds
+				if(%sound%);
+					&prompt_sounds[]  = promptGetSounds(...&options[]);
+					&sound_in         = %&prompt_sounds[0]%;
+					&sound_out        = %&prompt_sounds[1]%;
+					&sound_generic    = %&prompt_sounds[2]%;
+					&sound_negative_1 = %&prompt_sounds[3]%;
+					&sound_negative_2 = %&prompt_sounds[4]%;
+					&sound_positive_1 = %&prompt_sounds[5]%;
+					&sound_positive_2 = %&prompt_sounds[6]%;
+					&sound_positive_3 = %&prompt_sounds[7]%;
+				endif;
+				
+				// Parse Prompt String
+				if(true);
+					&color_char     = char("167");
+					&expr_unescaped = "(?<!&)&(?=[\da-fk-or])";
+					&expr_escaped   = "&&(?=[\da-fk-or])";
+					&prompt         = regexreplace(&prompt,%&expr_unescaped%,%&color_char%);
+					&prompt         = regexreplace(&prompt,%&expr_escaped%,"&");
+				endif;
+				
+				// Ensure that the Input Hint is valid.
+				ifmatches(%&hint%,"[^a-z0-9]");
+					&hint = "selection";
+				elseif(%&hint% == "");
+					&hint = "selection";
+				endif;
+			endif;
+		endif;
+		
+		// Loop prompt calls until we have a return value
+		if(true);
+			&selections = join(",",&validated_selections[]);
+			do;
+				if(%sound%);
+					playsound(%&sound_in%);
+				endif;
+				&response = prompt(,"$$[%&hint%]",%&prompt%,true,"Exit Menu");
+				&response = strip(%&response%);
+				if((%&response% == "exit menu") || (%&response% == ""));
+					if(%sound%);
+						playsound(%&sound_out%,"25");
+					endif;
+					&return_string = %&default%;
+					break;
+				elseifmatches(%&response%,%&expression%);
+					if(%sound%);
+						playsound(%&sound_positive_1%,"25");
+					endif;
+					&return_string = %&response%;
+					break;
+				endif;
+				
+				if(%sound%);
+					playsound(%&sound_negative_1%,"25");
+				endif;
+				
+				log("&4Error: &cThe string you typed ('%&response%') is not valid for this input.");
+				
+				if(%error_exit%);
+					&return_string = %&default%;
+					break;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		return(%&return_string%);
+	endfunction;
+	
+	// Given input of a Boolean and an Option Prefix, joins the prefix together with the suffix based on the state of the Boolean.
+		// Params:
+			// {boolean} <boolean>                   	The Condition to check when evaluating whether to apply the false or true suffix
+			// {string}  <&prefix>                   	The Prefix String for the Option
+			// {string}  [&suffix_false="&cDisabled"]	The Suffix String to be used if the Boolean is False
+			// {string}  [&suffix_true="&aEnabled"]  	The Suffix String to be used if the Boolean is True
+		// Returns a Joint String of the Prefix and the corresponding Suffix.
+		// Example:
+			// &colored_opt = promptColorOpt(%@use_two_rows%,"&7Use Two Rows:");
+	function promptColorOpt(boolean,&prefix,&suffix_true="&aEnabled",&suffix_false="&cDisabled");
+		if(%boolean%);
+			&return_string = "%&prefix% %&suffix_true%";
+		else;
+			&return_string = "%&prefix% %&suffix_false%";
+		endif;
+		return(%&return_string%);
+	endfunction;

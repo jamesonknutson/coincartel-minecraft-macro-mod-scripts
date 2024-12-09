@@ -1,0 +1,40 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // socket/index/_socketClose
+        // Closes a Socket Connection.
+            // Params:
+                // {string} <&socket_name>    The Socket to close, as defined in the `socketOpen` Action.
+                //
+        function _socketClose(&socket_name);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/socket/index.txt:32
+            // Setup Function Variables
+            if(true);
+                debug              = true;
+                &script_debug_name = "&6_socketClose";
+                debug_log(%debug%,%&script_debug_name%,"Closing &&socket_name='&e%&socket_name%&7'.");
+            endif;
+            
+            &return_string = socketClose(%&socket_name%);
+            debug_log(%debug%,%&script_debug_name%,"Returning &&return_string='&e%&return_string%&7'.");
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

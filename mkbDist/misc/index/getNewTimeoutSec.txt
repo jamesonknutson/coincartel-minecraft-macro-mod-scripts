@@ -1,0 +1,23 @@
+//! @mkb-import-begin
+    // misc/index/getNewTimeoutSec
+        // Adjusts <#timeout_sec> to be <#timeout_sec> minus amount of seconds elapsed since <#start_time>.
+            // Params:
+                // {number} <#start_time>         Timestamp of fn start in caller script
+                // {number} <#timeout_sec>        Timeout seconds passed to caller script
+                // {boolean} [do_timeout=true]    Whether or not the timeout is active (if it is, the function will always
+                //                                return a positive number. If it is not, it will allow <= 0 numbers).
+            // Returns the new Timeout in Seconds
+            // Example:
+                //    #recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function getNewTimeoutSec(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/index.txt:59
+            #recursive_timeout = %#timeout_sec%;
+            if(%do_timeout%);
+                #recursive_timeout = %#timeout_sec% - (%TIMESTAMP% - %#start_time%);
+                if(%#recursive_timeout% <= 0);
+                    #recursive_timeout = 1;
+                endif;
+            endif;
+            return(%#recursive_timeout%);
+        endfunction;
+//! @mkb-import-end

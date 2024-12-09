@@ -1,0 +1,516 @@
+// bazaar/record.txt
+	// Opens the Bazaar Main Menu GUI.
+		// Params:
+		//      {boolean} [allow_command=true]  Whether or not to use the /bazaar command if a Booster Cookie effect is enabled.
+		//
+		// Returns a boolean indicating whether or not we are in the Bazaar Main Menu GUI.
+	// Converts a Category Enum to an Array of it's Data.
+		// Params:
+		//		{string} <&category_enum>	One of 'FARMING', 'MINING', 'COMBAT', 'WOODS_AND_FISHES', or 'ODDITIES'.
+		//
+		// Returns an Array (elements 1 through 4 only provided if successful).
+		//	0	{boolean}	success           	Whether or not a valid category enum was provided
+		//	1	{string} 	&category_enum    	The category enum
+		//	2	{string} 	&category_name    	The category name
+		//	3	{string} 	&category_expr    	The category expression for CONTAINERNAME to match against
+		//	4	{number} 	#category_slot    	The category slot to click on in the Main Menu to switch to this GUI.
+		//	5	{string} 	&category_item    	The base item on the Bazaar GUI to click to enter this Category
+		//	6	{string} 	&category_itemname	The displayname of the item on the Bazaar GUI to click to enter this Category.
+		  	//
+		  	// Example
+		  	//	&cat_data[]   = bazCategoryEnumToData(%&category_enum%);
+		  	//	cat_success  := %&cat_data[0]%;
+		  	//	&cat_enum     = %&cat_data[1]%;
+		  	//	&cat_name     = %&cat_data[2]%;
+		  	//	&cat_expr     = %&cat_data[3]%;
+		  	//	#cat_slot    := %&cat_data[4]%;
+		  	//	&cat_item     = %&cat_data[5]%;
+		  	//	&cat_itemname = %&cat_data[6]%;
+	function bazCategoryEnumToData(&category_enum)
+		&valid_categories[] = split(", ","FARMING, MINING, COMBAT, WOODS_AND_FISHES, ODDITIES");
+		&valid_names[]      = split(", ","Farming, Mining, Combat, Woods & Fishes, Oddities");
+		&category_items[]   = split(", ","golden_hoe, diamond_pickaxe, iron_sword, fishing_rod, enchanting_table");
+		&category_names[]   = split(", ","Farming, Mining, Combat, Woods & Fishes, Oddities");
+		#valid_slots[]      = split(", ","0, 9, 18, 27, 36");
+		&container_string[] = split(", ","Bazaar, \u279C");
+		#valid_index        = indexof(&valid_categories[],,%&category_enum%);
+		#names_valid_index  = indexof(&valid_names[],,%&category_enum%);
+		if((#names_valid_index != -1) || (#valid_index != -1));
+			if(#names_valid_index != -1);
+				#valid_index = %#names_valid_index%;
+			endif;
+			
+			&category_enum      = %&valid_categories[%#valid_index%]%;
+			&category_name      = %&valid_names[%#valid_index%]%;
+			#category_slot      = %#valid_slots[%#valid_index%]%;
+			&category_item      = %&category_items[%#valid_index%]%;
+			&category_itemname  = %&category_names[%#valid_index%]%;
+			&container_string[] = %&category_name%;
+			&category_expr      = join(" ",&container_string[]);
+			return_boolean      = true;
+		endif;
+		return(%return_boolean%,%&category_enum%,%&category_name%,%&category_expr%,%#category_slot%,%&category_item%,%&category_itemname%);
+	endfunction;
+	
+	// Opens the Bazaar Main Menu GUI and switches the active GUI to a given category.
+		// Params:
+		//		{string} <&category_enum>     	The category_enum to open. Valid strings are: 'FARMING', 'MINING',
+		//		                              	'COMBAT', 'WOODS_AND_FISHES', and 'ODDITIES'.
+		//		{boolean} [allow_command=true]	Whether or not to allow (and prefer) the usage of the '/bazaar' command.
+		//		{number} [#wait_ticks=20]     	Amount of ticks to wait in between execution of actions.
+		//		{number} [#timeout_sec=300]   	Max amount of seconds for the function to attempt to open the Bazaar for
+		//		                              	before timing out. Set to -1 to disable.
+		//
+		// Returns a boolean indicating whether or not the GUI is open to the correct page.
+	function openBazaarCategory(&category_enum,allow_command=true,#wait_ticks=20,#timeout_sec=300);
+		debug              = true;
+		&unique_id         = %UNIQUEID%;
+		&unique_id         = match(%&unique_id%,"(\w+)$",&unique_id,1,"UNIQUE");
+		&script_debug_name = "&6openBazCategory-%&unique_id%&7"
+		
+		&cat_data[]  = bazCategoryEnumToData(%&category_enum%);
+		cat_success := %&cat_data[0]%;
+		if(!%cat_success%);
+			debug_error(%debug%,%&script_debug_name%,"Invalid category enum '%&category_enum%' passed.");
+			return(False);
+		else;
+			debug_log(%debug%,%&script_debug_name%,"Going to try to open category enum '%&category_enum%'.");
+		endif;
+		
+		&cat_enum    = %&cat_data[1]%;
+		&cat_name    = %&cat_data[2]%;
+		&cat_expr    = %&cat_data[3]%;
+		#cat_slot   := %&cat_data[4]%;
+		
+		do;
+			ifmatches(%CONTAINERNAME%,%&cat_expr%);
+				debug_log(%debug%,%&script_debug_name%,"entered correct gui");
+				return_boolean = true;
+				break;
+			elseif(%do_timeout%);
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					debug_error(%debug%,%&script_debug_name%,"Function timed out (%#timeout_sec% passed since call time).");
+					break;
+				endif;
+			endif;
+			
+			debug_log(%debug%,%&script_debug_name%,"doing openBazaar with allow_command = %allow_command%");
+			wait("1t");
+			in_bazaar = openBazaar(%allow_command%);
+			wait("1t");
+			if(!%in_bazaar%);
+				debug_error(%debug%,%&script_debug_name%,"Failed to enter the Bazaar.");
+				break;
+			endif;
+			
+			debug_log(%debug%,%&script_debug_name%,"doing quickClickUntilUpdate @ %#cat_slot%...");
+			wait("1t");
+			gui_updated = quickClickUntilUpdate(%#cat_slot%);
+			wait("1t");
+		untilmatches(%CONTAINERNAME%,%&cat_expr%);
+		
+		ifmatches(%CONTAINERNAME%,%&cat_expr%);
+			return_boolean = true;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning %return_boolean%");
+		return(%return_boolean%);
+	endfunction;
+	
+	// Gets information about the currently opened Category.
+		// Params:
+			//		None
+			//
+		// Returns an Array of Tunnel Joined Array Strings:
+			//	0 	{string} &container - Tunnel joined Array in format:
+			  	//	0	{string} &gui - The GUI value inside this GUI.
+			  	//	1	{string} &name - The CONTAINERNAME value inside this GUI.
+			  	//	2	{number} #slots - The CONTAINERSLOTS value inside this GUI.
+			//	1 	{string} &item - Tunnel joined Array in format:
+			  	//	0	{number} #slot - The Slot ID to click on in this GUI's Parent GUI to enter this GUI.
+			  	//	1	{string} &item - The String Item ID of the Item in <#slot> in the Parent GUI.
+			  	//	2	{number} #data - The Numeric Data Value of the Item in <#slot> in the Parent GUI.
+			  	//	3	{string} &name - The Display Name of the Item in <#slot> in the Parent GUI.
+			  	//	4	{string} &sbid - The SkyBlock ID of the Item in <#slot> in the Parent GUI (empty string if not found).
+	function openedCategoryInfo();
+		&container[] = split(", ","%GUI%, %CONTAINERNAME%, %CONTAINERSLOTS%");
+		for(#int,0,4);
+			#slot     = %#int% * 9;
+			&item_id  = getslotitemnbt(%#slot%,,#item_stack,#item_data,&item_nbt);
+			&item_nbt = strip(%&item_nbt%);
+			ifmatches(%&item_nbt%,"Currently viewing!");
+				&item_name = getItemName(%&item_nbt%,%&item_id%);
+				&item_sbid = getItemSBID(%&item_nbt%);
+				&item[]    = split(", ","%#slot%, %&item_id%, %#item_data%, %&item_name%, %&item_sbid%");
+				found      = true;
+				break;
+			endif;
+		next;
+		
+		if(%found%);
+			&container = join("|",&container[]);
+			&item      = join("|",&item[]);
+			return(%&container%,%&item%);
+		endif;
+		return(False);
+	endfunction;
+	
+	// Gets information about the currently opened Category's Children.
+		// Params:
+			// None
+			//
+		// Returns an Array of Tunnel Joined Array Strings in format:
+			//	0	{number} #slot - The Slot ID to click on in this GUI's Parent GUI to enter this GUI.
+			//	1	{string} &item - The String Item ID of the Item in <#slot> in the Parent GUI.
+			//	2	{number} #data - The Numeric Data Value of the Item in <#slot> in the Parent GUI.
+			//	3	{string} &name - The Display Name of the Item in <#slot> in the Parent GUI.
+			//	4	{string} &sbid - The SkyBlock ID of the Item in <#slot> in the Parent GUI (empty string if not found).
+			//	5	{number} #children - Amount of child products this Subcategory holds
+	function openedCategoryChildren();
+		for(record,0,1);
+			do;
+				#container_start = 0;
+				#container_end   = %CONTAINERSLOTS% - 37;
+				for(#slot,%#container_start%,%#container_end%);
+					&item_id  = getslotitemnbt(%#slot%,,#item_stack,#item_data,&item_nbt);
+					&item_nbt = strip(%&item_nbt%);
+					ifmatches(%&item_nbt%,"(\d+) product",#children,1);
+						if(!%record%);
+							loaded = true;
+							break;
+						endif;
+						&item_name      = getItemName(%&item_nbt%,%&item_id%);
+						&item_sbid      = getItemSBID(%&item_nbt%);
+						&return_array[] = "%#slot%|%&item_id%|%#item_data%|%&item_name%|%&item_sbid%|%#children%";
+					endif;
+				next;
+			until((%record%) || (%loaded%));
+		next;
+		return(&return_array[]);
+	endfunction;
+	
+	// Gets information about the currently opened Subcategory.
+		// Params:
+			//		None
+			//
+		// Returns an Array:
+			//	0	{string} &gui - The GUI value inside this GUI.
+			//	1	{string} &name - The CONTAINERNAME value inside this GUI.
+			//	2	{number} #slots - The CONTAINERSLOTS value inside this GUI.
+	function openedSubcategoryInfo();
+		&return_array[] = split(", ","%GUI%, %CONTAINERNAME%, %CONTAINERSLOTS%");
+		return(&return_array[]);
+	endfunction;
+	
+	// Gets information about the currently opened Subcategory's Children.
+		// Params:
+			//		None
+			//
+		// Returns an Array of Tunnel Joined Array Strings in format:
+			//	0	{number} #slot - The Slot ID to click on in this GUI's Parent GUI to enter this GUI.
+			//	1	{string} &item - The String Item ID of the Item in <#slot> in the Parent GUI.
+			//	2	{number} #data - The Numeric Data Value of the Item in <#slot> in the Parent GUI.
+			//	3	{string} &name - The Display Name of the Item in <#slot> in the Parent GUI.
+			//	4	{string} &sbid - The SkyBlock ID of the Item in <#slot> in the Parent GUI (empty string if not found).
+	function openedSubcategoryChildren();
+		#container_start = 0;
+		#container_end   = %CONTAINERSLOTS% - 37;
+		for(record,0,1);
+			do;
+				for(#slot,%#container_start%,%#container_end%);
+					&item_id  = getslotitemnbt(%#slot%,,#item_stack,#item_data,&item_nbt);
+					&item_nbt = strip(%&item_nbt%);
+					ifmatches(%&item_nbt%,"commodity");
+						if(!%record%);
+							loaded = true;
+							break;
+						endif;
+						
+						&item_name      = getItemName(%&item_nbt%,%&item_id%);
+						&item_sbid      = getItemSBID(%&item_nbt%);
+						&return_array[] = "%#slot%|%&item_id%|%#item_data%|%&item_name%|%&item_sbid%|%#children%";
+					endif;
+				next;
+				if(!%loaded%);
+					wait("1t");
+				endif;
+			until((%record%) || (%loaded%));
+		next;
+		return(&return_array[]);
+	endfunction;
+	
+	// Gets information about the currently opened Product.
+		// Params:
+			//		None
+			//
+		// Returns an Array of Tunnel Joined Array Strings:
+			//	0 	{string} &container - Tunnel joined Array in format:
+			  	//	0	{string} &gui - The GUI value inside this GUI.
+			  	//	1	{string} &name - The CONTAINERNAME value inside this GUI.
+			  	//	2	{number} #slots - The CONTAINERSLOTS value inside this GUI.
+			//	1 	{string} &item - Tunnel joined Array in format:
+			  	//	0	{number} #slot - The Slot ID to click on in this GUI's Parent GUI to enter this GUI.
+			  	//	1	{string} &item - The String Item ID of the Item in <#slot> in the Parent GUI.
+			  	//	2	{number} #data - The Numeric Data Value of the Item in <#slot> in the Parent GUI.
+			  	//	3	{string} &name - The Display Name of the Item in <#slot> in the Parent GUI.
+			  	//	4	{string} &sbid - The SkyBlock ID of the Item in <#slot> in the Parent GUI (empty string if not found).
+	function openedProductInfo();
+		#product_slot = 13;
+		do;
+			&item_id   = getslotitemnbt(%#product_slot%,,,#item_data,&item_nbt);
+			&item_nbt  = strip(%&item_nbt%);
+			&item_sbid = getItemSBID(%&item_nbt%);
+			if(%&item_sbid% != "");
+				&item_name  = getItemName(%&item_nbt%,%&item_id%);
+				ifmatches(%&item_name%,"\b(.+)",&new_name,1);
+					&item_name = %&new_name%;
+				endif;
+				&item_arr[] = split(", ","%#product_slot%, %&item_id%, %#item_data%, %&item_name%, %&item_sbid%");
+				break;
+			endif;
+			wait("1t");
+		loop;
+		&item_str  = join("|",&item_arr[]);
+		&out_arr[] = split(", ","%GUI%|%CONTAINERNAME%|%CONTAINERSLOTS%, %&item_str%");
+		return(&out_arr[]);
+	endfunction;
+	
+	// Completely indexes a given category.
+		// Params:
+			//		{string} <&cat>	The Category Name or Enum to index. Valid values are: 'FARMING', 'MINING',
+			//		               	'COMBAT', 'WOODS_AND_FISHES', 'ODDITIES'.
+		// Does not return anything, but writes to ~/liteconfig/common/macros/logs/baz_output.txt.
+	function indexCategory(&cat,do_parent=false);
+		debug              = true;
+		&script_debug_name = "&9indexCat&7";
+		
+		// Enter the correct category.
+		debug_log(%debug%,%&script_debug_name%,"Entering category %&cat%");
+		in_category = false;
+		do;
+			wait("50ms");
+			in_category = call("openBazaarCategory",%&cat%);
+			if(%in_category%);
+				debug_log(%debug%,%&script_debug_name%,"Entered category %&cat%");
+				break;
+			endif;
+			wait("50ms");
+		until(%in_category%);
+		
+		&cat_info[]     = openedCategoryInfo();
+		&cat_children[] = openedCategoryChildren();
+		
+		debug_log(%debug%,%&script_debug_name%,"Iterating over children...");
+		
+		// Iterate over each child and get it's Data.
+		foreach(&cat_children[],&cat_child,#cci);
+			// Split up the Data
+			if(true);
+				&child_item_data[]    = split("|",%&cat_child%);
+				#child_item_slot     := %&child_item_data[0]%;
+				&child_item_item      = %&child_item_data[1]%;
+				#child_item_data     := %&child_item_data[2]%;
+				&child_item_name      = %&child_item_data[3]%;
+				&child_item_sbid      = %&child_item_data[4]%;
+				#child_item_children := %&child_item_data[5]%;
+			endif;
+			
+			debug_log(%debug%,%&script_debug_name%,"On child %#cci% > %&child_item_item%");
+			unset(&prod_export_jsons[]);
+			
+			// Enter the Child Subcategory/Product.
+			in_child = false;
+			do;
+				wait("50ms");
+				in_child = quickClickUntilUpdate(%#child_item_slot%);
+				if(%in_child%);
+					debug_log(%debug%,%&script_debug_name%,"In child subcategory");
+					break;
+				endif;
+				wait("50ms");
+			until(%in_child%);
+			
+			if(%#child_item_children% > 1);
+				// If we entered a Subcategory, index the Subcategory completely.
+				&child_cat_info[]      = openedSubcategoryInfo();
+				&child_cat_info_gui    = %&child_cat_info[0]%;
+				&child_cat_info_name   = %&child_cat_info[1]%;
+				#child_cat_info_slots := %&child_cat_info[2]%;
+				&child_cat_children[]  = openedSubcategoryChildren();
+				
+				debug_log(%debug%,%&script_debug_name%,"Iterating over subcategory products");
+				
+				// Iterate over each Product and get it's Data.
+				foreach(&child_cat_children[],&child_cat_child,#ccci);
+					// Split up the Data
+					if(true);
+						&child_cat_child_item_data[] = split("|",%&child_cat_child%);
+						#child_cat_child_item_slot  := %&child_cat_child_item_data[0]%;
+						&child_cat_child_item_item   = %&child_cat_child_item_data[1]%;
+						#child_cat_child_item_data  := %&child_cat_child_item_data[2]%;
+						&child_cat_child_item_name   = %&child_cat_child_item_data[3]%;
+						&child_cat_child_item_sbid   = %&child_cat_child_item_data[4]%;
+					endif;
+					
+					debug_log(%debug%,%&script_debug_name%,"Entering Child Product %&child_cat_child_item_item%");
+					
+					// Enter the Child Product.
+					in_child = false;
+					do;
+						wait("50ms");
+						in_child = quickClickUntilUpdate(%#child_cat_child_item_slot%);
+						if(%in_child%);
+							debug_log(%debug%,%&script_debug_name%,"In subcategory child product %&child_cat_child_item_item%");
+							break;
+						endif;
+						wait("50ms");
+					until(%in_child%);
+					
+					// Get the Product's Info.
+					unset(&prod_info[]);
+					&prod_info[]      = openedProductInfo();
+					&prod_gui_info[]  = split("|",%&prod_info[0]%);
+					&prod_gui         = %&prod_gui_info[0]%;
+					&prod_name        = %&prod_gui_info[1]%;
+					#prod_slots      := %&prod_gui_info[2]%;
+					&prod_item_info[] = split("|",%&prod_info[1]%);
+					&prod_item_item   = %&prod_item_info[1]%;
+					#prod_item_data  := %&prod_item_info[2]%;
+					&prod_item_name   = %&prod_item_info[3]%;
+					&prod_item_sbid   = %&prod_item_info[4]%;
+					
+					// Compile this Product Info into a JSON.
+					if(true);
+						&prod_prod_item_json = "{ \"item\": \"%&prod_item_item%\", \"data\": %#prod_item_data%, \"name\": \"%&prod_item_name%\", \"sbid\": \"%&prod_item_sbid%\" }";
+						&prod_container_json = "{ \"name\": \"%&prod_name%\", \"slots\": %#prod_slots%, \"gui\": \"%&prod_gui%\" }";
+						&prod_item_json      = "{ \"slot\": %#child_cat_child_item_slot%, \"item\": \"%&child_cat_child_item_item%\", \"data\": %#child_cat_child_item_data%, \"name\": \"%&child_cat_child_item_name%\", \"sbid\": \"%&child_item_sbid%\" }";
+						&prod_export_json    = "{ \"container\": %&prod_container_json%, \"item\": %&prod_item_json%, \"product\": %&prod_prod_item_json% }";
+						&prod_export_jsons[] = %&prod_export_json%;
+						
+						debug_log(%debug%,%&script_debug_name%,"exported subcategory product json %&prod_export_json%");
+					endif;
+					
+					// Exit this Product, get back up and out into the Subcategory.
+					if(true);
+						in_subcategory = false;
+						do;
+							wait("50ms");
+							#back_arrow_slot = getBackArrowSlot();
+							if(%#back_arrow_slot% != -1);
+								in_subcategory = quickClickUntilUpdate(%#back_arrow_slot%);
+								if(%in_subcategory%);
+									break;
+								endif;
+							endif;
+							wait("50ms");
+						until(%in_subcategory%);
+					endif;
+				next;
+				
+				// Export the Subcategory JSON.
+				if(true);
+					&child_cat_children_json  = join(",",&prod_export_jsons[]);
+					&child_cat_children_json  = "[%&child_cat_children_json%]";
+					&child_cat_container_json = "{ \"name\": \"%&child_cat_info_name%\", \"slots\": %#child_cat_info_slots%, \"gui\": \"%&child_cat_info_gui%\" }";
+					&child_cat_item_json      = "{ \"slot\": %#child_item_slot%, \"item\": \"%&child_item_item%\", \"data\": %#child_item_data%, \"name\": \"%&child_item_name%\", \"sbid\": \"%&child_item_sbid%\", \"prod\": false }";
+					&child_cat_export_jsons   = "{ \"container\": %&child_cat_container_json%, \"item\": %&child_cat_item_json%, \"children\": %&child_cat_children_json% }";
+					&child_cat_export_jsons[] = %&child_cat_export_jsons%;
+					debug_log(%debug%,%&script_debug_name%,"exported subcategory: %&child_cat_export_jsons%");
+				endif;
+			else;
+				wait("200ms");
+				
+				// Entered a Product, index the Product.
+				unset(&prod_info[]);
+				&prod_info[]      = openedProductInfo();
+				&prod_gui_info[]  = split("|",%&prod_info[0]%);
+				&prod_gui         = %&prod_gui_info[0]%;
+				&prod_name        = %&prod_gui_info[1]%;
+				#prod_slots      := %&prod_gui_info[2]%;
+				&prod_item_info[] = split("|",%&prod_info[1]%);
+				&prod_item_item   = %&prod_item_info[1]%;
+				#prod_item_data  := %&prod_item_info[2]%;
+				&prod_item_name   = %&prod_item_info[3]%;
+				&prod_item_sbid   = %&prod_item_info[4]%;
+				
+				// Compile this Product Info into a JSON.
+				if(true);
+					if(%&prod_item_sbid% == "COMPACTOR");
+						debug_breakpoint(%debug%,%&script_debug_name%,"COMPACTOR? WTF");
+					endif;
+					
+					&prod_container_json      = "{ \"name\": \"%&prod_name%\", \"slots\": %#prod_slots%, \"gui\": \"%&prod_gui%\" }";
+					&prod_prod_item_json      = "{ \"item\": \"%&prod_item_item%\", \"data\": %#prod_item_data%, \"name\": \"%&prod_item_name%\", \"sbid\": \"%&prod_item_sbid%\" }";
+					&prod_item_json           = "{ \"slot\": %#child_item_slot%, \"item\": \"%&child_item_item%\", \"data\": %#child_item_data%, \"name\": \"%&child_item_name%\", \"sbid\": \"%&child_item_sbid%\" }";
+					&child_cat_export_json    = "{ \"container\": %&prod_container_json%, \"item\": %&prod_item_json%, \"product\": %&prod_prod_item_json% }";
+					&child_cat_export_jsons[] = %&child_cat_export_json%;
+					debug_log(%debug%,%&script_debug_name%,"exported single product subcategory: %&child_cat_export_json%");
+				endif;
+			endif;
+			
+			debug_log(%debug%,%&script_debug_name%,"Getting back up and out into the master category...");
+			// Exit this Product, get back up and out into the Subcategory.
+			if(true);
+				wait("50ms");
+				in_category = false;
+				do;
+					wait("50ms");
+					#back_arrow_slot = getBackArrowSlot();
+					if(%#back_arrow_slot% != -1);
+						in_category = quickClickUntilUpdate(%#back_arrow_slot%);
+						if(%in_category%);
+							break;
+						endif;
+					endif;
+					wait("50ms");
+				until(%in_category%);
+			endif;
+		next;
+		
+		// Export the Category JSON.
+		if(true);
+			&cat_children_json   = join(",",&child_cat_export_jsons[]);
+			&cat_children_json   = "[%&cat_children_json%]";
+			&cat_gui_info[]      = split("|",%&cat_info[0]%);
+			&cat_gui_info_gui    = %&cat_gui_info[0]%;
+			&cat_gui_info_name   = %&cat_gui_info[1]%;
+			#cat_gui_info_slots := %&cat_gui_info[2]%;
+			&cat_item_info[]     = split("|",%&cat_info[1]%);
+			#cat_item_info_slot := %&cat_item_info[0]%;
+			&cat_item_info_item  = %&cat_item_info[1]%;
+			#cat_item_info_data := %&cat_item_info[2]%;
+			&cat_item_info_name  = %&cat_item_info[3]%;
+			&cat_item_info_sbid  = %&cat_item_info[4]%;
+			&cat_container_json  = "{ \"name\": \"%&cat_gui_info_name%\", \"slots\": %#cat_gui_info_slots%, \"gui\": \"%&cat_gui_info_gui%\" }";
+			&cat_item_json       = "{ \"slot\": %#cat_item_info_slot%, \"item\": \"%&cat_item_info_item%\", \"data\": %#cat_item_info_data%, \"name\": \"%&cat_item_info_name%\", \"sbid\": \"%&cat_item_info_sbid%\", \"prod\": false }";
+			&cat_json            = "{ \"container\": %&cat_container_json%, \"item\": %&cat_item_json%, \"children\": %&cat_children_json% }";
+		endif;
+		
+		// Write the output
+		logto("%&cat%_out.txt",%&cat_json%);
+		log(%&cat_json%);
+		setclipboard(%&cat_json%);
+		log("Done!");
+		return(%&cat_json%);
+	endfunction;
+	
+	function indexAllCategories();
+		&categories[] = split(", ","FARMING, MINING, COMBAT, WOODS_AND_FISHES, ODDITIES");
+		&skip_cats[]  = split(", ","FARMING, MINING, COMBAT, WOODS_AND_FISHES");
+		foreach(&categories[],&category,#cci);
+			#skip_index = indexof(&skip_cats[],,%&category%);
+			if(#skip_index == -1);
+				&category_json = indexCategory(%&category%,false);
+				&category_json = "\"%&category%\": %&category_json%";
+				&output_json[] = %&category_json%;
+			endif;
+		next;
+		&output_json   = join(",",&output_json[]);
+		&output_json   = "{%&output_json%}"
+		&output_path   = "~/liteconfig/common/macros/logs/final_output_json.txt";
+		&output_line[] = %&output_json%;
+		&wrote_path    = writefile(%&output_path%,&output_line,false);
+		log("Done!");
+		setclipboard(%&output_json%);
+	endfunction;

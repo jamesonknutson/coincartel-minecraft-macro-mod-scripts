@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // info/index/getPurse
+        // Returns the amount of coins in the purse, rounded to the nearest integer.
+            // Params: None
+            // Returns: Integer amount of Coins in the purse (returns -1 if cannot find Purse Coins).
+        function getPurse();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:644
+            &return_integer = -1;
+            foreach("teams");
+                &scoreboard_line = strip("%TEAMPREFIX%%TEAMSUFFIX%");
+                ifmatches(%&scoreboard_line%,"(?:Purse|Piggy): ([0-9,]+)",&coins,1);
+                    &return_integer := regexreplace(&coins,"\D","");
+                    break;
+                endif;
+            next;
+            return(%&return_integer%);
+        endfunction;
+//! @mkb-import-end

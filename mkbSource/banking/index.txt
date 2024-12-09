@@ -1,0 +1,1666 @@
+// banking/index.txt
+	// Finds the amount of Coins available in a given Bank Account, and/or all Bank Accounts if not otherwise specified.
+		// Params:
+			// {string} [&bank_account="COOP"]	The Bank Account to query the amount of Coins from. Valid values are:
+			//                                	COOP, SOLO.
+			// {number} [#timeout_sec=30]     	Max seconds Function can run for before timing out. Set to <= 0 to disable timeouts.
+			// {number} [#tick_wait=20]       	Ticks to wait between repeated Actions
+		// Returns the Number of Coins available in the Account, or -1 if an Error Occurred and the Balance could not be found.
+		// Example:
+			//	#coop_coins  = getBankAccountBalance("COOP");
+			//	#solo_coins  = getBankAccountBalance("SOLO");
+	function getBankAccountBalance(&bank_account="COOP",#timeout_sec=30,#tick_wait=20);
+		// Setup Function Variables
+		if(true);
+			debug              = true
+			&script_debug_name = "&6getBankAccountBalance&7";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP;
+			&bank_account      = miscValidate(%&bank_account%,0,"COOP","SOLO");
+			&profile_type      = getProfileType();
+		endif;
+
+		// Setup Expected Containers, Slots, and Expressions
+		if(true);
+			// Wrap Expected Containers and Slots
+			if(true);
+				if(%&profile_type% == "COOP");
+					&c_gui[]   = "GUICHEST";
+					#c_slots[] = 72;
+					&c_name[]  = "Bank";
+
+					if(%&bank_account% == "COOP");
+						#f_slot[] = 11;
+						&f_item[] = "ender_chest";
+						&f_name[] = "Co-op Bank Account";
+					else;
+						#f_slot[] = 15;
+						&f_item[] = "chest";
+						&f_name[] = "Personal Bank Account";
+					endif;
+				elseif(%&profile_type% == "SOLO");
+					&c_gui[]   = "GUICHEST";
+					#c_slots[] = 72;
+					&c_name[]  = "Personal Bank Account";
+
+					#f_slot[]  = 11;
+					&f_item[]  = "chest";
+					&f_name[]  = "Deposit Coins";
+				endif;
+			endif;
+
+			&m_expr = "Current balance: ([-\d,.]+)";
+		endif;
+
+		// Loop until we have a value
+		if(true);
+			do;
+				//	0.	Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						&return_string = "-1";
+						break
+					endif;
+				endif;
+
+				//	1.	Close the Active GUI and Open up the Banker GUI.
+				if(%exit_gui%);
+					localGUI("NONE");
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					at_banker          = goto("BANKER",true,%#recursive_timeout%);
+					if(!%at_banker%);
+						debug_error(%debug%,%&script_debug_name%,"Could not get to the Banker!");
+						&return_string = "-1";
+						break
+					endif;
+				endif;
+
+				//	2.	Check if we are in the correct GUI.
+				if((%GUI% == %&c_gui[0]%) && (%CONTAINERSLOTS% == %#c_slots[0]%) && (%CONTAINERNAME% == %&c_name[0]%));
+					//	3.	Find the Slot that contains the Item we want to query.
+					if(true);
+						&m_item = %&f_item[0]%;
+						&m_name = %&f_name[0]%;
+
+						//	3a.	Check the cached Slot first in case we can skip the full Container Search.
+						if(true);
+							&f_item = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+							&f_nbt  = strip(%&f_nbt%);
+							&f_name = getItemName(%&f_nbt%,%&f_item%);
+							if((%&m_item% == %&f_item%) && (%&f_name% == %&m_name%));
+								ifmatches(%&f_nbt%,%&m_expr%,&m_coins,1);
+									#return_coins  = coerceNumber(%&m_coins%,"FLOOR")
+									&return_string = %#return_coins%;
+									debug_log(%debug%,%&script_debug_name%,"Found coins: &6%#return_coins%&7 in account &d%&bank_account%&7, profile_type &e%&profile_type%&7.");
+									break;
+								endif;
+							endif;
+						endif;
+
+						//	3b.	Check the entire Container if we could not find the Slot.
+						if(true);
+							#f_slot = findItemContainer(false,"MCID: %&m_item%","NAME: %&m_name%","NBT: r$%&m_expr%");
+							if(%#f_slot% != -1);
+								&f_item = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+								&f_nbt  = strip(%&f_nbt%);
+								&f_name = getItemName(%&f_nbt%,%&f_item%);
+								if((%&m_item% == %&f_item%) && (%&f_name% == %&m_name%));
+									ifmatches(%&f_nbt%,%&m_expr%,&m_coins,1);
+										#return_coins  = coerceNumber(%&m_coins%,"FLOOR")
+										&return_string = %#return_coins%;
+										debug_log(%debug%,%&script_debug_name%,"Found coins: &6%#return_coins%&7 in account &d%&bank_account%&7, profile_type &e%&profile_type%&7.");
+										break;
+									endif;
+								endif;
+							endif;
+						endif;
+					endif;
+				else;
+					exit_gui = true;
+				endif;
+
+				wait("1t");
+			until(%&return_string% != "");
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&return_string%&7'.");
+	endfunction;
+
+	// Gets the String ENUM of Banking GUI Type that is currently open.
+		// Returns a String ENUM:
+			//	UPGRADES     	The GUI for upgrading the Bank's Limits
+			//	CHOICE       	The First Menu GUI for a Coop Profile (can click to choose Coop or Solo Account from here). Solo
+			//	             	Profiles will be put into the SOLO GUI Type instead of this GUI for their Main Menu.
+			//	COOP         	The GUI for depositing or withdrawing into a Coop Account
+			//	SOLO         	The GUI for depositing or withdrawing into a Solo Account
+			//	COOP_DEPOSIT 	The GUI for depositing into a Coop Account
+			//	SOLO_DEPOSIT 	The GUI for depositing into a Solo Account
+			//	SIGN_DEPOSIT 	The GUI for depositing a Custom Amount into an Account (Type would not be known since cannot get GUI Items)
+			//	COOP_WITHDRAW	The GUI for withdrawing from a Coop Account
+			//	SOLO_WITHDRAW	The GUI for withdrawing from a Solo Account
+			//	SIGN_WITHDRAW	The GUI for withdrawing a Custom Amount from an Account (Type would not be known since cannot get GUI Items)
+			//	NONE         	A Banking GUI is not open.
+		// Example:
+			//	&bank_gui_type = bankingInfoInternalGetGuiType();
+			//	if(%&bank_gui_type% == "NONE");
+			//	elseif(%&bank_gui_type% == "UPGRADES");
+			//	elseif(%&bank_gui_type% == "CHOICE");
+			//	elseif(%&bank_gui_type% == "COOP");
+			//	elseif(%&bank_gui_type% == "SOLO");
+			//	elseif(%&bank_gui_type% == "COOP_DEPOSIT");
+			//	elseif(%&bank_gui_type% == "SOLO_DEPOSIT");
+			//	elseif(%&bank_gui_type% == "SIGN_DEPOSIT");
+			//	elseif(%&bank_gui_type% == "COOP_WITHDRAW");
+			//	elseif(%&bank_gui_type% == "SOLO_WITHDRAW");
+			//	elseif(%&bank_gui_type% == "SIGN_WITHDRAW");
+			//	endif;
+	function bankingInfoInternalGetGuiType();
+		// Setup Function Variables
+		if(true);
+			debug               = true;
+			&script_debug_name  = "&6bankingGetGuiType";
+			&enum_upgrades      = "UPGRADES";
+			&enum_choice        = "CHOICE";
+			&enum_coop          = "COOP";
+			&enum_solo          = "SOLO";
+			&enum_coop_deposit  = "COOP_DEPOSIT";
+			&enum_solo_deposit  = "SOLO_DEPOSIT";
+			&enum_sign_deposit  = "SIGN_DEPOSIT";
+			&enum_coop_withdraw = "COOP_WITHDRAW";
+			&enum_solo_withdraw = "SOLO_WITHDRAW";
+			&enum_sign_withdraw = "SIGN_WITHDRAW";
+			&enum_none          = "NONE";
+			&return_string      = %&enum_none%;
+
+			// Setup CONTAINERNAME to ENUM Maps
+			if(true);
+				&enum_map_enums[]      = %&enum_choice%;
+				&enum_map_containers[] = "Bank";
+
+				&enum_map_enums[]      = %&enum_upgrades%;
+				&enum_map_containers[] = "Bank Account Upgrades";
+
+				&enum_map_enums[]      = %&enum_coop%;
+				&enum_map_containers[] = "Co-op Bank Account";
+
+				&enum_map_enums[]      = %&enum_solo%;
+				&enum_map_containers[] = "Personal Bank Account";
+
+				// Find Type ('COOP' or 'SOLO') Containers
+				&typed_containers[] = split(", ","Bank Deposit, Bank Withdrawal");
+				&typed_suffixes[]   = split(", ","DEPOSIT, WITHDRAW");
+			endif;
+		endif;
+
+		&check_gui       = %GUI%;
+		&check_container = %CONTAINERNAME%;
+
+		// If we are in a valid GUI, find the GUI ENUM for the Container.
+		if((%&check_gui% == "GUICHEST") || (%&check_gui% == "GUIEDITSIGN"));
+			#enum_map_index = indexof(&enum_map_containers[],,%&check_container%);
+			#typed_index    = indexof(&typed_containers[],,%&check_container%);
+			if(%#enum_map_index% != -1);
+				&return_string = %&enum_map_enums[%#enum_map_index%]%;
+			elseif(%#typed_index% != -1);
+				&return_suffix = %&typed_suffixes[%#typed_index%]%;
+				&return_prefix = "SIGN";
+				if(%&check_gui% == "GUICHEST");
+					// Find the Type of the Container by finding the 'Go Back' Button and grabbing the 'To (Co-op|Personal) Bank Account'
+					// String from the NBT.
+					#go_back_slot = findItemContainer(false,"MCID: arrow","NAME: Go Back","SLOT: 31","NBT: r$To (Co-op|Personal) Bank Account");
+					if(%#go_back_slot% != -1);
+						&go_back_item = getslotitemnbt(%#go_back_slot%,,#go_back_stack,#go_back_data,&go_back_nbt);
+						&go_back_nbt  = strip(%&go_back_nbt%);
+						ifmatches(%&go_back_nbt%,"To (Co-op|Personal) Bank Account",&capture_group,1);
+							&return_prefix = "COOP";
+							&capture_group = lcase(%&capture_group%);
+							if(%&capture_group% == "personal");
+								&return_prefix = "SOLO";
+							endif;
+						endif;
+					endif;
+				endif;
+				&return_string = "%&return_prefix%_%&return_suffix%";
+			endif;
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"Returning Banking GUI Type: '&d%&return_string%&7' from GUI '&d%&check_gui%&7', CONTAINERNAME '&d%&check_container%&7'.");
+		return(%&return_string%);
+	endfunction;
+
+	// Checks what the Profile's Type is based on what GUI we are in and what Items are present.
+		// Params:
+			// {string} [&bank_enum=""]   	Optional String ENUM returned from the `bankingInfoInternalGetGuiType()` Function.
+			//                            	If not provided (or invalid), will call `bankingInfoInternalGetGuiType()`.
+			// {number}  [#timeout_sec=30]	The maximum amount of Seconds that this Function can run for. If set to <= 0,
+			//                            	Function will run on a loop until it is successful, without ever timing out.
+		// Returns a String ENUM of COOP, SOLO, or NONE.
+		// Example:
+			//	&profile_type = bankingInfoInternalGetProfileType(%&bank_enum%);
+			//	if(%&profile_type% == "NONE");
+			//	elseif(%&profile_type% == "COOP");
+			//	elseif(%&profile_type% == "SOLO");
+			//	endif;
+	function bankingInfoInternalGetProfileType(&bank_enum="",#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug                = true;
+			&script_debug_name   = "&6bankingInfoGetProfileType";
+			&return_string       = "NONE";
+			do_timeout           = %#timeout_sec% > 0;
+			#start_time          = %TIMESTAMP%;
+
+			// Wrap ENUM Arrays
+			if(true);
+				// All valid ENUMs
+				&valid_gui_enums[] = split(", ","UPGRADES, CHOICE, COOP, SOLO, COOP_DEPOSIT, SOLO_DEPOSIT, SIGN_DEPOSIT, COOP_WITHDRAW, SOLO_WITHDRAW, SIGN_WITHDRAW, NONE");
+
+				// ENUMs where we can skip all Bank-related Profile Checks and return 'COOP'.
+				&coop_gui_enums[] = split(", ","CHOICE, COOP, COOP_DEPOSIT, COOP_WITHDRAW");
+
+				// ENUMs to skip all Bank-related Profile Checks and go to `getProfileType()`
+				&invalid_gui_enums[] = split(", ","SIGN_DEPOSIT, SIGN_WITHDRAW, NONE, SOLO_DEPOSIT, SOLO_WITHDRAW");
+
+				// ENUMs to check for 'Go Back' Arrow NBT presence and/or Destination
+				&check_gui_enums[] = split(", ","UPGRADES, SOLO");
+			endif;
+
+			#gui_enum_index = indexof(&valid_gui_enums[],,%&bank_enum%);
+			&return_string  = "NONE";
+			if(%#gui_enum_index% == -1);
+				&bank_enum = bankingInfoInternalGetGuiType();
+			endif;
+
+			#invalid_gui_index = indexof(&invalid_gui_enums[],,%&bank_enum%);
+			#check_gui_index   = indexof(&check_gui_enums[],,%&bank_enum%);
+			#coop_gui_index    = indexof(&coop_gui_enums[],,%&bank_enum%);
+		endif;
+
+		// Do Bank-Specific Profile Checks (to avoid having to possibly hit API, if we can).
+		if(%#invalid_gui_index% == -1);
+			if(%#coop_gui_index% != -1);
+				&return_string = "COOP";
+			elseif(%#check_gui_index% != -1);
+				// Get the 'Go Back' Arrow Slot and check it's NBT. If we do not find the Go Back Arrow,
+				// or it's NBT states 'Personal Bank Account', we are in a Solo Profile. If we do find it,
+				// and it's NBT states 'Bank', we are in a Coop Profile.
+				&return_string = "SOLO";
+				#go_back_slot  = findItemContainer(false,"MCID: arrow","NAME: Go Back");
+				if(%#go_back_slot% != -1);
+					&go_back_item = getslotitemnbt(%#go_back_slot%,,#go_back_stack,#go_back_data,&go_back_nbt);
+					&go_back_nbt  = strip(%&go_back_nbt%);
+					ifmatches(%&go_back_nbt%,"To Bank");
+						&return_string = "COOP";
+					endif;
+				endif;
+			endif;
+		endif;
+
+		// If we failed to match any of the conditions above, fall back on a `getProfileType()` call.
+		if(%&return_string% == "NONE");
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Timed out!");
+						break;
+					endif;
+				endif;
+
+				// 2. Try to grab the Profile Type from API/Tab List
+				if(true);
+					&profile_type = getProfileType();
+					if((%&profile_type% == "COOP") || (%&profile_type% == "SOLO"));
+						&return_string = %&profile_type%;
+						break;
+					endif;
+				endif;
+			until(%&return_string% != "NONE");
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"Returning Profile Type '&d%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+	
+	// Checks what Account Types are available based on what type of Profile is currently being used.
+		// Params:
+			// {string} [&bank_enum=""]   	Optional String ENUM returned from the `bankingInfoInternalGetGuiType()` Function.
+			//                            	If not provided (or invalid), will call `bankingInfoInternalGetGuiType()`.
+			// {number}  [#timeout_sec=30]	The maximum amount of Seconds that this Function can run for. If set to <= 0,
+			//                            	Function will run on a loop until it is successful, without ever timing out.
+		// Returns a String Array of &bank_type ENUMs definining which Accounts are available.
+		// Example:
+			//	&bank_types[] = bankingInfoInternalGetAvailableAccounts(%#timeout_sec%,%#tick_wait%);
+	function bankingInfoInternalGetAvailableAccounts(&bank_enum="",#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingInfoGetAvailableAccounts";
+		endif;
+
+		// Get Profile Type and extrapolate available Bank Accounts from there.
+		if(true);
+			&profile_type = bankingInfoInternalGetProfileType(%&bank_enum%,%#timeout_sec%);
+			if(%&profile_type% == "COOP");
+				&bank_types[] = "COOP";
+			endif;
+			&bank_types[] = "SOLO";
+			&return_str   = join("&7, &d",&bank_types[]);
+			#return_len   = arraysize(&bank_types[]);
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"From Profile Type '&d%&profile_type%&7', found that we have access to %#return_len% Bank Accounts: '&d%&return_str%&7'.");
+		return(&bank_types[]);
+	endfunction;
+
+	// Checks what Account Type we are in based on what GUI we are in and what Items are present.
+		// Params:
+			// {string} [&bank_gui_type]	Optional String ENUM returned from the `bankingInfoInternalGetGuiType()` Function.
+			//                          	If not provided (or invalid), will call `bankingInfoInternalGetGuiType()`.
+		// Returns a String ENUM of 'COOP' or 'SOLO', or an empty string if it could not be determined.
+		// Example:
+			//	&current_account = bankingInfoInternalGetAccountType();
+			//	if(%&current_account% == "COOP");
+			//		log("In a Coop Bank Account GUI")
+			//	elseif(%&current_account% == "SOLO");
+			//		log("In a Solo Bank Account GUI")
+			//	elseif(%&current_account% == "");
+			//		log("Not in a Bank Account GUI")
+			//	endif;
+	function bankingInfoInternalGetAccountType(&bank_gui_type);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingInfoGetAccountType";
+			&return_string     = "NONE";
+			&gui_enum_map[]    = split(", ","UPGRADES, CHOICE, COOP, SOLO, COOP_DEPOSIT, SOLO_DEPOSIT, SIGN_DEPOSIT, COOP_WITHDRAW, SOLO_WITHDRAW, SIGN_WITHDRAW, NONE");
+			#gui_enum_index    = indexof(&gui_enum_map[],,%&bank_gui_type%);
+			if(%#gui_enum_index% == -1);
+				&bank_gui_type = bankingInfoInternalGetGuiType();
+			endif;
+		endif;
+
+		ifmatches(%&bank_gui_type%,"^(SOLO|COOP)",&profile_type,1);
+			&return_string = ucase(%&profile_type%);
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"Returning Account Type '&d%&return_string%&7' from Bank GUI Type '&d%&bank_gui_type%&7'.");
+		return(%&return_string%);
+	endfunction;
+
+	// Tries to determine the Balance of the specified Bank Account based on what GUI we are in and what Items are present.
+		// Params:
+			// {string} [&bank_enum=""]	String ENUM returned from `bankingInfoInternalGetGuiType()` Function. If omitted or invalid, will call
+			//                         	that Function to grab it.
+		// Returns an Array of Strings where Index 0 = Solo Balance, Index 1 = Coop Balance. If either
+		// Balance is unable to be determined, it will be an empty String instead.
+		// Example:
+			//	&bank_balances[] = bankingInfoInternalGetBalances(%&bank_enum%);
+			//	&solo_balance    = %&bank_balances[0]%;
+			//	&coop_balance    = %&bank_balances[1]%;
+	function bankingInfoInternalGetBalances(&bank_enum="");
+		// Setup Function Variables
+		if(true);
+			debug                 = true;
+			&script_debug_name    = "&6bankingInfoGetBalance";
+			&current_account_type = bankingInfoInternalGetAccountType();
+			if(%&current_account_type% == "");
+				&current_account_type = bankingInfoInternalGetProfileType(%&bank_enum%);
+			endif;
+			&solo_balance         = "";
+			&coop_balance         = "";
+
+			// Setup GUIs we can find the Balance(s) in, Items we can find the Balance(s) in, etc.
+			if(true);
+				// Wrap Generic Items that we can query for the Balance of the Account.
+				if(true);
+					&percent_sign = char("37");
+
+					&find_mcids[] = "chest";
+					&find_names[] = "Deposit Coins";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "dropper";
+					&find_names[] = "Withdraw Coins";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "chest";
+					&find_names[] = "Your whole purse";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "chest";
+					&find_names[] = "Half your purse";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "dropper";
+					&find_names[] = "Everything in the account";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "dropper";
+					&find_names[] = "Half the account";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "dropper";
+					&find_names[] = "Withdraw 20%&percent_sign%";
+					&find_types[] = %&current_account_type%;
+
+					&find_mcids[] = "sign";
+					&find_names[] = "Specific amount";
+					&find_types[] = %&current_account_type%;
+				endif;
+
+				// Wrap Containers we can find the Balance of an Account in.
+				if(true);
+					&accept_gui     = "GUICHEST";
+					&accept_enums[] = "CHOICE";
+					&solo_enums[]   = "CHOICE";
+					&coop_enums[]   = "CHOICE";
+					
+					push(&accept_enums[],"COOP","COOP_DEPOSIT","COOP_WITHDRAW");
+					push(&coop_enums[],"COOP","COOP_DEPOSIT","COOP_WITHDRAW");
+					&find_mcids[] = "ender_chest";
+					&find_names[] = "Co-op Bank Account";
+					&find_types[] = "COOP";
+					
+					push(&accept_enums[],"SOLO","SOLO_DEPOSIT","SOLO_WITHDRAW");
+					push(&solo_enums[],"SOLO","SOLO_DEPOSIT","SOLO_WITHDRAW");
+					&find_mcids[] = "chest";
+					&find_names[] = "Personal Bank Account";
+					&find_types[] = "SOLO";
+				endif;
+				
+				// Split up '&find_...' into Groups of COOP and SOLO types.
+				if(true);
+					foreach(&find_names[],&find_name,#fn);
+						if(%&find_types[%#fn%]% == "COOP");
+							&coop_mcids[] = %&find_mcids[%#fn%]%;
+							&coop_names[] = %&find_names[%#fn%]%;
+						elseif(%&find_types[%#fn%]% == "SOLO");
+							&solo_mcids[] = %&find_mcids[%#fn%]%;
+							&solo_names[] = %&find_names[%#fn%]%;
+						endif;
+					next;
+				endif;
+			endif;
+
+			&find_mcids      = join("|",&find_mcids[]);
+			&find_mcids_expr = "^(?:%&find_mcids%)$";
+			
+			&find_names      = join("|",&find_names[]);
+			&find_names_expr = "^(?:%&find_names%)$";
+			
+			&coop_names      = join("|",&coop_names[]);
+			&coop_names_expr = "^(?:%&coop_names%)$";
+			
+			&coop_mcids      = join("|",&coop_mcids[]);
+			&coop_mcids_expr = "^(?:%&coop_mcids%)$";
+			
+			&solo_names      = join("|",&solo_names[]);
+			&solo_names_expr = "^(?:%&solo_names%)$";
+			
+			&solo_mcids      = join("|",&solo_mcids[]);
+			&solo_mcids_expr = "^(?:%&solo_mcids%)$";
+			
+			&balance_expr    = "balance: ([\d,.-]+)";
+		endif;
+		
+		// Get the Balance of each Account that we can get the Balance for.
+		if(true);
+			#accept_index = indexof(&accept_enums[],,%&bank_enum%);
+			if(%#accept_index% == -1);
+				&bank_enum    = bankingInfoInternalGetGuiType();
+				#accept_index = indexof(&accept_enums[],,%&bank_enum%);
+			endif;
+			
+			if(%#accept_index% != -1);
+				&bank_enum  = %&accept_enums[%#accept_index%]%;
+				#coop_index = indexof(&coop_enums[],,%&bank_enum%);
+				#solo_index = indexof(&solo_enums[],,%&bank_enum%);
+				if(%#coop_index% != -1);
+					&check_terms[] = "coop";
+					debug_log(%debug%,%&script_debug_name%,"Current Bank ENUM (&&bank_enum: '&d%&bank_enum%&7') has Item(s) that can contain the COOP Balance, pushing COOP Term to checklist.");
+				endif;
+				if(%#solo_index% != -1);
+					&check_terms[] = "solo";
+					debug_log(%debug%,%&script_debug_name%,"Current Bank ENUM (&&bank_enum: '&d%&bank_enum%&7') has Item(s) that can contain the SOLO Balance, pushing SOLO Term to checklist.");
+				endif;
+				
+				foreach(&check_terms[],&check_term,#ct);
+					&mcids_expr = "%&%&check_term%_mcids_expr%";
+					&names_expr = "%&%&check_term%_names_expr%";
+					#found_slot = findItemContainer(false,"MCID: r$%&mcids_expr%","NAME: r$%&names_expr%","NBT: r$%&balance_expr%");
+					if(%#found_slot% != -1);
+						&found_item = getslotitemnbt(%#found_slot%,,#found_stack,#found_data,&found_nbt);
+						&found_nbt  = strip(%&found_nbt%);
+						ifmatches(%&found_nbt%,%&balance_expr%,&balance_string,1);
+							&balance_string = replace(&balance_string,",");
+							&balance_string = number(%&balance_string%,"F: I","R: T");
+							set("&%&check_term%_balance",%&balance_string%);
+							debug_log(%debug%,%&script_debug_name%,"Set Balance for Variable '&d&&%&check_term%_balance&7' to be '&6%&balance_string%&7' coins.");
+						else;
+							debug_error(%debug%,%&script_debug_name%,"NBT for MCID: '&4%&found_item%&c' did not match Expression '&4%&balance_expr%&7' (NBT: &4%&found_nbt%&7).");
+						endif;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"Could not find any Item that contained the Balance for the '&d%&check_term%&7' Account.");
+					endif;
+				next;
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Found a total of '&6%&coop_balance%&7' coins in the COOP Bank Account, '&6%&solo_balance%&7' coins in the SOLO Bank Account.");
+		return(%&solo_balance%,%&coop_balance%);
+	endfunction;
+	
+	// Wrapper that calls `bankingInfoInternalGetBalances()` and returns the Balance of the specific Account Type.
+		// Params:
+			// {string} [&param_account_type="ANY"]	String ENUM of Account Type to query. Valid ENUMs are: ANY, SOLO, COOP.
+			//                                     	If set to ANY, will return the Balance of the Account that we can query at
+			//                                     	the moment (will prefer to return the Coop Balance if both are available).
+			// {string} [&bank_enum=""]            	String ENUM returned from `bankingInfoInternalGetGuiType()` Function. If omitted or invalid, will call
+			//                                     	that Function to grab it.
+		// Returns a String Number of the Coins in the Account, or an empty string if the amount could not be determined.
+		// Example:
+			//	&coop_balance = bankingInfoInternalGetBalance("COOP",%&bank_enum%);
+			//	&solo_balance = bankingInfoInternalGetBalance("SOLO",%&bank_enum%);
+			//	log("Found %&coop_balance% coins in the Coop Account, and %&solo_balance% coins in the Solo Account.")
+	function bankingInfoInternalGetBalance(&param_account_type="ANY",&bank_enum="");
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingInfoGetBalance&7";
+		endif;
+		
+		&account_type = miscValidate(%&param_account_type%,0,"ANY","COOP","SOLO");
+		if(%&account_type% != %&param_account_type%);
+			debug_log(%debug%,%&script_debug_name%,"Corrected/defaulted &&param_account_type ('&d%&param_account_type%&7') to &&account_type ('&d%&account_type%&7').");
+		endif;
+		
+		&bank_balances[] = bankingInfoInternalGetBalances(%&bank_enum%);
+		&solo_balance    = %&bank_balances[0]%;
+		&coop_balance    = %&bank_balances[1]%;
+		&return_account  = "NONE";
+		if((%&account_type% == "COOP") || ((%&account_type% == "ANY") && (%&coop_balance% != "")));
+			&return_string  = %&coop_balance%;
+			&return_account = "COOP";
+		elseif((%&account_type% == "SOLO") || ((%&account_type% == "ANY") && (%&solo_balance% != "")));
+			&return_string  = %&solo_balance%;
+			&return_account = "SOLO";
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning Balance of Account '&d%&return_account%&7': '&6%&return_string%&7' coins");
+		return(%&return_string%);
+	endfunction;
+
+	// Tries to determine the Limit of an Account based on what GUI we are in and what Items are present.
+		// Params:
+			// {string} [&bank_enum=""]	String ENUM returned from `bankingInfoInternalGetGuiType()` Function. If omitted or invalid, will call
+			//                         	that Function to grab it.
+		// Returns an Array of Strings where Index 0 = Solo Limit, Index 1 = Coop Limit. If either
+		// Limit is unable to be determined, it will be an empty String instead.
+		// Example:
+			//	&bank_limits[] = bankingInfoInternalGetLimits(%&bank_enum%);
+			//	&solo_limit    = %&bank_limits[0]%;
+			//	&coop_limit    = %&bank_limits[1]%;
+	function bankingInfoInternalGetLimits(&bank_enum="");
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingInfoGetLimits";
+
+			// Setup GUIs we can find the Limits in, Items we can find the Limits in, etc.
+			if(true);
+				// Wrap 'Bank Account Upgrades' GUI Items
+				if(true);
+					&upgrade_mcids[]   = "wheat_seeds";
+					&upgrade_names[]   = "Starter Account";
+					&primary_limit[]   = "50000000";
+					&secondary_limit[] = "10000000";
+
+					&upgrade_mcids[]   = "gold_nugget";
+					&upgrade_names[]   = "Gold Account";
+					&primary_limit[]   = "100000000";
+					&secondary_limit[] = "20000000";
+
+					&upgrade_mcids[]   = "gold_ingot";
+					&upgrade_names[]   = "Deluxe Account";
+					&primary_limit[]   = "250000000";
+					&secondary_limit[] = "50000000";
+
+					&upgrade_mcids[]   = "golden_chestplate";
+					&upgrade_names[]   = "Super Deluxe Account";
+					&primary_limit[]   = "500000000";
+					&secondary_limit[] = "100000000";
+
+					&upgrade_mcids[]   = "golden_horse_armor";
+					&upgrade_names[]   = "Premier Account";
+					&primary_limit[]   = "1000000000";
+					&secondary_limit[] = "200000000";
+
+					&upgrade_mcids[]   = "skull";
+					&upgrade_names[]   = "Luxurious Account";
+					&primary_limit[]   = "6000000000";
+					&secondary_limit[] = "1200000000";
+
+					&upgrade_mcids[]   = "skull";
+					&upgrade_names[]   = "Palatial Account";
+					&primary_limit[]   = "60000000000";
+					&secondary_limit[] = "12000000000";
+				endif;
+
+				// Wrap Generic Items
+				if(true);
+					&find_mcids[] = "gold_block";
+					&find_names[] = "Bank Upgrades";
+					&find_exprs[] = "bank limit: ([\d,.-]+)";
+					
+					&find_mcids[] = "redstone_torch";
+					&find_names[] = "Information";
+					&find_exprs[] = "limit: ([\d,.-]+(?: \w+)?)";
+				endif;
+
+				// Wrap GUI Setup
+				if(true);
+					// We can include the 'Co-op Bank Account' CONTAINER even if we are looking for the Solo Balance, because
+					// if we find ourselves in the 'Co-op Bank Account' GUI, we know that the Profile is a Coop, and the Solo Limit
+					// will always be 0.20x the Coop Limit. And vice-versa, we can include the Personal Bank Account in this too,
+					// because the Coop Limit will always be 5.00x the Personal Limit. However, if we are exclusively looking for the
+					// Coop Balance, then we will have to validate that there is a 'Go Back to Bank' Item in the Container's Items,
+					// to rule out the edge case in which we would return a Number for Solo Profiles without a Coop Account (the go
+					// back button will not be available on a Solo Profile, since there is no GUI to go back to from the Personal Bank Account GUI).
+
+					&accept_enums[]           = split(", ","CHOICE, UPGRADES, COOP, SOLO");
+					&get_profile_type_enums[] = split(", ","UPGRADES, SOLO");
+				endif;
+
+				// Wrap Expressions used in findItemContainer calls
+				if(true);
+					&upgrade_item_mcids_expr = join("|",&upgrade_mcids[]);
+					&upgrade_item_mcids_expr = "^(?:%&upgrade_item_mcids_expr%)$";
+					&upgrade_item_names_expr = join("|",&upgrade_names[]);
+					&upgrade_item_names_expr = "^(?:%&upgrade_item_names_expr%)$";
+					&upgrade_item_nbt_expr   = "This is your account!";
+					
+					&find_mcids_expr = join("|",&find_mcids[]);
+					&find_mcids_expr = "^(?:%&find_mcids_expr%)$";
+					&find_names_expr = join("|",&find_names[]);
+					&find_names_expr = "^(?:%&find_names_expr%)$";
+				endif;
+			endif;
+		endif;
+
+		// Get the Limit for the Specified Account, or whichever one is available.
+		if(true);
+			&coop_limit   = "";
+			&solo_limit   = "";
+			#accept_index = indexof(&accept_enums[],,%&bank_enum%);
+			if(%#accept_index% == -1);
+				&bank_enum    = bankingInfoInternalGetGuiType();
+				#accept_index = indexof(&accept_enums[],,%&bank_enum%);
+			endif;
+			
+			if(%#accept_index% != -1);
+				&bank_enum    = %&accept_enums[%#accept_index%]%;
+				&profile_type = bankingInfoInternalGetProfileType(%&bank_enum%);
+				
+				if(%&bank_enum% == "UPGRADES");
+					&query_params[]     = split(", ","MCID: r$%&upgrade_item_mcids_expr%, NAME: r$%&upgrade_item_names_expr%, NBT: r$%&upgrade_item_nbt_expr%");
+					&query_array_prefix = "&upgrade_names";
+				else;
+					&query_params[]     = split(", ","MCID: r$%&find_mcids_expr%, NAME: r$%&find_names_expr%");
+					&query_array_prefix = "&find_names";
+				endif;
+				&query_array_pointer = "%&query_array_prefix%[]"
+
+				#query_slot = findItemContainer(false,...&query_params[]);
+				debug_log(%debug%,%&script_debug_name%,"query_slot is %#query_slot%");
+				if(%#query_slot% != -1);
+					&query_item  = getslotitemnbt(%#query_slot%,,#query_stack,#query_data,&query_nbt);
+					&query_nbt   = strip(%&query_nbt%);
+					&query_name  = getItemName(%&query_nbt%,%&query_item%);
+					#query_index = indexof(%&query_array_pointer%,,%&query_name%);
+					if(%#query_index% != -1);
+						if(%&bank_enum% == "UPGRADES");
+							&primary_limit   = %&primary_limit[%#query_index%]%;
+							&secondary_limit = %&secondary_limit[%#query_index%]%;
+						elseifmatches(%&query_nbt%,%&find_exprs[%#query_index%]%,&capture_group,1);
+							&formatted_group = number(%&capture_group%,"F: I");
+							#primary_index   = indexof(&primary_limit[],,%&formatted_group%);
+							#secondary_index = indexof(&secondary_limit[],,%&formatted_group%);
+							debug_log(%debug%,%&script_debug_name%,"from &&capture_group='&e%&capture_group%&7', got &&formatted_group='&e%&formatted_group%&7', found indexed #primary_index=&e%#primary_index%&7, #secondary_index=&e%#secondary_index%&7.");
+							
+							if(%#primary_index% != -1);
+								&primary_limit   = %&primary_limit[%#primary_index%]%;
+								&secondary_limit = %&secondary_limit[%#primary_index%]%;
+							elseif(%#secondary_index% != -1);
+								&primary_limit   = %&primary_limit[%#secondary_index%]%;
+								&secondary_limit = %&secondary_limit[%#secondary_index%]%;
+							else;
+								debug_error(%debug%,%&script_debug_name%,"...");
+								&compare_array_prefix = "&primary_limit";
+								if((%&profile_type% == "COOP") && (%&bank_enum% == "SOLO"));
+									&compare_array_prefix = "&secondary_limit";
+								endif;
+								&compare_array_pointer = "%&compare_array_prefix%[]";
+								
+								// Find the nearest number
+								if(true);
+									// Create array of Absolute Differences between each comparison value and each formatted group
+									foreach(%&compare_array_pointer%,&compare_value,#cvi);
+										&compare_diff[%#cvi%] = xEval("sqrt((%&compare_value% - %&formatted_group%)^2)");
+									next;
+									
+									&nearest_diff    = getNearestNumber(0,...&compare_diff[]);
+									#nearest_index   = indexof(&compare_diff[],,%&nearest_diff%);
+									&nearest_number  = "%%&compare_array_prefix%[%#nearest_index%]%";
+									&compare_diffs   = join("&7, '&e",&compare_diff[]);
+									&primary_limit   = %&primary_limit[%#nearest_index%]%;
+									&secondary_limit = %&secondary_limit[%#nearest_index%]%;
+									debug_log(%debug%,%&script_debug_name%,"smallest diff from &&base_value=&e0&7 in &&compare_diff=[&e'%&compare_diffs%&7'] was &&nearest_diff='&e%&nearest_diff%&7', found at #nearest_index=&e%#nearest_index%&7, correlating to number='&e%&nearest_number%&7', resulting in &&primary_limit='&e%&primary_limit%&7', &&secondary_limit='&e%&secondary_limit%&7'.");
+								endif;
+							endif;
+						endif;
+						
+						if(%&profile_type% == "COOP");
+							&coop_limit = %&primary_limit%;
+							&solo_limit = %&secondary_limit%;
+						else;
+							&solo_limit = %&primary_limit%;
+						endif;
+					else;
+						&query_array_pointer_joint = join("&7', '&e",%&query_array_pointer%);
+						debug_error(%debug%,%&script_debug_name%,"Could not find &&query_name='&e%&query_name%&7' in &&query_array_pointer[]=['&e%&query_array_pointer_joint%&7'] Array!");
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning &&solo_limit='&e%&solo_limit%&7', &&coop_limit='&e%&coop_limit%&7' for GUI ENUM &&bank_enum='&e%&bank_enum%&7', &&profile_type='&e%&profile_type%&7'.");
+		return(%&solo_limit%,%&coop_limit%);
+	endfunction;
+	
+	// Wrapper that calls `bankingInfoInternalGetLimits()` and returns the Balance of the specific Account Type.
+		// Params:
+			// {string} [&param_account_type="ANY"]	String ENUM of Account Type to query. Valid ENUMs are: ANY, SOLO, COOP.
+			//                                     	If set to ANY, will return the Balance of the Account that we can query at
+			//                                     	the moment (will prefer to return the Coop Balance if both are available).
+			// {string} [&bank_enum=""]            	String ENUM returned from `bankingInfoInternalGetGuiType()` Function. If omitted or invalid, will call
+			//                                     	that Function to grab it.
+	function bankingInfoInternalGetLimit(&param_account_type="ANY",&bank_enum="");
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingInfoGetLimit&7";
+		endif;
+		
+		&account_type = miscValidate(%&param_account_type%,0,"ANY","COOP","SOLO");
+		if(%&account_type% != %&param_account_type%);
+			debug_log(%debug%,%&script_debug_name%,"Corrected/defaulted &&param_account_type ('&d%&param_account_type%&7') to &&account_type ('&d%&account_type%&7').");
+		endif;
+		&account_limits[] = bankingInfoInternalGetLimits(%&bank_enum%);
+		&solo_limit       = %&account_limits[0]%;
+		&coop_limit       = %&account_limits[1]%;
+		&return_account   = "NONE";
+		if((%&account_type% == "COOP") || ((%&account_type% == "ANY") && (%&coop_limit% != "")));
+			&return_account = "COOP";
+			&return_string  = %&coop_limit%;
+		elseif((%&account_type% == "SOLO") || ((%&account_type% == "ANY") && (%&solo_limit% != "")));
+			&return_account = "SOLO";
+			&return_string  = %&solo_limit%;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning Limit of Account '&d%&return_account%&7': '&6%&return_string%&7' coins");
+		return(%&return_string%);
+	endfunction;
+
+	// Opens the Banking GUI up by first trying to check if the User has access to (and is off cooldown of)
+	// the Personal Bank Item, and if so, uses it. If not, and/or the User does not have access to the Item,
+	// goes to the Banker NPC in person and opens the GUI up.
+		// Params:
+			// {number}  [#timeout_sec=30]   	The maximum amount of Seconds that this Function can run for. If set to <= 0,
+			//                               	Function will run on a loop until it is successful, without ever timing out.
+			// {number}  [#tick_wait=20]     	The amount of Ticks to wait between looping repeated actions.
+			// {boolean} [personal_bank=true]	Whether or not to try to use the Personal Bank Item.
+		// Returns a Boolean indicating whether or not we were able to open the Bank GUI up.
+		// Examples:
+			// in_bank = bankingActionInternalOpenBank(%#timeout_sec%,%#tick_wait%,%personal_bank%);
+	function bankingActionInternalOpenBank(#timeout_sec=30,#tick_wait=20,personal_bank=true);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingOpenBank";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+
+			// Setup where we expect to find the Item, and what the Item is
+			if(true);
+				#f_slot = 33;
+				&f_item = "skull";
+				#f_data = 3;
+				&f_name = "Personal Bank";
+			endif;
+		endif;
+
+		// Start looping until we know whether or not we have access to the Personal Bank Item.
+		if(true);
+			return_boolean      = false;
+			&expected_container = "^(?:Bank|Personal Bank Account)$";
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function Timed out");
+						break;
+					endif;
+				endif;
+
+				// 2. Open up the SBMENU GUI.
+				if((%personal_bank%) && (!%personal_unavailable%));
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					sbmenu_gui         = remoteGUI("SB_MENU",%#tick_wait%,%#recursive_timeout%);
+					if(!%sbmenu_gui%);
+						debug_error(%debug%,%&script_debug_name%,"Could not enter the SBMENU GUI!");
+						break;
+					endif;
+
+					// 2a. Check if we can find the Piggy Bank Item.
+					if(true);
+						#bank_slot = findItemContainer(false,"SLOT: %#f_slot%","MCID: %&f_item%","DATA: %#f_data%","NAME: %&f_name%");
+						if(%#bank_slot% != -1);
+							&bank_item = getslotitemnbt(%#bank_slot%,,#bank_stack,#bank_data,&bank_nbt);
+							&bank_nbt  = strip(%&bank_nbt%);
+							ifmatches(%&bank_nbt%,"(?:Available|No Cooldown)");
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								debug_log(%debug%,%&script_debug_name%,"calling containerClick(%#bank_slot%,%#recursive_timeout%,%#tick_wait%,false,false,false)");
+								entered_new_gui    = containerClick(%#bank_slot%,%#recursive_timeout%,%#tick_wait%,false,false,false);
+								debug_log(%debug%,%&script_debug_name%,"got return value %entered_new_gui% from containerClick(%#bank_slot%,%#recursive_timeout%,%#tick_wait%,false,false,false);");
+								if(%entered_new_gui%);
+									ifmatches(%CONTAINERNAME%,%&expected_container%);
+										debug_log(%debug%,%&script_debug_name%,"used bank item successfully");
+										return_boolean = true;
+										break;
+									endif;
+								endif;
+							else;
+								personal_unavailable = true
+							endif;
+						else;
+							personal_unavailable = true;
+						endif;
+					endif;
+				endif;
+
+				// 3. SBMENU -> Personal Bank didn't work, so let's try going to the Banker in Person instead.
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					return_boolean     = goto("BANKER",true,%#recursive_timeout%);
+					if(%return_boolean%);
+						break;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"GOTO failed to get us into the Banker GUI?");
+					endif;
+				endif;
+			until(%return_boolean%);
+		endif;
+
+		debug_log(%debug%,%&script_debug_name%,"outcome of attempt to open bank was: '%return_boolean%' (returning this to caller)");
+		return(%return_boolean%);
+	endfunction;
+
+	// Given a Target GUI Type ENUM, and parallel indexed Arrays of all GUI ENUMs, all GUI ENUMs' Child ENUMs, and
+	// all GUI ENUM's Parents, compiles a Unique Array of GUI ENUMs in order to click in the GUI.
+		// Params:
+			// {string} <&target_enum>   	The ENUM to get to. Must be present in the <&gui_enums[]> Array.
+			// {string} <&gui_enums[]>   	Array of GUI ENUM Strings.
+			// {string} <&gui_parents[]> 	Array of GUI ENUM Strings indexed parallel to <&gui_enums[]>. To indicate
+			//                           	that a GUI ENUM is the Root Note, make the Parent at that Index an empty string.
+			// {string} <&gui_children[]>	Array of Tunnel Joint Array Strings that are GUI ENUMs in the <&gui_enums[]> Array,
+			//                           	each Entry in this Array will be taken as being a Child of the Element at the same
+			//                           	index in <&gui_enums[]>. To indicate that a GUI has no Children, use an empty string.
+	function bankingActionInternalChangeGUIGetPath(&target_enum,&gui_enums[],&gui_parents[],&gui_children[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingChangeGUIGetPath&7";
+		endif;
+		
+		#target_index = indexof(&gui_enums[],,%&target_enum%);
+		if(%#target_index% == -1);
+			&return_array[] = "";
+			&gui_enums      = join(", ",&gui_enums[]);
+			debug_error(%debug%,%&script_debug_name%,"Target Enum (&&target_enum: %&target_enum%) is not present in the GUI ENUMs (&&gui_enums: [%&gui_enums%]) Array!");
+			return(&return_array[]);
+		endif;
+		
+		// Compile list of all GUI ENUMs that are a Parent of the Target ENUM, or a Parent of a Parent of the Target ENUM, and so on.
+		if(%&gui_parents[%#target_index%]% != "");
+			&parent_enums[] = %&gui_parents[%#target_index%]%;
+			#parent_enums[] = 0;
+			do;
+				#before_length   = arraysize(&parent_enums[]);
+				#final_index     = %#before_length% - 1;
+				&final_parent    = %&parent_enums[%#final_index%]%;
+				#gui_enums_index = indexof(&gui_enums[],,%&final_parent%);
+				if(%&gui_parents[%#gui_enums_index%]% != "");
+					&parent_enums[] = %&gui_parents[%#gui_enums_index%]%;
+					#parent_enums[] = %#parent_enums[%#final_index%]% + 1;
+				else;
+					break;
+				endif;
+				#after_length = arraysize(&parent_enums[]);
+			until(%#before_length% == %#after_length%);
+			sort("DSC",#parent_enums[],&parent_enums[]);
+		endif;
+		
+		return(&parent_enums[]);
+	endfunction;
+
+	// Opens the Banking GUI up to the specified GUI ENUM/Type.
+		// Params:
+			// {string}  [&target_enum=""]   	String ENUM of GUI Type to open up to. Valid strings are dependent on what type of
+			//                               	Profile is in use. If omitted, will default to 'CHOICE' for COOP Profiles, or 'SOLO' for Solos.
+			//                               	SOLO Profiles can use:
+			//                               		UPGRADES, SOLO, SOLO_WITHDRAW, SOLO_WITHDRAW_SIGN, SOLO_DEPOSIT, SOLO_DEPOSIT_SIGN
+			//                               	COOP Profiles can use all of the SOLO Profile ENUMs, as well as:
+			//                               		CHOICE, COOP, COOP_WITHDRAW, COOP_WITHDRAW_SIGN, COOP_DEPOSIT, COOP_DEPOSIT_SIGN
+			//                               	If omitted, will default to 'CHOICE' if in a COOP Profile, or 'SOLO' in a SOLO Profile.
+			// {string}  [&profile_type=""]  	The Profile Type of the Profile, if known. String ENUM of COOP, SOLO. Will fetch
+			//                               	via `bankingInfoInternalGetProfileType()` if omitted.
+			// {number}  [#timeout_sec=30]   	The maximum amount of Seconds that this Function can run for. If set to <= 0,
+			//                               	Function will run on a loop until it is successful, without ever timing out.
+			// {number}  [#tick_wait=20]     	The amount of Ticks to wait between looping repeated actions.
+			// {boolean} [personal_bank=true]	Whether or not to try to use the Personal Bank Item.
+		// Returns a Boolean indicating whether or not we were able to open the Bank GUI up.
+		// Examples:
+			//	in_coop_deposit_gui = bankingGUI("COOP_DEPOSIT");
+			//	in_solo_deposit_gui = bankingGUI("SOLO_DEPOSIT");
+	function bankingGUI(&target_enum="",&profile_type="",#timeout_sec=30,#tick_wait=20,personal_bank=true);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingGUI&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&profile_type      = miscValidate(%&profile_type%,-1,"COOP","SOLO");
+			return_boolean     = false;
+
+			if(%&profile_type% == "");
+				&profile_type  = bankingInfoInternalGetProfileType(%&bank_enum%,%#timeout_sec%);
+				if(%&profile_type% == "NONE");
+					debug_error(%debug%,%&script_debug_name%,"Could not derive Profile Type (&&bank_enum: '&4%&bank_enum%&c', &&profile_type: '&4%&profile_type%&c'). Returning &4FALSE&c.");
+					return(%return_boolean%);
+				endif;
+			endif;
+			
+			// Wrap GUI ENUMs and Items
+			if(true);
+				if(%&profile_type% == "COOP");
+					&gui_enums[]    = "CHOICE";
+					&gui_mcids[]    = "";
+					&gui_names[]    = "";
+					&gui_parents[]  = "";
+					&gui_children[] = "COOP|SOLO|UPGRADES";
+					&gui_slots[]    = "";
+					
+					&gui_enums[]    = "UPGRADES";
+					&gui_mcids[]    = "gold_block";
+					&gui_names[]    = "Bank Upgrades";
+					&gui_parents[]  = "CHOICE";
+					&gui_children[] = "";
+					&gui_slots[]    = "35";
+
+					&gui_enums[]    = "COOP";
+					&gui_mcids[]    = "ender_chest";
+					&gui_names[]    = "Co-op Bank account";
+					&gui_parents[]  = "CHOICE";
+					&gui_children[] = "COOP_WITHDRAW|COOP_DEPOSIT";
+					&gui_slots[]    = "11";
+
+					&gui_enums[]    = "COOP_WITHDRAW";
+					&gui_mcids[]    = "dropper";
+					&gui_names[]    = "Withdraw Coins";
+					&gui_parents[]  = "COOP";
+					&gui_children[] = "COOP_WITHDRAW_SIGN";
+					&gui_slots[]    = "13";
+
+					&gui_enums[]    = "COOP_WITHDRAW_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "COOP_WITHDRAW";
+					&gui_children[] = "";
+					&gui_slots[]    = "16";
+
+					&gui_enums[]    = "COOP_DEPOSIT";
+					&gui_mcids[]    = "chest";
+					&gui_names[]    = "Deposit Coins";
+					&gui_parents[]  = "COOP";
+					&gui_children[] = "COOP_DEPOSIT_SIGN";
+					&gui_slots[]    = "11";
+
+					&gui_enums[]    = "COOP_DEPOSIT_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "COOP_DEPOSIT";
+					&gui_children[] = "";
+					&gui_slots[]    = "15";
+
+					&gui_enums[]    = "SOLO";
+					&gui_mcids[]    = "chest";
+					&gui_names[]    = "Personal Bank Account";
+					&gui_parents[]  = "CHOICE";
+					&gui_children[] = "SOLO_WITHDRAW|SOLO_DEPOSIT";
+					&gui_slots[]    = "15";
+
+					&gui_enums[]    = "SOLO_WITHDRAW";
+					&gui_mcids[]    = "dropper";
+					&gui_names[]    = "Withdraw Coins";
+					&gui_parents[]  = "SOLO";
+					&gui_children[] = "SOLO_WITHDRAW_SIGN";
+					&gui_slots[]    = "13";
+
+					&gui_enums[]    = "SOLO_WITHDRAW_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "SOLO_WITHDRAW";
+					&gui_children[] = "";
+					&gui_slots[]    = "16";
+
+					&gui_enums[]    = "SOLO_DEPOSIT";
+					&gui_mcids[]    = "chest";
+					&gui_names[]    = "Deposit Coins";
+					&gui_parents[]  = "SOLO";
+					&gui_children[] = "SOLO_DEPOSIT_SIGN";
+					&gui_slots[]    = "11";
+
+					&gui_enums[]    = "SOLO_DEPOSIT_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "SOLO_DEPOSIT";
+					&gui_children[] = "";
+					&gui_slots[]    = "15";
+				elseif(%&profile_type% == "SOLO");
+					&gui_enums[]    = "SOLO";
+					&gui_mcids[]    = "";
+					&gui_names[]    = "";
+					&gui_parents[]  = "";
+					&gui_children[] = "SOLO_WITHDRAW|SOLO_DEPOSIT";
+					&gui_slots[]    = "";
+					
+					&gui_enums[]    = "UPGRADES";
+					&gui_mcids[]    = "gold_block";
+					&gui_names[]    = "Bank Upgrades";
+					&gui_parents[]  = "SOLO";
+					&gui_children[] = "";
+					&gui_slots[]    = "35";
+
+					&gui_enums[]    = "SOLO_WITHDRAW";
+					&gui_mcids[]    = "dropper";
+					&gui_names[]    = "Withdraw Coins";
+					&gui_parents[]  = "SOLO";
+					&gui_children[] = "SOLO_WITHDRAW_SIGN";
+					&gui_slots[]    = "13";
+
+					&gui_enums[]    = "SOLO_WITHDRAW_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "SOLO_WITHDRAW";
+					&gui_children[] = "";
+					&gui_slots[]    = "16";
+
+					&gui_enums[]    = "SOLO_DEPOSIT";
+					&gui_mcids[]    = "chest";
+					&gui_names[]    = "Deposit Coins";
+					&gui_parents[]  = "SOLO";
+					&gui_children[] = "SOLO_DEPOSIT_SIGN";
+					&gui_slots[]    = "11";
+
+					&gui_enums[]    = "SOLO_DEPOSIT_SIGN";
+					&gui_mcids[]    = "sign";
+					&gui_names[]    = "Specific amount";
+					&gui_parents[]  = "SOLO_DEPOSIT";
+					&gui_children[] = "";
+					&gui_slots[]    = "15";
+				endif;
+			endif;
+			
+			// Correct the Target ENUM and/or Validate It
+			if(true);
+				&real_enum = miscValidate(%&target_enum%,-1,...&gui_enums[]);
+				if(%&real_enum% == "");
+					if(%&profile_type% == "COOP");
+						&real_enum = "CHOICE";
+					elseif(%&profile_type% == "SOLO");
+						&real_enum = "SOLO";
+					endif;
+					debug_log(%debug%,%&script_debug_name%,"Defaulting &&target_enum to '&d%&real_enum%&7' because &&target_enum (&d'%&target_enum%&7') was Invalid (at least, for profile type '&d%&profile_type%&7').");
+				endif;
+				#target_index = indexof(&gui_enums[],,%&real_enum%);
+			endif;
+			
+			&parent_enums[]           = bankingActionInternalChangeGUIGetPath(%&real_enum%,&gui_enums[],&gui_parents[],&gui_children[]);
+			&go_back_params[]         = split(", ","MCID: arrow, NAME: Go Back");
+			&convert_sign_enums[]     = split(", ","SOLO_WITHDRAW_SIGN, SOLO_DEPOSIT_SIGN, COOP_WITHDRAW_SIGN, COOP_DEPOSIT_SIGN")
+			#convert_sign_enums_index = indexof(&convert_sign_enums[],,%&real_enum%);
+			convert_sign_enums        = %#convert_sign_enums_index% != -1;
+			if(%convert_sign_enums%);
+				&convert_sign_origins[]             = split(", ","SIGN_DEPOSIT, SIGN_WITHDRAW");
+				&convert_sign_origin_predecessors[] = split(", ","COOP_DEPOSIT, COOP_WITHDRAW, SOLO_DEPOSIT, SOLO_WITHDRAW");
+				&convert_sign_origin_conversions[]  = split(", ","COOP_DEPOSIT_SIGN, COOP_WITHDRAW_SIGN, SOLO_DEPOSIT_SIGN, SOLO_WITHDRAW_SIGN");
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Beginning attempt to get to &&real_enum='&e%&real_enum%&7'.");
+		do;
+			//	1.	Check for Function Timeout
+			if(%do_timeout%);
+				func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+				if(%func_timeout%);
+					debug_error(%debug%,%&script_debug_name%,"Timed Out!");
+					break;
+				endif;
+			endif;
+
+			//	2.	Figure out what Action to Execute based on what GUI we are in.
+			if(true);
+				&bank_enum  = bankingInfoInternalGetGuiType();
+				#bank_index = indexof(&gui_enums[],,%&bank_enum%);
+				
+				// Convert 'SIGN_DEPOSIT' and/or 'SIGN_WITHDRAW' to '<SOLO|COOP>_DEPOSIT_SIGN' and '<SOLO|COOP>_WITHDRAW_SIGN'
+				if((%GUI% == "GUIEDITSIGN") && (%convert_sign_enums%));
+					#convert_sign_origins_index = indexof(&convert_sign_origins[],,%&bank_enum%);
+					if(%#convert_sign_origins_index% != -1);
+						#previous_index = indexof(&convert_sign_origin_predecessors[],,%&last_bank_enum%);
+						if(%#previous_index% != -1);
+							&bank_enum  = %&convert_sign_origin_conversions[%#previous_index%]%;
+							#bank_index = indexof(&gui_enums[],,%&bank_enum%);
+						endif;
+					endif;
+				endif;
+				
+				debug_log(%debug%,%&script_debug_name%,"Target/real enum &&real_enum='&e%&real_enum%&7', &&bank_enum='&e%&bank_enum%&7', #bank_index=&e%#bank_index%&7.");
+
+				if(%&bank_enum% == %&real_enum%);
+					debug_log(%debug%,%&script_debug_name%,"Successfully entered Bank ENUM: '&d%&bank_enum%&7'.");
+					return_boolean = true;
+					break;
+				elseif((%GUI% != "GUICHEST") || (%&bank_enum% == "NONE"));
+					debug_log(%debug%,%&script_debug_name%,"In an invalid GUI (GUI='&e%GUI%&7', &&bank_enum='&e%&bank_enum%&7'), exiting...");
+					localGUI("NONE");
+					
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					in_bank            = bankingActionInternalOpenBank(%#recursive_timeout%,%#tick_wait%,%personal_bank%);
+					if(!%in_bank%);
+						debug_error(%debug%,%&script_debug_name%,"Failed to open the Banking GUI, breaking.");
+						break;
+					endif;
+				elseif(%#bank_index% != -1);
+					unset(&action_array[]);
+					&action_type = "CLOSE";
+					if(%#bank_index% > %#target_index%);
+						// We are too deep, we need to go back up a level.
+						&action_type = "CLICK";
+						push(&action_array[],&go_back_params[*]);
+					else;
+						// If the GUI we are currently in is a Parent or Grandparent of the Target GUI, find the Child ENUM
+						// of this GUI that gets us closer to the Target. If it is not a Parent or Grandparent, then exit the GUI
+						// instead of finding an Item to click.
+						#parent_index = indexof(&parent_enums[],,%&bank_enum%);
+						if(%#parent_index% != -1);
+							&child_enum      = "";
+							&curr_children[] = split("|",%&gui_children[%#bank_index%]%);
+							foreach(&curr_children[],&curr_child,#cc);
+								if(%&curr_child% == %&real_enum%);
+									&child_enum = %&curr_child%;
+									break;
+								else;
+									#parent_index = indexof(&parent_enums[],,%&curr_child%);
+									if(%#parent_index% != -1);
+										&child_enum = %&curr_child%;
+										break;
+									endif;
+								endif;
+							next;
+							
+							#gui_enums_index = indexof(&gui_enums[],,%&child_enum%);
+							if(%#gui_enums_index% != -1);
+								&action_array[] = split(", ","MCID: %&gui_mcids[%#gui_enums_index%]%, NAME: %&gui_names[%#gui_enums_index%]%, SLOT: %&gui_slots[%#gui_enums_index%]%");
+								&action_type    = "CLICK";
+							endif;
+						endif;
+					endif;
+					
+					debug_log(%debug%,%&script_debug_name%,"&&action_type: '&d%&action_type%&7', &&action_data: '&e%&action_data%&7'.");
+					if(%&action_type% == "CLOSE");
+						debug_log(%debug%,%&script_debug_name%,"Closing GUI (GUI: '&d%GUI%&7', CONTAINERNAME: '&d%CONTAINERNAME%&7', CONTAINERSLOTS: '&d%CONTAINERSLOTS%&7', ENUM: '&d%&bank_enum%&7').");
+						localGUI("NONE");
+					elseif(%&action_type% == "CLICK");
+						#action_slot   = findItemContainer(false,...&action_array[]);
+						&action_params = join("&7', '&d",&action_array[]);
+						debug_log(%debug%,%&script_debug_name%,"Search for Item with Parameters: ['&d%&action_params%&7'] returned Slot '&e%#action_slot%&7'.");
+						if(%#action_slot% != -1);
+							debug_log(%debug%,%&script_debug_name%,"Found Next Item at Slot &d%#action_slot%&7.");
+							#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							updated_gui        = containerClick(%#action_slot%,%#recursive_timeout%,%#tick_wait%,true,false,false);
+							if(%updated_gui%);
+								debug_log(%debug%,%&script_debug_name%,"Updated GUI!");
+							endif;
+						else;
+							&action_params = join("&c', '&4",&action_array[]);
+							debug_error(%debug%,%&script_debug_name%,"Failed to find Item with Parameters: ['&4%&action_params%&c']!");
+						endif;
+					else;
+						debug_error(%debug%,%&script_debug_name%,"Action Type (&&action_type: '&4%&action_type%&c') is Unknown?");
+					endif;
+				else;
+					debug_error(%debug%,%&script_debug_name%,"GUI ENUM Index for '&d%&bank_enum%&7' is -1! Cannot recover :^(");
+					break;
+				endif;
+				
+				&last_bank_enum = %&bank_enum%;
+			endif;
+			
+			wait("1t");
+		until(%return_boolean%);
+		
+		debug_log(%debug%,%&script_debug_name%,"GUI change outcome (return_boolean='&e%return_boolean%&7') from &&real_enum='&e%&real_enum%&7', &&profile_type='&e%&profile_type%&7'.");
+		return(%return_boolean%);
+	endfunction;
+
+	// Gets the Balance(s) of the given Bank Account(s).
+		// Params:
+			// {number}  [#timeout_sec=30]   	The maximum amount of Seconds that this Function can run for. If set to <= 0,
+			//                               	Function will run on a loop until it is successful, without ever timing out.
+			// {number}  [#tick_wait=20]     	The amount of Ticks to wait between looping repeated actions.
+			// {boolean} [scoreboard=true]   	Whether or not we should check if we can grab the Bank Balance from the Scoreboard
+			//                               	and use that instead. Faster, but only accurate to the rounding suffix used by SkyBlock
+			//                               	(e.g. if the User has 100,000,000 -> 100,999,999 in account, will only know 100m).
+			// {boolean} [personal_bank=true]	Whether or not we should allow the usage of the Personal Bank Item Shortcut.
+			// {boolean} [api=false]         	Whether or not we should attempt the usage of API before scoreboard/personal bank/in person.
+			// {string}  [...&for_accounts[]]	Optional String Array of ENUMs: COOP and/or SOLO. If neither are included, both
+			//                               	will be returned. If only one is included, that one will be returned. If both are
+			//                               	included, they will always be returned in order: SOLO, COOP.
+		// Returns a String and/or String Array of the Balances for the specified Accounts. If both COOP and SOLO are present in the [&fetch_accounts[]]
+		// Parameter, SOLO will be Index 0, COOP will be Index 1. Default behaviour is to return both balances.
+		// Example:
+			//	&solo_balance    = bankingGetBalance(%#timeout_sec%,%#tick_wait%,%scoreboard%,%personal_bank%,"SOLO");
+			//	&coop_balance    = bankingGetBalance(%#timeout_sec%,%#tick_wait%,%scoreboard%,%personal_bank%,"COOP");
+			//	&bank_balances[] = bankingGetBalance();
+			//	&solo_balance    = %&bank_balances[0]%;
+			//	&coop_balance    = %&bank_balances[1]%;
+	function bankingGetBalance(#timeout_sec=30,#tick_wait=20,scoreboard=true,personal_bank=true,...&for_accounts[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6bankingGetBalance&7";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			
+			// Validate [...&fetch_accounts[]] Parameters
+			if(true);
+				foreach(&for_accounts[],&for_account,#fa);
+					&for_account          = ucase(%&for_account%);
+					#fetch_accounts_index = indexof(&fetch_accounts[],,%&for_account%);
+					if((%#fetch_accounts_index% == -1) && (%&for_account% == "COOP") || (%&for_account% == "SOLO"));
+						&fetch_accounts[] = %&for_account%;
+					endif;
+				next;
+				
+				#fetch_accounts_sz = arraysize(&fetch_accounts[]);
+				if(%#fetch_accounts_sz% == 0);
+					&fetch_accounts[] = split(", ","SOLO, COOP");
+				endif;
+				
+				coop_fetch = xArrayIncludes("COOP",...&fetch_accounts[]);
+				solo_fetch = xArrayIncludes("SOLO",...&fetch_accounts[]);
+			endif;
+		endif;
+
+		// If we are allowed to use the Scoreboard, get onto a SkyBlock Server and read the Scoreboard.
+		if(%scoreboard%);
+			#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+			on_skyblock        = gotoServer("SKYBLOCK",100,%#recursive_timeout%);
+			if(%on_skyblock%);
+				for(#loop,0,1);
+					&bank_info = getSkyBlockPlayerListInfo("BANK");
+					if(%&bank_info% != "-1");
+						// Format:
+						//	Solo Profiles: <number: personal bank balance>[KMB]
+						//	Coop Profiles: <number: coop bank balance    >[KMB]/<number: solo bank balance>[KMB]
+						&bank_balances[]  = split("/",%&bank_info%);
+						#bank_balances_sz = arraysize(&bank_balances[]);
+						if(%#bank_balances_sz% >= 1);
+							if(%#bank_balances_sz% == 1);
+								&solo_balance = %&bank_balances[0]%;
+							elseif(%#bank_balances_sz% == 2);
+								&coop_balance = %&bank_balances[0]%;
+								&solo_balance = %&bank_balances[1]%;
+							endif;
+							got_balances = true;
+							break;
+						else;
+							&bank_balances = join("&7', '&e",&bank_balances[]);
+							debug_error(%debug%,%&script_debug_name%,"Got unexpected Element from &bgetSkyBlockPlayerListInfo('BANK')&7='&e%&bank_info%&7' (&&bank_balances[]=['&e%&bank_balances%&7'])!");
+						endif;
+					elseif(%#loop% == 0);
+						debug_log(%debug%,%&script_debug_name%,"attempting to enable the PLAYER_LIST_INFO Setting...");
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						setting_changed    = hypixelChangeSettings(%#timeout_sec%,%#tick_wait%,"PLAYER_LIST_INFO: TRUE");
+						if(%setting_changed%);
+							debug_log(%debug%,%&script_debug_name%,"successfully enabled the PLAYER_LIST_INFO Setting.");
+						else;
+							debug_error(%debug%,%&script_debug_name%,"Failed to enable the PLAYER_LIST_INFO Setting. Breaking early.");
+							break;
+						endif;
+					endif;
+				next;
+			endif;
+		endif;
+
+		if(!%got_balances%);
+			// Open up the Banking GUI and grab the value from there. Do this on a loop until we get a good value
+			// or the Function has to exit due to a timeout.
+			do;
+				// 1. Check for Function Timeout.
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function Timed Out!");
+						&return_string = -1;
+						break;
+					endif;
+				endif;
+
+				// 2. Open up the Banking GUI.
+				if(true);
+					in_bank = bankingActionInternalOpenBank(%#timeout_sec%,%#tick_wait%,%personal_bank%);
+					if(!%in_bank%);
+						debug_error(%debug%,%&script_debug_name%,"Failed to enter the bank!");
+						&return_string = "-1";
+						break;
+					endif;
+				endif;
+
+				// 3. Read the value from the Banking GUI.
+				if(true);
+					// If we are in a Coop Profile, we will be in a GUI named 'Bank', with Items
+					// 'Co-op Bank Account' and 'Personal Bank Account'. Both of them will match the
+					// expression: 'Balance: ([\d,.-]+)'. If we are in a Solo Profile, we will be in
+					// a GUI named 'Personal Bank Account', with Items 'Deposit Coins' and 'Withdraw Coins'.
+					// Both items will match the expression: 'Balance: ([\d,.-]+)'
+					
+					&bank_balances[] = bankingInfoInternalGetBalances(%&bank_enum%);
+					&solo_balance    = %&bank_balances[0]%;
+					&coop_balance    = %&bank_balances[1]%;
+					if((%&solo_balance% != "") || (%&coop_balance% != ""));
+						break;
+					endif;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		
+		if(%&return_string% != -1);
+			&return_string = -1;
+			if((%coop_fetch%) && (%solo_fetch%));
+				&return_array[] = number(%&solo_balance%);
+				&return_array[] = number(%&coop_balance%);
+				return(&return_array[]);
+			elseif(%coop_fetch%);
+				&return_string = number(%&coop_balance%);
+			elseif(%solo_fetch%);
+				&return_string = number(%&solo_balance%);
+			endif;
+		endif;
+		return(%&return_string%);
+	endfunction;
+	
+	// Executes the specified Transaction with the Bank.
+		// Params:
+			// {string} [&action="DEPOSIT"]  	String ENUM of DEPOSIT or WITHDRAW. As long as String contains 'D', will take as 'DEPOSIT', and vice versa.
+			// {string} [&amount=-1]         	Amount of Coins to Transact with. Can be a Metric Number, Exp. Notation Number, Formatted,
+			//                               	Float, or Integer. If set to <= 0, will transact the maximum amount of Coins with the specified
+			//                               	accounts.
+			// {boolean} [solo_allow=true]   	Whether or not to allow Transacting with the Solo Account.
+			// {boolean} [coop_allow=true]   	Whether or not to allow Transacting with the Coop Account, if it is available.
+			// {boolean} [under_allow=true]  	Whether or not to continue on with the Transaction even if the specified amount of Coins cannot be
+			//                               	transacted with from the specified Accounts. Setting this to TRUE will make it so the maximum amount
+			//                               	of Coins is transacted with when the specified amount cannot be done (e.g. filling up the purse as best
+			//                               	as we can, or emptying it out as best as we can).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before Timing Out.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait between repeating Actions.
+			// {boolean} [personal_bank=true]	Whether or not to allow the usage of the Personal Bank shortcut Item, if it is available.
+		// Returns a Boolean indicating whether or not the specified [&amount] of Coins was able to be transacted using [&action] into the specified Accounts.
+		// Example:
+			//	// Emptying the Purse out into all the Accounts
+			//		purse_emptied = bankingTransact("DEPOSIT");
+			//	// Filling the Purse up from all the Accounts
+			//		purse_filled = bankingTransact("WITHDRAW");
+			//	// Emptying the Purse out into the Solo Account
+			//		solo_filled = bankingTransact("DEPOSIT",-1,true,false);
+			//	// Emptying the Purse out into the Coop Account
+			//		coop_filled = bankingTransact("DEPOSIT",-1,false,true);
+			//	// Filling the Purse up from the Solo Account
+			//		solo_emptied = bankingTransact("WITHDRAW",-1,true,false);
+			//	// Filling the Purse up from the Coop Account
+			//		coop_emptied = bankingTransact("WITHDRAW",-1,false,true);
+	function bankingTransact(&action="DEPOSIT",&amount=-1,solo_allow=true,coop_allow=true,under_allow=true,#timeout_sec=30,#tick_wait=20,personal_bank=true);
+		// Setup Function Variables
+		if(true);
+			&transaction_type   = "DEPOSIT";
+			&transaction_amount = number(%&amount%);
+			transaction_max     = _lte(%&transaction_amount%,0);
+			under_allow         = ((%under_allow%) || (%transaction_max%));
+			ifmatches(%&action%,"W"); &transaction_type = "WITHDRAW"; endif;
+			
+			debug              = true;
+			&script_debug_name = "&5bTx&7[&e%&transaction_type%&7]";
+			do_timeout         = %#timeout_sec% > 0;
+			#start_time        = %TIMESTAMP%;
+			
+			if((!%solo_allow%) && (!%coop_allow%));
+				debug_error(%debug%,%&script_debug_name%,"At least one bank account must be permitted to transact with (solo_allow must be true, or coop_allow must be true).");
+				return(False);
+			endif;
+			
+		endif;
+		
+		// Enter the Main Banking GUI.
+		if(true);
+			in_bank = bankingActionInternalOpenBank(%#timeout_sec%,%#tick_wait%,%personal_bank%);
+			if(!%in_bank%);
+				debug_error(%debug%,%&script_debug_name%,"Failed to open up the Banking GUI!");
+				return(False);
+			endif;
+		endif;
+		
+		// Figure out the Balances of the Accounts we are going to be transacting with
+		if(true);
+			&bank_account_names[]    = split(", ","solo, coop");
+			bank_account_bools[]     = split(", ","%solo_allow%, %coop_allow%");
+			&bank_account_balances[] = bankingInfoInternalGetBalances();
+			&bank_account_limits[]   = bankingInfoInternalGetLimits();
+			&b_remaining             = %&transaction_amount%;
+			if((%transaction_max%) && (%&transaction_type% == "DEPOSIT"));
+				&b_remaining = getPurse();
+				debug_log(%debug%,%&script_debug_name%,"b_remaining = %&b_remaining%");
+			endif;
+			
+			foreach(bank_account_bools[],bank_account_bool,#bab);
+				&t_amount = "0";
+				if(%bank_account_bool%);
+					if(%&transaction_type% == "DEPOSIT");
+						&b_maximum = xEval("%&bank_account_limits[%#bab%]% - %&bank_account_balances[%#bab%]%");
+						&b_maximum = number(%&b_maximum%,"F:I","R:T");
+					elseif(%&transaction_type% == "WITHDRAW");
+						&b_maximum = number(%&bank_account_balances[%#bab%]%,"F:I","R:T");
+					endif;
+					
+					not_zero = _neq(%&b_maximum%,"0");
+					if(%not_zero%);
+						set_zero = false;
+						if((%&transaction_type% == "DEPOSIT") && (%transaction_max%));
+							// Check if there is even anything more to deposit
+							set_zero = _lte(%&b_remaining%,"0");
+						endif;
+						
+						if(%set_zero%);
+							&t_amount = "0";
+						elseif(%transaction_max%);
+							&t_amount = "-1";
+						else;
+							&t_amount = "-1";
+							is_gte = _gte(%&b_maximum%,%&b_remaining%);
+							if(%is_gte%);
+								&t_amount = %&b_remaining%;
+							endif;
+						endif;
+					endif;
+				endif;
+				
+				&t_amount = number(%&t_amount%,"F: I","R: T");
+				if(%&t_amount% == "-1");
+					&b_remaining = xEval("%&b_remaining% - %&b_maximum%");
+				else;
+					&b_remaining = xEval("%&b_remaining% - %&t_amount%");
+				endif;
+				
+				&bank_account_transact[%#bab%] = %&t_amount%;
+				&vars[]                        = split(" ","&t_amount &b_maximum &bank_account_limits[%#bab%] &bank_account_balances[%#bab%] &b_remaining &transaction_type &bank_account_names[%#bab%] set_zero transaction_max is_gte not_zero");
+				foreach(&vars[],&var,#v);
+					&val	= "%%&var%%";
+					&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+					&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+					debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+				next;
+				if(%debug%); log(" "); endif;
+			next;
+			
+			return_boolean = true;
+			if(!%under_allow%);
+				&sum_transact  = xEval("%&bank_account_transact[0]% + %&bank_account_transact[1]%");
+				return_boolean = _gte(%&sum_transact%,%&transaction_amount%);
+				if(!%return_boolean%);
+					debug_error(%debug%,%&script_debug_name%,"Sum transaction of Coins is &&sum_transact='&e%&sum_transact%&7' for Action Type &&transaction_type='&e%&transaction_type%&7', does not meet minimum amount of &&transaction_amount='&e%&transaction_amount%&7', cancelling before actions.");
+					return(False);
+				endif;
+			endif;
+		endif;
+		
+		// Setup 'Max Items'
+		if(true);
+			if(%&transaction_type% == "DEPOSIT");
+				&max_find_item = "chest";
+				&max_find_name = "Your whole purse";
+				#max_find_slot = 11;
+			else;
+				&max_find_item = "dropper";
+				&max_find_name = "Everything in the account";
+				#max_find_slot = 10;
+			endif;
+		endif;
+		
+		// Execute the Transactions for each Account.
+		foreach(&bank_account_transact[],&bank_account_transact,#bat);
+			debug_log(%debug%,%&script_debug_name%,"bank_account_transact: &d%&bank_account_transact%&7 from name %&bank_account_names[%#bat%]%&7.");
+			
+			if(%&bank_account_transact% != "0");
+				&target_enum = "%&bank_account_names[%#bat%]%_%&transaction_type%_SIGN";
+				if(%&bank_account_transact% == "-1");
+					&target_enum = "%&bank_account_names[%#bat%]%_%&transaction_type%";
+				endif;
+				#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+				in_target_enum     = bankingGUI(%&target_enum%,"",%#recursive_timeout%,%#tick_wait%,%personal_bank%);
+				if(%in_target_enum%);
+					debug_log(%debug%,%&script_debug_name%,"Got into GUI_ENUM: '&d%&target_enum%&7'. Executing Transaction...");
+					
+					unset(@banking_failure);
+					unset(@banking_confirm);
+					if(%&bank_account_transact% == "-1");
+						#max_slot = findItemContainer(false,"SLOT: %#max_find_slot%","NAME: %&max_find_name%","MCID: %&max_find_item%");
+						if(%#max_slot% != -1);
+							#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							coins_transacted   = containerClick(%#max_slot%,%#recursive_timeout%,%#tick_wait%);
+						endif;
+					else;
+						wait("1t");
+						type(%&bank_account_transact%);
+						wait("1t");
+						localGUI("NONE");
+					endif;
+					
+					do;
+						// Check for Function Timeout
+						if(%do_timeout%);
+							func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+							if(%func_timeout%);
+								debug_error(%debug%,%&script_debug_name%,"Function Timed Out!");
+								break;
+							endif;
+						endif;
+						
+						wait("1t");
+					until((%@banking_failure%) || (%@banking_confirm%));
+					
+					if(%func_timeout%);
+						return_boolean = false;
+						break;
+					else;
+						debug_log(%debug%,%&script_debug_name%,"banking_failure='&4%@banking_failure%&7', banking_confirm='&a%@banking_confirm%&7'.");
+						if(%@banking_failure%);
+							debug_error(%debug%,%&script_debug_name%,"Failed Banking Action, reason: '&4%@&banking_failure_string%&7'.");
+							return_boolean = false;
+						endif;
+					endif;
+				endif;
+			endif;
+		next;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning boolean '&d%return_boolean%&7'.");
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that calls `bankingTransact()` to Deposit the specified amount of Coins.
+		// Params:
+			// {string} [&amount=-1]         	Amount of Coins to Transact with. Can be a Metric Number, Exp. Notation Number, Formatted,
+			//                               	Float, or Integer. If set to <= 0, will transact the maximum amount of Coins with the specified
+			//                               	accounts.
+			// {boolean} [solo_allow=true]   	Whether or not to allow Transacting with the Solo Account.
+			// {boolean} [coop_allow=true]   	Whether or not to allow Transacting with the Coop Account, if it is available.
+			// {boolean} [under_allow=true]  	Whether or not to continue on with the Transaction even if the specified amount of Coins cannot be
+			//                               	transacted with from the specified Accounts. Setting this to TRUE will make it so the maximum amount
+			//                               	of Coins is transacted with when the specified amount cannot be done (e.g. filling up the purse as best
+			//                               	as we can, or emptying it out as best as we can).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before Timing Out.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait between repeating Actions.
+			// {boolean} [personal_bank=true]	Whether or not to allow the usage of the Personal Bank shortcut Item, if it is available.
+		// Returns a Boolean indicating whether or not the specified [&amount] of Coins was able to be transacted using [&action] into the specified Accounts.
+		// Example:
+			// coins_withdrawn = bankingWithdraw("1m");
+	function bankingWithdraw(&amount=-1,solo_allow=true,coop_allow=true,under_allow=true,#timeout_sec=30,#tick_wait=20,personal_bank=true);
+		return_boolean = bankingTransact("WITHDRAW",%&amount%,%solo_allow%,%coop_allow%,%under_allow%,%#timeout_sec%,%#tick_wait%,%personal_bank%);
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that calls `bankingTransact()` to Deposit the specified amount of Coins.
+		// Params:
+			// {string} [&amount=-1]         	Amount of Coins to Transact with. Can be a Metric Number, Exp. Notation Number, Formatted,
+			//                               	Float, or Integer. If set to <= 0, will transact the maximum amount of Coins with the specified
+			//                               	accounts.
+			// {boolean} [solo_allow=true]   	Whether or not to allow Transacting with the Solo Account.
+			// {boolean} [coop_allow=true]   	Whether or not to allow Transacting with the Coop Account, if it is available.
+			// {boolean} [under_allow=true]  	Whether or not to continue on with the Transaction even if the specified amount of Coins cannot be
+			//                               	transacted with from the specified Accounts. Setting this to TRUE will make it so the maximum amount
+			//                               	of Coins is transacted with when the specified amount cannot be done (e.g. filling up the purse as best
+			//                               	as we can, or emptying it out as best as we can).
+			// {number} [#timeout_sec=30]    	Amount of Seconds Function can run for before Timing Out.
+			// {number} [#tick_wait=20]      	Amount of Ticks to wait between repeating Actions.
+			// {boolean} [personal_bank=true]	Whether or not to allow the usage of the Personal Bank shortcut Item, if it is available.
+		// Returns a Boolean indicating whether or not the specified [&amount] of Coins was able to be transacted using [&action] into the specified Accounts.
+		// Example:
+			// coins_deposited = bankingDeposit("1m");
+	function bankingDeposit(&amount=-1,solo_allow=true,coop_allow=true,under_allow=true,#timeout_sec=30,#tick_wait=20,personal_bank=true);
+		return_boolean = bankingTransact("DEPOSIT",%&amount%,%solo_allow%,%coop_allow%,%under_allow%,%#timeout_sec%,%#tick_wait%,%personal_bank%);
+		return(%return_boolean%);
+	endfunction;

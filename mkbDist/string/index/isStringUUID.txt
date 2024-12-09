@@ -1,0 +1,24 @@
+//! @mkb-import-begin
+    // string/index/isStringUUID
+        // Checks if a string matches UUID regex.
+            // Params:
+            //        <string> &check_string : The string to check
+            //
+            // Returns a boolean.
+            //
+        function isStringUUID(&check_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:28
+            &script_debug_name = "&9isStringUUID&7";
+            debug              = false;
+            &split_uuid_expr   = "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$";
+            &joint_uuid_expr   = "^[a-f0-9]{32}$";
+            &uuid_exprs[]      = split(", ","%&split_uuid_expr%, %&joint_uuid_expr%");
+            foreach(&uuid_exprs[],&uuid_expr);
+                ifmatches(%&check_string%,%&uuid_expr%);
+                    match_found = true;
+                    break;
+                endif;
+            next;
+            return(%match_found%);
+        endfunction;
+//! @mkb-import-end

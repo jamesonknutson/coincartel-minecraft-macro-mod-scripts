@@ -1,0 +1,72 @@
+//! @mkb-import-begin
+    // debug/index/debug_error
+        // Logs a message to chat with an error prefix.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_error(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:49
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &error_message = "&4Error > &c%&string%";
+            &error_message = regexreplace(&error_message,"&7","&c");
+            &error_message = "&7%&script_debug_name%&7: %&error_message%";
+            if(%debug_enabled%);
+                log(%&error_message%);
+            endif;
+            return(%&error_message%);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // debug/index/debug_conditional
+        // Logs one of two messages to chat depending on whether the <&condition> is 'truthy' or not.
+            // Params:
+                // {boolean} [debug_enabled=true]                   Whether or not Debug is enabled
+                // {string} [&script_debug_name="&8DEBUG_LOG&7"]    The Prefix shown in Chat next to the Conditional.
+                // {string} <&truthy_string>                        The String to print if the Conditional is truthy
+                // {string} <&falsey_string>                        The String to print if the Conditional is falsey
+            // Returns the Printed Message.
+        function debug_conditional(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&condition,&truthy_string,&falsey_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:90
+            if(%debug_enabled%);
+                &condition_lcase  = lcase(%&condition%);
+                &booleans_lcase[] = split(", ","true, false, 1, 0");
+                #booleans_index   = indexof(&booleans_lcase[],,%&condition_lcase%);
+                if(%#booleans_index% != -1);
+                    truthy_condition  = ((%&condition_lcase% == "true") || (%&condition_lcase% == "1"));
+                else;
+                    truthy_condition := %&condition%;
+                endif;
+                
+                if(%truthy_condition%);
+                    &return_string = debug_log(%debug_enabled%,%&script_debug_name%,%&truthy_string%);
+                else;
+                    &return_string = debug_error(%debug_enabled%,%&script_debug_name%,%&falsey_string%);
+                endif;
+                return(%&return_string%);
+            endif;
+        endfunction;
+//! @mkb-import-end

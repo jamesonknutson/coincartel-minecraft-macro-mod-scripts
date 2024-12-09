@@ -1,0 +1,25 @@
+//! @mkb-import-begin
+    // bazaar/index/getSubcategoryProductPaths
+        // Extracts all the Subproducts of a Subcategory's `holds` field and returns them as an Array.
+            // Params:
+                // {string} <&subcategory_path>    The dot-separated JSON Path of the Subcategory to get the Subproducts from.
+                //
+            // Returns an Array of the JSON Paths that are of type SUBPRODUCT within the specified Subcategory.
+        function getSubcategoryProductPaths(&subcategory_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:864
+            for(#i,0,99);
+                &subproduct_type = jsonget("%&subcategory_path%.holds.%#i%.type",%@&mkb_baz_json%);
+                if(%&subproduct_type% == "SUBPRODUCT");
+                    &return_array[] = "%&subcategory_path%.holds.%#i%";
+                else;
+                    break;
+                endif;
+            next;
+            
+            #return_array_sz = arraysize(&return_array[]);
+            if(%#return_array_sz% == 0);
+                &return_array[] = "NONE";
+            endif;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

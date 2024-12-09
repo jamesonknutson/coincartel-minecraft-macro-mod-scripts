@@ -1,0 +1,422 @@
+// array/index.txt
+	// Returns the zero-indexed length of an Array.
+		// Params:
+		//		<array> <&array[]>	The Array to measure the length of.
+		//
+		// Returns the zero-indexed length of the Array (arraysize - 1).
+	function arrayLength(&array[]);
+		#array_size   = arraysize(&array[]);
+		#array_length = #array_size - 1;
+		return(%#array_length%);
+	endfunction;
+
+	// Returns an Array of the Elements who's index were >= [#start] and < [#end].
+		// Params:
+		//		{array}  <&array[]>	The Array to copy elements from
+		//		{number} [#start=0]	Index to start copying elements at
+		//		{number} [#end]    	Index to stop copying elements at. Can be a negative value
+		//		                   	to indicate an offset from the end of the Original Array.
+		//
+		// Behaves identically to JavaScript's Array.slice() method:
+		//		https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice
+		//
+		// Returns a slice of the input Array who's Elements were those from the Original Array
+		// that had an Index >= [#start] and < [#end].
+	function arraySlice(&array[],&start="",&end="");
+		#array_size   = arraysize(&array[]);
+		#array_length = %#array_size% - 1;
+		#int_start   := %&start%;
+		#int_end     := %&end%;
+		
+		if(%#int_start% < 0);
+			// Start < 0, return Array of last |#start| elements.
+			#int_start = #array_length + #int_start;
+			push(&return_array[],&array[%#int_start%:%#array_size%])
+			return(&return_array[]);
+		elseif(%#int_start% > %#array_length%);
+			// Start > size of Array, return empty Array.
+			return(&return_array[]);
+		else;
+			// Start <= size of array, return entries >= start && < end in Array.
+			if(%#int_end% < 0);
+				// Offset end, negative value passed.
+				#int_end = #array_length + #int_end;
+			elseif(%#int_end% == 0);
+				// End was not passed, return entries start:end
+				push(&return_array[],&array[%#int_start%:%#array_size%]);
+				return(&return_array[]);
+			endif;
+			
+			for(#index,%#int_start%,%#int_end%);
+				&return_array[] = %&array[%#index%]%;
+			next;
+			return(&return_array[]);
+		endif;
+	endfunction;
+
+	// Returns a copy of the input Array.
+		// Params:
+		//		<array> <&array[]>	The Array to Copy
+		//
+		// Returns a copy of the same Array.
+	function arrayCopy(&array[]);
+		push(&return_array[],&array[*]);
+		return(&return_array[]);
+	endfunction;
+
+	// Appends one array to the end of another.
+		// Params:
+		//		{array} <&array[]> 	The Source Array to append Elements from the Target Array to.
+		//		{array} <&append[]>	The Target Array to append to the Source Array
+		//
+		// Returns a new Array with all the Elements from <&append[]> appended to <&array[]>.
+	function arrayConcat(&array[],&append[]);
+		push(&array[],&append[*]);
+		return(&array[]);
+	endfunction;
+
+	// Evaluates whether <&left> is <&operator> to <&right> (executes a variable comparison). Returns a boolean.
+		// Params:
+		//		{string} <&left>    	The Left Hand side of the Comparison.
+		//		{string} <&operator>	The Operator to apply the Condition against each Element with. Has to be one of:
+		//		                    	'==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+		//		                    	number comparison operator is used, the values in the Array will be coerced to a
+		//		                    	number so long as the condition is an integer. If the condition is a float value,
+		//		                    	they will be evaluated using float math (eval).
+		//		{string} <&right>   	The Right Hand side of the Comparison
+		//
+		// Returns a boolean indicating the outcome of the evaluation.
+	function miscComparator(&left,&operator,&right);
+		&sign_operators[] = split(", ","==, !=, >=, <=, >, <");
+		#sign_op_index    = indexof(&sign_operators[],,%&operator%);
+		if(%#sign_op_index% == -1);
+			&char_operators[] =	split(", ","eq, ne, gte, lte, gt, lt");
+			#char_op_index    = indexof(&char_operators[],,%&operator%);
+			if(%#char_op_index% == -1);
+				return(&return_array[]);
+			endif;
+			
+			&operator = %&sign_operators[%#char_op_index%]%;
+		endif;
+
+		if(%&operator% == "==");
+			if(%&left% == %&right%);
+				return_boolean = true;
+			endif;
+		elseif(&operator% == "!=");
+			if(%&left% != %&right%);
+				return_boolean = true;
+			endif;
+		else;
+			ifmatches(%&right%,"^(\d+)$",#right,1);
+				// Doing Integer Evaluation
+				#left := %&left%;
+				if((%&operator% == ">=") && (%#left% >= %#right%));
+					return_boolean = true;
+				elseif((%&operator% == ">") && (%#left% > %#right%));
+					return_boolean = true;
+				elseif((%&operator% == "<=") && (%#left% <= %#right%));
+					return_boolean = true;
+				elseif((%&operator% == "<") && (%#left% < %#right%));
+					return_boolean = true;
+				endif;
+			elseifmatches(%&right%,"^[0-9.-]+");
+				// Doing Float Evaluation
+				&float_diff = eval("%&left% - %&right%");
+				ifmatches(%&float_diff%,"^-");
+					// <left> - <right> = negative number, left was less than right
+					if((%&operator% == "<=") || (%&operator% == "<"));
+						return_boolean = true;
+					endif;
+				else;
+					// <left> - <right> = positive or 0, left was greater than or equal to right
+					ifmatches(%&float_diff%,"[0.]+");
+						// <left> - <right> = 0, left was equal to right
+						if((%&operator% == ">=") || (%&operator% == "<="));
+							return_boolean = true;
+						endif;
+					elseif((%&operator% == ">=") || (%&operator% == ">"));
+						// <left> - <right> = greater than 0, left was greater than right
+						return_boolean = true;
+					endif;
+				endif;
+			endif;
+		endif;
+		return(%return_boolean%);
+	endfunction;
+
+	// Returns an Array of the Elements in the Source Array that pass the provided condition.
+		// Params:
+		//		{array} <&array[]>   	The Source Array to Filter for Elements that only pass the provided condition.
+		//		{string} <&operator> 	The Operator to apply the Condition against each Element with. Has to be one of:
+		//		                     	'==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+		//		                     	number comparison operator is used, the values in the Array will be coerced to a
+		//		                     	number so long as the condition is an integer. If the condition is a float value,
+		//		                     	they will be evaluated using float math (eval).
+		//		{string} <&condition>	The Condition to evaluate each Element of the Array against using the specified Operator.
+		//
+		// Calls: miscComparator
+		//
+		// Behaves identically to JavaScript's Array.filter() method:
+		//		https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
+		//
+		// Returns an Array of the Elements of the Source Array that passed the provided condition.
+	function arrayFilter(&array[],&operator,&condition);
+		foreach(&array[],&element);
+			element_truthy = miscComparator(%&element%,%&operator%,%&condition%);
+			if(%element_truthy%);
+				&return_array[] = %&element%;
+			endif;
+		next;
+		return(&return_array[]);
+	endfunction;
+
+	// Checks whether an Array has any Elements that pass a provided condition.
+		// Params:
+		//		{array} <&array[]>   	The Source Array to Check whether contains any Elements that pass this Condition.
+		//		{string} <&operator> 	The Operator to apply the Condition against each Element with. Has to be one of:
+		//		                     	'==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+		//		                     	number comparison operator is used, the values in the Array will be coerced to a
+		//		                     	number so long as the condition is an integer. If the condition is a float value,
+		//		                     	they will be evaluated using float math (eval).
+		//		{string} <&condition>	The Condition to evaluate each Element of the Array against using the specified Operator.
+		//
+		// Calls: miscComparator
+		//
+		// Behaves identically to JavaScript's Array.some() method:
+		//		https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/some
+		//
+		// Returns a boolean indicating whether or not any of the Elements passed the provided Condition.
+	function arraySome(&array[],&operator,&condition);
+		return_boolean = false;
+		foreach(&array[],&element);
+			element_truthy = miscComparator(%&element%,%&operator%,%&condition%);
+			if(%element_truthy%);
+				return_boolean = true;
+				break;
+			endif;
+		next;
+		return(%return_boolean%);
+	endfunction;
+
+	// Checks whether every Element of an Array passes a provided condition.
+		// Params:
+		//		{array} <&array[]>   	The Source Array to check if every Element passes the provided condition.
+		//		{string} <&operator> 	The Operator to apply the Condition against each Element with. Has to be one of:
+		//		                     	'==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+		//		                     	number comparison operator is used, the values in the Array will be coerced to a
+		//		                     	number so long as the condition is an integer. If the condition is a float value,
+		//		                     	they will be evaluated using float math (eval).
+		//		{string} <&condition>	The Condition to evaluate each Element of the Array against using the specified Operator.
+		//
+		// Calls: miscComparator
+		//
+		// Behaves identically to JavaScript's Array.every() method:
+		//		https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/every
+		//
+		// Returns a boolean indicating whether or not the entire Array passed the provided condition.
+	function arrayEvery(&array[],&operator,&condition);
+		return_boolean = true;
+		foreach(&array[],&element);
+			element_truthy = miscComparator(%&element%,%&operator%,%&condition%);
+			if(!%element_truthy%);
+				return_boolean = false;
+				break;
+			endif;
+		next;
+		return(%return_boolean%);
+	endfunction;
+
+	// Returns the last index of <&element> in <&array[]> that is <= [#start].
+		// Params:
+		//		{array} <&array[]>  	The Source Array to find the last index of <&element> in.
+		//		{string} <&element> 	The Element to find in the Source Array.
+		//		{string} [&start=""]	The index in the Source Array to start the search from. Defaults
+		//		                    	to {arr.length - 1}, i.e. the whole array will be searched. If the
+		//		                    	index is >= the length of the Array, the whole array will be searched.
+		//		                    	If the index is negative, it is taken as the offset from the end of the Array.
+		//
+		// Returns the last integer index that the <&element> occurs at in the Array, or -1 if could not be found.
+	function arrayLastIndexOf(&array[],&element,&start="");
+		#last_index = -1;
+		#array_size = arraysize(&array[]);
+		#array_len  = #array_size - 1;
+		#start_int := %&start%;
+		&element    = lcase(%&element%);
+		if((%&start% == "") || (%#start_int% >= %#array_len%));
+			#start_int = #array_len;
+		elseif(%#start_int% < 0);
+			#start_int = #array_len + #start_int;
+		endif;
+		
+		for(#index,%#start_int%,0);
+			&array_element = lcase(%&array[%#index%]%);
+			if(%&array_element% == %&element%);
+				#last_index = %#index%;
+				break;
+			endif;
+		next;
+		
+		return(%#last_index%);
+	endfunction;
+
+	// Returns the Element at the last index of an Array.
+		// Params:
+		//		{array} <&array[]>	The Source Array to take the final element from.
+		//
+		// Returns the Element at the last index of <&array[]>, or an empty string if the Array does not exist.
+	function arrayLastElement(&array[]);
+		#array_len = arrayLength(&array[]);
+		if(%#array_len% == -1);
+			return("");
+		else;
+			return(%&array[%#array_len%]%);
+		endif;
+	endfunction;
+
+	// Prepends the Source Array with the provided Element (index 0 = <&element>).
+		// Params:
+		//		{array} <&array[]> 	The Source Array to prepend with the specified <&element>.
+		//		{string} <&element>	The Element to prepend to the Source Array.
+		//
+		// Returns the Array with the provided Element prepended at index 0.
+	function arrayUnshift(&array[],&element);
+		&new_array[] = %&element%;
+		push(&new_array[],&array[*]);
+		return(&new_array[]);
+	endfunction;
+
+	// Removes the Element at <#index> from <&array[]> (different from calling unset, completely clears the entry from the Array).
+		// Params:
+		//		{array} <&array[]>	The Array to unset the specified index from.
+		//		{number} <#index> 	The Index to unset in the Source Array. If negative, will be taken
+		//		                  	as an offset from the end of the Array (i.e. -1 = array.length - 1).
+		//		                  	If the Index is greater than the length of the Source Array, no element
+		//		                  	will be removed.
+	function arrayDelete(&array[],#index);
+		#array_size = arraysize(&array[]);
+		#array_len  = #array_size - 1;
+		if(%#array_size% == 0);
+			return(&array[]);
+		else;
+			if(%#index% < 0);
+				#index = #array_len + #index;
+			endif;
+			
+			if((%#index% >= 0) && (%#index% <= %#array_len%));
+				foreach(&array[],&element,#i);
+					if(%#i% != %#index%);
+						&out_array[] = %&element%;
+					endif;
+				next;
+			endif;
+		endif;
+		return(&out_array[]);
+	endfunction;
+
+	// Checks if an <&array[]> includes a <&search_term>. Returns a boolean indicating whether it is included or not.
+		// Params:
+		//		{array} <&array[]>     	The Array to check if includes <&search_term>
+		//		{string} <&search_term>	The Search Term to check if is included in <&array[]>.
+		//
+		// Returns a boolean indicating whether or not the <&search_term> is found within the <&array[]>.
+	function arrayIncludes(&array[],&search_term);
+		#found_index = indexof(&array[],,%&search_term%);
+		if(%#found_index% != -1);
+			return(True);
+		endif;
+		return(False);
+	endfunction;
+
+	// Gets a shallow copy of a portion of an Array into a new Array selected from [&start] to [&end] ([&end] not included)
+	// where [&start] and [&end] represent the index of items in that Array. The Original Array will not be modified.
+		// Params:
+			// {string} [&start]	Zero based index at which to start extraction. A negative index can be used, indicating
+			//                  	an offset from the end of the sequence. `xArraySlice(&parent_array[],-2);` extracts the
+			//                  	last 2 elements in the sequence. If [&start] is omitted, `xArraySlice` will start from Index
+			//                  	0. If [&start] is greater than the index range of the sequence, an empty Array is returned.
+			// {string} [&end]  	Zero-based index `before` which to end extraction. `xArraySlice` extracts up to `but not including`
+			//                  	[&end]. For example, `xArraySlice(&parent_array[],1,4);` extracts the second element through the
+			//                  	fourth element (elements indexed 1, 2, and 3). A negative index can be used, indicating an offset
+			//                  	from the end of the sequence. `xArraySlice(&parent_array[],2,-1);` extracts the third element through
+			//                  	the second-to-last element in the sequence. If [&end] is omitted, `xArraySlice` extracts through the
+			//                  	end of the sequence (`#sz = arraysize(&parent_array[]);`). If [&end] is greater than the length of the
+			//                  	sequence, `xArraySlice` extracts through to the end of the sequence (`#sz = arraysize(&parent_array[]);`).
+		// Returns a shallow-copied Array of the Parent Array.
+		// Example:
+			//	Copying all but the last index of an Array:
+			  	//	&last_omitted[] = xArraySlice(&parent_array[],0,-1);
+			//	Copying all but the first and last index of an Array:
+			  	//	&ends_omitted[] = xArraySlice(&parent_array[],1,-1);
+			//	Copying all Elements at Index >= 3:
+			  	//	&gte_index_3[]  = xArraySlice(&parent_array[],2);
+			//	Copying all Elements at Index <= 5:
+			  	//	&lte_index_5[]  = xArraySlice(&parent_array[],0,5);
+	function xArraySlice(&parent_array[],&start,&end);
+		#parent_length        = arraysize(&parent_array[]);
+		#parent_index_length  = %#parent_length% - 1;
+		#start_index         := %&start%;
+		if(%#start_index% < 0);
+			#offset_start_index = %#parent_length% + %#start_index%;
+			if(%#offset_start_index% < 0);
+				#start_index = 0;
+			else;
+				#start_index = %#offset_start_index%;
+			endif;
+		elseif(%#start_index% >= %#parent_length%);
+			return(&empty_array[]);
+		endif;
+		ifnotmatches(%&end%,"^[\d-]+$");
+			#stop_before_index  = %#parent_length%;
+		else;
+			#stop_before_index := %&end%;
+			if(%#stop_before_index% < 0);
+				#offset_stop_before_index = %#parent_length% + %#stop_before_index%;
+				if(%#offset_stop_before_index% < 0);
+					return(&empty_array[]);
+				else;
+					#stop_before_index = %#offset_stop_before_index%;
+				endif;
+			endif;
+		endif;
+		
+		for(#index,%#start_index%,%#stop_before_index%);
+			if((%#index% >= %#stop_before_index%) || (%#index% > %#parent_index_length%));
+				break;
+			endif;
+			
+			&return_array[] = %&parent_array[%#index%]%;
+		next;
+		return(&return_array[]);
+	endfunction;
+	
+	// Checks if the specified Search Term is found within the specified Array.
+		// Params:
+			// {string} <&search_term>	The Search Term to check for presence of in the Array.
+			// {string} <...&array[]> 	The Array to check for the Search Term's Presence of within.
+		// Returns a Boolean.
+		// Example:
+			//	is_in_list = xArrayIncludes("foo","bar","baz","bat","foo");
+	function xArrayIncludes(&search_term,...&array[]);
+		#search_index  = indexof(&array[],,%&search_term%);
+		return_boolean = %#search_index% != -1;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Gets a Set of all the Unique Values present in the Array.
+		// Params:
+			// {string} <&array[]>	The Array to iterate over.
+			//
+		// Returns an Array of all the Unique Values in the Array.
+		// Example:
+			//	&array_a[] = split(", ","a, a, b, c, d, d, e");
+			//	&array_b[] = arraySet(&array_a[]); // a, b, c, d, e
+	function arraySet(&array[]);
+		foreach(&array[],&array_element,#a);
+			#unique_index = indexof(&unique_array[],,%&array_element%);
+			if(%#unique_index% == -1);
+				&unique_array[] = %&array_element%;
+			endif;
+		next;
+		return(&unique_array[]);
+	endfunction;

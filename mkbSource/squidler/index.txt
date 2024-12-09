@@ -1,0 +1,39 @@
+// squidler/index.txt
+	// Stores all TNT away into Builder's Wands in the Inventory.
+		// Params:
+			// {string} [...&full_wand_ids[]]	An Array of Builder Wand IDs that have already been marked as being full.
+			//                               	The Function will not attempt to open (and thus waste time) on these Wands.
+		// Returns an Array:
+			// 0      {boolean} store_success 	Whether or not the Function was able to store all of the TNT in the Inventory into Builder's Wands.
+			// 1, ... {string}  ...&full_ids[]	An Array of Wand IDs that should be marked as being full externally. Will not include any of the IDs
+			//                                	that were passed in [...&full_wand_ids[]], if any IDs were passed.
+	function squidlerStoreItem(...&full_wand_ids[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&9squidlerStoreItem";
+		endif;
+		
+		// Find all Builder's Wands in the Inventory, then create a list of Wand IDs that are not already marked as being full.
+		if(true);
+			#builder_wand_slots[] = findItemInv(true,"MCID: blaze_rod","SBID: BUILDERS_WAND");
+			foreach(#builder_wand_slots[],#builder_wand_slot,#bws);
+				&builder_wand_item       = getslotitemnbt(%#builder_wand_slot%,,#builder_wand_stack,#builder_wand_data,&builder_wand_nbt);
+				&builder_wand_nbt        = strip(%&builder_wand_nbt%);
+				&builder_wand_uuid       = getItemUUID(%&builder_wand_nbt%);
+				#builder_wand_uuid_index = indexof(&full_wand_ids[],,%&builder_wand_uuid%);
+				if(%#builder_wand_uuid_index% == -1);
+					&valid_wand_ids[] = %&builder_wand_id%;
+				endif;
+			next;
+		endif;
+		
+		// Iterate over all of the Wand IDs we have found and fill them up until we run out of TNT to store, or all the Wands are found to be full.
+		if(true);
+			#valid_wand_ids_sz = arraysize(&valid_wand_ids[]);
+			
+			foreach(&valid_wand_ids[],&valid_wand_id,#vwi);
+				
+			next;
+		endif;
+	endfunction;

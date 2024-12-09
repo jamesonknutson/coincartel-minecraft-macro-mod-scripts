@@ -1,0 +1,200 @@
+// misc/index.txt
+	// Validates that <&search_term> is found in the <&array[]>, and/or if it is not found in the <&array[]>, the value of the element
+	// found at [#default_idx=0] is returned. Set [#default_idx] to -1 to indicate that no default value should be used.
+		// Params:
+		//      {array} <&elements[]>       The Array to search for <&search_term> in.
+		//      {string} <&search_term>     The Search Term to check if exists in <&elements[]>.
+		//      {number} [#default_idx=0]   The Index of the Element in <&elements[]> to use as the default return value
+		//                                  if <&search_term> is not found within the Array. If -1, will be taken as no default
+		//                                  value should be used.
+		// 
+		// Returns the element from the <&elements[]> Array that <&search_term> matches, or if no match was found and [#default_idx]
+		// is not -1, the element at [#default_idx] in the <&elements[]> Array. If [#default_idx] is -1, an empty string is returned.
+	function miscValidate(&search_term,#default_idx=0,...&elements[]);
+		#term_index = indexof(&elements[],,%&search_term%);
+		if(%#term_index% != -1);
+			&return_string = %&elements[%#term_index%]%;
+		elseif(%#default_idx% != -1);
+			&return_string = %&elements[%#default_idx%]%;
+		endif;
+		return(%&return_string%);
+	endfunction;
+	
+	// Checks if the quotient of <#dividend> / <#divisor> > 0. Returns a Boolean.
+		// Params:
+			// {number} <#dividend>	The Number we are dividing the Divisor by
+			// {number} <#divisor> 	The Number being divided by the Dividend
+		// Returns a Boolean indicating whether or not the Product has a remainder.
+	function hasRemainder(#dividend,#divisor);
+		#quotient = mod(%#dividend%,%#divisor%);
+		if(%#quotient% >= 1);
+			return(True);
+		endif;
+		return(False);
+	endfunction;
+	
+	// Checks if we can 'do' an Interaction by determining whether we have waited a whole amount of <#ticks_per_action> in <#waited_ticks>.
+	// Basically a modulo operation. If return True, execute Action. If not, skip action and keep waiting.
+		// Params:
+			// {number} [#waited_ticks=0]	Amount of Ticks that have been waited thus far
+			// {number} [#tick_wait=20]  	Ticks to wait in between actions
+		// Returns a Boolean
+		// Example:
+			//	can_do_action = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+	function canDoInteraction(#waited_ticks=0,#tick_wait=20);
+		#actions_done  = %#waited_ticks% / %#tick_wait%;
+		#ticks_to_next = %#waited_ticks% - (%#actions_done% * %#tick_wait%);
+		can_do_action  = %#ticks_to_next% == 0;
+		return(%can_do_action%);
+	endfunction;
+	
+	// Adjusts <#timeout_sec> to be <#timeout_sec> minus amount of seconds elapsed since <#start_time>.
+		// Params:
+			// {number} <#start_time>     	Timestamp of fn start in caller script
+			// {number} <#timeout_sec>    	Timeout seconds passed to caller script
+			// {boolean} [do_timeout=true]	Whether or not the timeout is active (if it is, the function will always
+			//                            	return a positive number. If it is not, it will allow <= 0 numbers).
+		// Returns the new Timeout in Seconds
+		// Example:
+			//	#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+	function getNewTimeoutSec(#start_time,#timeout_sec,do_timeout=true);
+		#recursive_timeout = %#timeout_sec%;
+		if(%do_timeout%);
+			#recursive_timeout = %#timeout_sec% - (%TIMESTAMP% - %#start_time%);
+			if(%#recursive_timeout% <= 0);
+				#recursive_timeout = 1;
+			endif;
+		endif;
+		return(%#recursive_timeout%);
+	endfunction;
+	
+	// Given an Array of Global Pointers (and/or an Array of values that should be checked using the specified
+	// operator and condition), checks if every single one of them matches the operator and condition.
+		// Params:
+			// {string} <&pointer_array[]>    An Array of Global Variable Pointers to iterate over
+			// {string} <&operator>           The Operator (==, !=, >=, <=, >, <) to use in the evaluation
+			// {string} <&condition>          The Condition (can be a string, a boolean, or a number) to use in the evaluation.
+			//                                If the Operator is a number comparison (>=, <=, >, <), this condition will be coerced to
+			//                                an Integer.
+		// Returns a boolean indicating whether or not every single coerced value in the <&pointer_array[]> matched the specified condition when
+		// evaluated using the specified <&operator>.
+	function checkPointerArray(&pointer_array[],&operator,&condition);
+		&operator = miscValidate(%&operator%,-1,"==","!=",">=","<=",">","<");
+		if(%&operator% == "");
+			return(False);
+		endif;
+		
+		&number_operators[]    = split(", ",">=, <=, >, <");
+		#number_operator_index = indexof(&number_operators[],,%&operator%);
+		if(%#number_operator_index% != -1);
+			number_comparison  = true;
+			#number_condition := formatnumber(%&condition%,0,false);
+			log("number comparison is active, condition = %#number_condition%")
+		else;
+			&condition_lcase  = lcase(%&condition%);
+			&condition_bool[] = split(", ","True, False, true, false, 0, 1");
+			#bool_index       = indexof(&condition_bool[],,%&condition%);
+			bool_comparison   = %#bool_index% != -1;
+			is_true           = ((%&condition_lcase% == "true") || (%&condition_lcase% == "1"));
+			is_false          = ((%&condition_lcase% == "false") || (%&condition_lcase% == "0"));
+			bool_expect_true  = (((%is_true%) && (%&operator% == "==")) || ((%is_false%) && (%&operator% == "!=")));
+		endif;
+		
+		return_boolean = true;
+		foreach(&pointer_array[],&pointer,#p);
+			&str_pointer_val = "%%&pointer%%";
+			
+			pass_condition = false;
+			if(%number_comparison%);
+				#num_pointer_val  = stringToNumber(%&str_pointer_val%);
+				if((%&operator% == "<=") && (%#num_pointer_val% <= %#number_condition%));
+					pass_condition = true;
+				elseif((%&operator% == ">=") && (%#num_pointer_val% >= %#number_condition%));
+					pass_condition = true;
+				elseif((%&operator% == "<") && (%#num_pointer_val% < %#number_condition%));
+					pass_condition = true;
+				elseif((%&operator% == ">") && (%#num_pointer_val% > %#number_condition%));
+					pass_condition = true;
+				elseif((%&operator% == "==") && (%#num_pointer_val% == %#number_condition%));
+					pass_condition = true;
+				elseif((%&operator% == "!=") && (%#num_pointer_val% != %#number_condition%));
+					pass_condition = true;
+				else;
+					pass_condition = true;
+				endif;
+			elseif(%bool_comparison%);
+				bool_pointer_val = stringToBoolean(%&str_pointer_val%);
+				pass_condition   = %bool_pointer_val% == %bool_expect_true%;
+			else;
+				if((%&operator% == "==") && (%&str_pointer_val% == %&condition%));
+					pass_condition = true;
+				elseif((%&operator% == "!=") && (%&str_pointer_val% != %&condition%));
+					pass_condition = true;
+				endif;
+			endif;
+			
+			if(!%pass_condition%);
+				return_boolean = false;
+				break;
+			endif;
+		next;
+		return(%return_boolean%);
+	endfunction;
+	
+	function tern(&conditional_string);
+		ifmatches(%&conditional_string%,"(.+?)\s*\?\s*(.+?)\s*:\s*(.+)$");
+			match(%&conditional_string%,"(.+?)\s*\?\s*(.+?)\s*:\s*(.+)$",{&e_condition,&assign_true,&assign_false});
+			ifmatches(%&e_condition%,"^(.+?)\s*(==|!=|<=|>=|<|>)\s*(.+)");
+				match(%&e_condition%,"^(.+?)\s*(==|!=|<=|>=|<|>)\s*(.+)",{&e_left,&e_op,&e_right});
+				if((%&e_op% == "==") || (%&e_op% == "!="));
+					e_condition = (((%&e_op% == "==") && (%&e_left% == %&e_right%)) || ((%&e_op% == "!=") && (%&e_left% != %&e_right%)));
+				else;
+					#e_left    := %&e_left%;
+					#e_right   := %&e_right%;
+					e_condition = (((%&e_op% == ">") && (%#e_left% > %#e_right%)) || ((%&e_op% == "<") && (%#e_left% < %#e_right%)) || ((%&e_op% == ">=") && (%#e_left% >= %#e_right%)) || ((%&e_op% == "<=") && (%#e_left% <= %#e_right%)))
+				endif;
+			else;
+				log("eval assign");
+				match(%&e_condition%,"^\s*(true|false|0|1)\s*$",e_condition,1,false);
+			endif;
+			
+			if(%e_condition%);
+				&return_string = %&assign_true%;
+			else;
+				&return_string = %&assign_false%;
+			endif;
+		else;
+			log("&4ERROR: &cInvalid Conditional Assignment String '&4%&conditional_string%&c' passed.");
+		endif;
+		match(%&return_string%,"^(?:\"|')(.+)(?:\"|')$",&return_string,1,%&return_string%);
+		return(%&return_string%);
+	endfunction;
+	
+	// Checks if multiple Macros exist with a MACRONAME value that matches <&task_expr>. Returns a Boolean.
+		// Params:
+			// {string} <&task_expr>        	A Regular Expression to match against all running Macro's MACRONAME value.
+			// {string} [...&exempt_tasks[]]	An optional array of MACRONAMEs that are exempt from being counted towards the
+			//                              	total amount of Macros matching the <&task_expr>.
+		// Returns a Boolean
+		// Example:
+			//	already_running = areMultipleInstancesRunning("^NERT_MAIN");
+			//	if(%already_running%);
+			//		stop("ALL");
+			//		stop();
+			//	endif;
+	function areMultipleInstancesRunning(&task_expr,...&exempt_tasks[]);
+		foreach("running");
+			#task_index = indexof(&exempt_tasks[],,%MACRONAME%);
+			if(%#task_index% == -1);
+				ifmatches(%MACRONAME%,%&task_expr%);
+					inc(#matched_tasks);
+					if(%#matched_tasks% > 1);
+						break;
+					endif;
+				endif;
+			endif;
+		next;
+		
+		return_boolean = %#matched_tasks% > 1;
+		return(%return_boolean%);
+	endfunction;

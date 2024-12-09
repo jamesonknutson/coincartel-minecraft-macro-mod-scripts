@@ -1,0 +1,17 @@
+//! @mkb-import-begin
+    // array/index/arrayIncludes
+        // Checks if an <&array[]> includes a <&search_term>. Returns a boolean indicating whether it is included or not.
+            // Params:
+            //        {array} <&array[]>         The Array to check if includes <&search_term>
+            //        {string} <&search_term>    The Search Term to check if is included in <&array[]>.
+            //
+            // Returns a boolean indicating whether or not the <&search_term> is found within the <&array[]>.
+        function arrayIncludes(&array[],&search_term);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:322
+            #found_index = indexof(&array[],,%&search_term%);
+            if(%#found_index% != -1);
+                return(True);
+            endif;
+            return(False);
+        endfunction;
+//! @mkb-import-end

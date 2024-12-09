@@ -1,0 +1,102 @@
+//! @mkb-import-begin
+    // array/index/miscComparator
+        // Evaluates whether <&left> is <&operator> to <&right> (executes a variable comparison). Returns a boolean.
+            // Params:
+            //        {string} <&left>        The Left Hand side of the Comparison.
+            //        {string} <&operator>    The Operator to apply the Condition against each Element with. Has to be one of:
+            //                                '==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+            //                                number comparison operator is used, the values in the Array will be coerced to a
+            //                                number so long as the condition is an integer. If the condition is a float value,
+            //                                they will be evaluated using float math (eval).
+            //        {string} <&right>       The Right Hand side of the Comparison
+            //
+            // Returns a boolean indicating the outcome of the evaluation.
+        function miscComparator(&left,&operator,&right);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:88
+            &sign_operators[] = split(", ","==, !=, >=, <=, >, <");
+            #sign_op_index    = indexof(&sign_operators[],,%&operator%);
+            if(%#sign_op_index% == -1);
+                &char_operators[] =    split(", ","eq, ne, gte, lte, gt, lt");
+                #char_op_index    = indexof(&char_operators[],,%&operator%);
+                if(%#char_op_index% == -1);
+                    return(&return_array[]);
+                endif;
+                
+                &operator = %&sign_operators[%#char_op_index%]%;
+            endif;
+        
+            if(%&operator% == "==");
+                if(%&left% == %&right%);
+                    return_boolean = true;
+                endif;
+            elseif(&operator% == "!=");
+                if(%&left% != %&right%);
+                    return_boolean = true;
+                endif;
+            else;
+                ifmatches(%&right%,"^(\d+)$",#right,1);
+                    // Doing Integer Evaluation
+                    #left := %&left%;
+                    if((%&operator% == ">=") && (%#left% >= %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == ">") && (%#left% > %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == "<=") && (%#left% <= %#right%));
+                        return_boolean = true;
+                    elseif((%&operator% == "<") && (%#left% < %#right%));
+                        return_boolean = true;
+                    endif;
+                elseifmatches(%&right%,"^[0-9.-]+");
+                    // Doing Float Evaluation
+                    &float_diff = eval("%&left% - %&right%");
+                    ifmatches(%&float_diff%,"^-");
+                        // <left> - <right> = negative number, left was less than right
+                        if((%&operator% == "<=") || (%&operator% == "<"));
+                            return_boolean = true;
+                        endif;
+                    else;
+                        // <left> - <right> = positive or 0, left was greater than or equal to right
+                        ifmatches(%&float_diff%,"[0.]+");
+                            // <left> - <right> = 0, left was equal to right
+                            if((%&operator% == ">=") || (%&operator% == "<="));
+                                return_boolean = true;
+                            endif;
+                        elseif((%&operator% == ">=") || (%&operator% == ">"));
+                            // <left> - <right> = greater than 0, left was greater than right
+                            return_boolean = true;
+                        endif;
+                    endif;
+                endif;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+    // array/index/arraySome
+        // Checks whether an Array has any Elements that pass a provided condition.
+            // Params:
+            //        {array} <&array[]>       The Source Array to Check whether contains any Elements that pass this Condition.
+            //        {string} <&operator>     The Operator to apply the Condition against each Element with. Has to be one of:
+            //                                 '==', '!=', '>', '<', '>=', '<=', 'eq', 'ne', 'gte', 'lte', 'gt', or 'lt'. If a
+            //                                 number comparison operator is used, the values in the Array will be coerced to a
+            //                                 number so long as the condition is an integer. If the condition is a float value,
+            //                                 they will be evaluated using float math (eval).
+            //        {string} <&condition>    The Condition to evaluate each Element of the Array against using the specified Operator.
+            //
+            // Calls: miscComparator
+            //
+            // Behaves identically to JavaScript's Array.some() method:
+            //        https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/some
+            //
+            // Returns a boolean indicating whether or not any of the Elements passed the provided Condition.
+        function arraySome(&array[],&operator,&condition);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:189
+            return_boolean = false;
+            foreach(&array[],&element);
+                element_truthy = miscComparator(%&element%,%&operator%,%&condition%);
+                if(%element_truthy%);
+                    return_boolean = true;
+                    break;
+                endif;
+            next;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

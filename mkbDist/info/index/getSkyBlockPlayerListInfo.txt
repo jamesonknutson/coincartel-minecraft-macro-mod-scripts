@@ -1,0 +1,130 @@
+//! @mkb-import-begin
+    // info/index/getSkyBlockPlayerListInfo
+        // Returns an Array of information extracted from the Hypixel SkyBlock PlayerList.
+            // Params:
+            //      {string} [...&extract_vars[]]   The variables to extract from the Player List. Valid values are:
+            //                                      'AREA', 'SERVER', 'PROFILE', 'BANK', 'SKILLS', 'SPEED', 'STRENGTH',
+            //                                      'CRIT_CHANCE', 'CRIT_DAMAGE', 'ATTACK_SPEED'. If no values are provided,
+            //                                      will return variables 'AREA', and 'PROFILE' by default.
+            //
+            // Returns an Array of the extracted variables indexed in the order they were passed to the Function,
+            // or if no variables were able to be extracted, the first element of this Array will be -1.
+        function getSkyBlockPlayerListInfo(...&extract_vars[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:258
+            // Setup valid variables
+            if(true);
+                &valid_vars[]  = split(", ","AREA, SERVER, PROFILE, BANK, SKILLS, SPEED, STRENGTH, CRIT_CHANCE, CRIT_DAMAGE, ATTACK_SPEED");
+                #extract_len   = arraysize(&extract_vars[]);
+                assign_default = #extract_len == 0;
+                if(!%assign_default%);
+                    foreach(&valid_vars[],&valid_var);
+                        #extract_idx = indexof(&extract_vars[],,%&valid_var%);
+                        if(#extract_idx != -1);
+                            &use_out_vars[] = %&valid_var%;
+                            #use_out_idxs[] = %#extract_idx%;
+                            matched[]       = false;
+                        endif;
+                    next;
+                    #use_out_len   = arraysize(&use_out_vars[]);
+                    assign_default = #use_out_len == 0;
+                endif;
+                
+                if(!%assign_default%);
+                    sort("ASC",#use_out_idxs[],&use_out_vars[]);
+                else;
+                    &use_out_vars[] = split(", ","AREA, PROFILE");
+                    matched[]       = split(", ","false, false");
+                endif;
+            endif;
+            
+            // Compile matches
+            if(true);
+                #return_index = indexof(&use_out_vars[],,"AREA");
+                if(#index_area != -1);
+                    &match_names[] = "!C-b";
+                    &match_exprs[] = "Area: (.+)"; // Area: Private Island
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SERVER");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!C-c";
+                    &match_exprs[%#return_index%] = "Server: (.+)"; // Server: mini787Q
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"PROFILE");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-b";
+                    &match_exprs[%#return_index%] = "Profile: (.+)"; // Profile: Pineapple
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"BANK");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-d";
+                    &match_exprs[%#return_index%] = "Bank: (.+)"; // Bank: 50/50
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SKILLS");
+                if(#return_index != -1);
+                    &match_names[%#return_index%] = "!D-g";
+                    &match_exprs[%#return_index%] = "Skills: (.+)"; // Skills: Foraging 17: 24.1%
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10022");
+                    &match_names[%#return_index%] = "!D-h";
+                    &match_exprs[%#return_index%] = "Speed: %&tmp_expr_char%(.+)"; // Speed: ✦220
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"STRENGTH");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("10049");
+                    &match_names[%#return_index%] = "!D-i";
+                    &match_exprs[%#return_index%] = "Strength: %&tmp_expr_char%(.+)"; // Strength: ❁149
+                endif;
+                
+                #return_index = indexof(&use_out_vars[],,"CRIT_CHANCE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9763");
+                    &match_names[%#return_index%] = "!D-j";
+                    &match_exprs[%#return_index%] = "Crit Chance: %&tmp_expr_char%(.+)"; // Crit Chance: ☣64
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"CRIT_DAMAGE");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9760");
+                    &match_names[%#return_index%] = "!D-k";
+                    &match_exprs[%#return_index%] = "Crit Damage: %&tmp_expr_char%(.+)"; // Crit Damage: ☠130
+                endif;
+                
+                #return_index  = indexof(&use_out_vars[],,"ATTACK_SPEED");
+                if(#return_index != -1);
+                    &tmp_expr_char                = char("9876");
+                    &match_names[%#return_index%] = "!D-l";
+                    &match_exprs[%#return_index%] = "Attack Speed: %&tmp_expr_char%(.+)"; // Attack Speed: ⚔0
+                endif;
+            endif;
+            
+            foreach("players");
+                #line_index = indexof(&match_names[],,%PLAYERNAME%);
+                if(#line_index != -1);
+                    matched[%#line_index%] = true;
+                    &line_text             = strip(%PLAYERDISPLAYNAME%);
+                    &line_text             = trim(%&line_text%);
+                    ifmatches(%&line_text%,%&match_exprs[%#line_index%]%,&capture_group,1);
+                        &return_array[%#line_index%] = %&capture_group%;
+                        #non_matched_var_index       = indexof(matched[],,false);
+                        if(#non_matched_var_index == -1);
+                            break;
+                        endif;
+                    endif;
+                endif;
+            next;
+            
+            #return_len = arraysize(&return_array[]);
+            if(#return_len == 0);
+                &return_array[] = -1;
+            endif;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,93 @@
+	// Calculates the amount of Room available for <&search_term> in the Inventory.
+		// Params:
+			// {string} <&search_term>	The Item's Default Display Name or SBID. Must be findable in the @&sb_datamap_item_... arrays.
+			//
+		// Returns the Integer amount of Room we have available for the <&search_term> in the Inventory. If <&search_term> cannot be resolved,
+		// the default return value is always 0.
+	function getStackRoomInventory(&search_term);
+		#return_number = 0;
+		#datamap_index = getDatamapItemIndex(%&search_term%);
+		if(%#datamap_index% != -1);
+			&r_json      = %@&sb_datamap_item_jsons[%#datamap_index%]%;
+			#r_max_stack = jsonget("maxStack",%&r_json%);
+			
+			// Iterate over Static Inventory Slots
+			if(true);
+				#r_start  = 9;
+				#r_end    = 43;
+				&r_item   = %@&sb_datamap_item_mcids[%#datamap_index%]%;
+				&r_sbid   = %@&sb_datamap_item_sbids[%#datamap_index%]%;
+				for(#r_slot,%#r_start%,%#r_end%);
+					#f_slot = %#r_slot%;
+					if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+						#r_offset = %#f_slot% + 1;
+						&f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+						if(%&f_item% == "air");
+							#return_number = %#return_number% + %#r_max_stack%;
+						else;
+							&f_nbt    = strip(%&f_nbt%);
+							&f_sbid   = getItemSBID(%&f_nbt%);
+							m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+							m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+							m_sbid    = ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%));
+							m_match   = ((%m_item%) && (%m_name%) && (%m_sbid%));
+							if(%m_match%);
+								#stack_room    = %#r_max_stack% - %#f_stack%;
+								#return_number = %#return_number% + %#stack_room%;
+							endif;
+						endif;
+					else;
+						break;
+					endif;
+				next;
+			endif;
+		endif;
+		return(%#return_number%);
+	endfunction;
+
+	// Calculates the amount of Room available for <&search_term> in the Container.
+		// Params:
+			// {string} <&search_term>	The Item's Default Display Name or SBID. Must be findable in the @&sb_datamap_item_... arrays.
+			//
+		// Returns the Integer amount of Room we have available for the <&search_term> in the Container. If <&search_term> cannot be resolved,
+		// the default return value is always 0.
+	function getStackRoomContainer(&search_term);
+		#return_number = 0;
+		#datamap_index = getDatamapItemIndex(%&search_term%);
+		if((%CONTAINERSLOTS% > 0) && (%#datamap_index% != -1));
+			&r_json      = %@&sb_datamap_item_jsons[%#datamap_index%]%;
+			#r_max_stack = jsonget("maxStack",%&r_json%);
+			
+			// Iterate over Dynamic Container Slots
+			if(true);
+				#r_start  = 0;
+				#r_end    = %CONTAINERSLOTS% - 37;
+				&r_item   = %@&sb_datamap_item_mcids[%#datamap_index%]%;
+				&r_sbid   = %@&sb_datamap_item_sbids[%#datamap_index%]%;
+				for(#r_slot,%#r_start%,%#r_end%);
+					#f_slot = %#r_slot%;
+					if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+						#r_offset = %#f_slot% + 1;
+						&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+						if(%&f_item% == "air");
+							#return_number = %#return_number% + %#r_max_stack%;
+						else;
+							&f_nbt    = strip(%&f_nbt%);
+							&f_sbid   = getItemSBID(%&f_nbt%);
+							m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+							m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+							m_sbid    = ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%));
+							m_match   = ((%m_item%) && (%m_name%) && (%m_sbid%));
+							if(%m_match%);
+								#stack_room    = %#r_max_stack% - %#f_stack%;
+								#return_number = %#return_number% + %#stack_room%;
+							endif;
+						endif;
+					else;
+						break;
+					endif;
+				next;
+			endif;
+		endif;
+		return(%#return_number%);
+	endfunction;

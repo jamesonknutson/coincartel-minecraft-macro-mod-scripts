@@ -1,0 +1,24 @@
+//! @mkb-import-begin
+    // debug/index/debug_breakpoint
+        // Logs a message to chat and halts until SHIFT is held.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_breakpoint(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:70
+            // &matcher       = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement   = "&$1";
+            // &string        = regexreplace(&string,%&matcher%,%&replacement%);
+            &break_message = "&7%&script_debug_name%&7: &8Breakpoint (HOLD SHIFT)&7 > %&string%";
+            if(%debug_enabled%);
+                log(%&break_message%);
+                do;wait("1t");until(%SHIFT%);
+                do;wait("1t");while(%SHIFT%);
+            endif;
+            return(%&break_message%);
+        endfunction;
+//! @mkb-import-end

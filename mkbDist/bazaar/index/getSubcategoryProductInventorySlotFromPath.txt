@@ -1,0 +1,110 @@
+//! @mkb-import-begin
+    // info/index/getItemName
+        // Given the NBT Data of an Item (and optionally it's base item), extracts the Display Name of the Item from the NBT Data.
+            // Params:
+            //      {string} <&nbt>         The NBT Data to extract the Name from.
+            //      {string} [&item="air"]  The Item this NBT Data was collected from (only used in cases where the Item's Name cannot be found).
+            //      {boolean} [strip=true]  Whether or not to strip formatting codes from the extracted Name.
+            //
+            // Returns the Display Name of the Item found from it's NBT Data, with formatting codes stripped if [strip] is true.
+        function getItemName(&nbt,&item="air",strip=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:49
+            ifmatches(%&nbt%,".*\bName\s*:\"\s*(.*?)\"",&found_name,1);
+                if(%strip%);
+                    &found_name = strip(%&found_name%);
+                endif;
+            elseif(%&item% == "air");
+                &found_name = "Air";
+            endif;
+            return(%&found_name%);
+        endfunction;
+    // info/index/_matchExpressionNBT
+        // Used by getItemName, getItemUUID, getItemSBID to extract a regular expression capture group from NBT Data.
+            // Params:
+            //      {string} <&haystack>    The string to extract the first capture group from.
+            //      {string} <&expression>  The expression to test against <&haystack>, must have at least one capture group.
+            //
+            // Returns the first capture group's content from the <&expression> match, or an empty string if no match is found.
+        function _matchExpressionNBT(&haystack,&expr);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:34
+            &return_string = "";
+            ifmatches(%&haystack%,%&expr%,&capture_group,1);
+                &return_string = %&capture_group%;
+            endif;
+            return(%&return_string%);
+        endfunction;
+    // info/index/getItemSBID
+        // Given the NBT Data of an Item, extracts the Item's SBID from the NBT Data.
+            // Params:
+            //      {string} <&nbt> The NBT Data to extract the Item SBID from.
+            //
+            // Returns the Item's SBID, or an empty string if one is not found.
+        function getItemSBID(&nbt);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:103
+            &nbt           = strip(%&nbt%);
+            &return_string = _matchExpressionNBT(%&nbt%,"\bid\"?\s*:\"([A-Z_0-9:]+)\"");
+            return(%&return_string%);
+        endfunction;
+    // bazaar/index/getSubcategoryProductInventorySlotFromPath
+        // Given a Subproduct's Path, extracts the relevant variables and checks in our Inventory to see whether or not we have any
+        // of the Item described in the Subproduct. If we do, returns the first Inventory Slot where the Subproduct was found. If not,
+        // returns -1. Slot IDs are Inventory Indexed.
+            // Params:
+                // {string} <&subproduct_path>    The dot-separated JSON Path of the Subproduct to look for within the Inventory.
+                //
+            // Returns the first Inventory Slot where the Subproduct was found. If not, returns -1. Slot IDs are Inventory Indexed.
+        function getSubcategoryProductInventorySlotFromPath(&subproduct_path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:888
+            #return_number = -1;
+            #r_start       = 9;
+            #r_end         = 43;
+            &subprod_json  = jsonget(%&subproduct_path%,%@&mkb_baz_json%);
+            &item[]        = jsonget("holds.mcid",%&subprod_json%);
+            &name[]        = jsonget("holds.name",%&subprod_json%);
+            &sbid[]        = jsonget("holds.sbid",%&subprod_json%);
+            &item[]        = jsonget("button.mcid",%&subprod_json%);
+            &name[]        = jsonget("button.name",%&subprod_json%);
+            &sbid[]        = jsonget("button.sbid",%&subprod_json%);
+            &terms[]       = split(", ","item, name, sbid");
+            foreach(&terms[],&term,#t);
+                &r_ptr = "&r_%&term%";
+                &r_arr = "&%&term%[]";
+                foreach(%&r_arr%,&entry);
+                    ifnotbeginswith(%&entry%,"ERROR");
+                        set(%&r_ptr%,%&entry%);
+                        break;
+                    endif;
+                next;
+            next;
+            
+            for(#r_slot,%#r_start%,%#r_end%);
+                #f_slot = %#r_slot%;
+                if(%&r_item%);
+                    getslotinv(%&r_item%,#f_slot,%#r_offset%);
+                endif;
+                
+                if((%#f_slot% >= %#r_start%) && (%#f_slot% <= %#r_end%));
+                    #r_offset = %#f_slot% + 1;
+                    &f_item   = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+                    &f_nbt    = strip(%&f_nbt%);
+                    if(%&r_sbid%);
+                        &f_sbid = getItemSBID(%&f_nbt%);
+                    endif;
+                    if(%&r_name%);
+                        &f_name = getItemName(%&f_nbt%,%&f_item%);
+                    endif;
+                    m_item    = ((!%&r_item%) || (%&r_item% == %&f_item%));
+                    m_name    = ((!%&r_name%) || (%&r_name% == %&f_name%));
+                    m_sbid    = ((!%&r_sbid%) || (%&r_sbid% == %&f_sbid%));
+                    m_match   = ((%m_item%) && (%m_name%) && (%m_sbid%));
+                    if(%m_match%);
+                        #return_number = %#f_slot%;
+                        break;
+                    endif;
+                else;
+                    break;
+                endif;
+            next;
+            return(%#return_number%);
+        endfunction;
+//! @mkb-import-end

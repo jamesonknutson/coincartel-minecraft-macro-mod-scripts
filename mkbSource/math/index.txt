@@ -1,0 +1,626 @@
+// math/index.txt
+	// Given input of two numbers, finds the absolute difference between them.
+		// Params:
+		//      {string} <&first_number>    The first number (can be integer or float)
+		//      {string} <&second_number>   The second number (can be integer or float)
+		//
+		// Returns the absolute difference between the two numbers. If either number is a float,
+		// a float number is returned. Otherwise, an integer is returned.
+	function absDiff(&first_number,&second_number);
+		ifmatches(%&first_number%,"\.");
+			float = true;
+		elseifmatches(%&second_number%,"\.");
+			float = true;
+		endif;
+		
+		if(%float%);
+			&diff = xEval("%&first_number% - %&second_number%");
+			ifmatches(%&diff%,"-");
+				&diff = xEval("%&diff% * -1");
+			endif;
+			return(%&diff%);
+		else;
+			#first  := %&first_number%;
+			#second := %&second_number%;
+			#diff    = %#first% - %#second%;
+			if(#diff < 0);
+				#diff = #diff * -1;
+			endif;
+			return(%#diff%);
+		endif;
+	endfunction;
+	
+	// Given a Number in E Notation, converts it into a Float.
+		// Params:
+			// {string} <&e_string>	The String to Convert.
+			//
+		// Returns the Float value of the <&e_string> input.
+	function eNotationToFloat(&e_string);
+		&return_string = convertENote(%&e_string%);
+		return(%&return_string%);
+	endfunction;
+	
+	// Given a Number (string, float, float with commas, or integer), normalizes it to a float with [#precision] decimal points.
+		// Params:
+			// {string} <&number>     	The Number to normalize
+			// {number} [#precision=2]	Amount of decimal values to include. If <= 0, will return an Integer.
+		// Returns a Float Value (string) so long as [#precision] is >= 1. Otherwise, returns an Integer. Commas are always stripped.
+	function normalizeNumber(&number,#precision=2);
+		&number = regexreplace(&number,",","");
+		&number = eNotationToFloat(%&number%);
+		if(%#precision% > 0);
+			&number = formatnumber(%&number%,%#precision%,true);
+			return(%&number%);
+		else;
+			#number := formatnumber(%&number%,0,true);
+			return(%#number%);
+		endif;
+	endfunction;
+	
+	// Checks if the specified <&check_number> is within +/- [#max_delta_pct] percent of <&base_value>.
+		// Params:
+			// {string} <&check_number>   	The Number to check if is within the deviation of <&base_value>. Can be a normal integer,
+			//                            	or a Float, or a Float with Commas, etc.
+			// {string} <&base_value>     	The Base Number to check if <&check_number> is within a difference of +/- [#max_delta_pct] percent
+			//                            	of.
+			// {number} [#max_delta_pct=5]	The maximum difference from <&base_value> <&check_number> can be, + or -.
+		// Returns a Boolean indicating whether or not the Number fits within the specified deviation.
+	function withinDeviation(&check_number,&base_value,#max_delta_pct=5,apply_to_lesser_nums=false);
+		// check_number = 3.5
+		// base_value = 4.4
+		// max_pct = 0.05
+		// max_value from base = 4.4 * (1.00 + 0.05) = 4.62
+		// min_value from base = 4.4 * (1.00 - 0.05) = 4.18
+		// 
+		// max_value (4.62) - check_number (3.50) = 1.12
+		// 1.12 < 0 ? false => continue
+		//
+		// check_number (3.50) - min_value (4.18) = -0.68
+		// -0.68 < 0 ? true => false : true
+		
+		&check_number = normalizeNumber(%&check_number%);
+		&base_value   = normalizeNumber(%&base_value%);
+		&multiplier   = eval("%#max_delta_pct% / 100");
+		&offset       = eval("%&base_value% * %&multiplier%");
+		&max_value    = eval("%&base_value% + %&offset%");
+		&max_value    = normalizeNumber(%&max_value%);
+		&min_value    = eval("%&base_value% - %&offset%");
+		&min_value    = normalizeNumber(%&min_value%);
+		
+		// If max_value - check_number negative: False
+		&is_too_great = eval("%&max_value% - %&check_number%");
+		&is_too_great = normalizeNumber(%&is_too_great%);
+		ifbeginswith(%&is_too_great%,"-");
+			return(False);
+		endif;
+		
+		if(%apply_to_lesser_nums%);
+			// If check_number - min_value negative: False
+			&is_too_small = eval("%&check_number% - %&min_value%");
+			&is_too_small = normalizeNumber(%&is_too_small%);
+			ifbeginswith(%&is_too_small%,"-");
+				return(False);
+			endif;
+		endif;
+		
+		return(True);
+	endfunction;
+	
+	// Checks if <&check_float> is greater than or equal to the minimum bound and less than or equal to the maximum bound.
+		// Params:
+			// {string} <&check_float>	The Float to Check. Can be any Number, Float or Integer.
+			// {string} <&max_bound>  	The maximum boundary. Can be any Number, Float or Integer.
+			// {string} <&min_bound>  	The minimum boundary. Can be any Number, Float or Integer.
+		// Returns a boolean indicating whether or not the Float is within the Boundaries.
+		// Example:
+			//	&check_float = "10.091";
+			//	&max_bound   = "10";
+			//	&min_bound   = "-50.10";
+			//	in_bounds    = floatWithinBounds(%&check_float%,%&max_bound%,%&min_bound%);
+			//	log(%in_bounds%); // 'false'
+	function floatWithinBounds(&check_float,&max_bound,&min_bound);
+		debug              = true;
+		&script_debug_name = "&6floatWithinBounds&7";
+		debug_log(%debug%,%&script_debug_name%,"Checking if float '%&check_float%' is <= '%&max_bound%' and >= '%&min_bound%'.");
+		&check_float       = xFormatNumber(%&check_float%,"",true);
+		&max_bound         = xFormatNumber(%&max_bound%,"",true);
+		&min_bound         = xFormatNumber(%&min_bound%,"",true);
+		if((%&check_float% == %&max_bound%) || (%&check_float% == %&min_bound%));
+			return_boolean = true;
+		else;
+			&diff_max = xEval("%&max_bound% - %&check_float%");
+			&diff_min = xEval("%&check_float% - %&min_bound%");
+			ifmatches(%&diff_max%,"^-");
+				return_boolean = false
+			elseifmatches(%&diff_min%,"^-");
+				return_boolean = false
+			else;
+				return_boolean = true;
+			endif;
+		endif;
+		
+		if(%return_boolean%);
+			debug_log(%debug%,%&script_debug_name%,"float '%&check_float%' is within the bounds of '%&max_bound%' and '%&min_bound%'.");
+		else;
+			debug_error(%debug%,%&script_debug_name%,"float '%&check_float%' is not within the bounds of '%&max_bound%' and '%&min_bound%'.");
+		endif;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Checks if <&number> is a Standard (Integer or Float, no Commas, can be Decimal) Number.
+		// Params:
+			// {string} <&number>	The Number to check if Standardized.
+			// 
+		// Returns a Boolean.
+		// Example:
+			// isStandardNumber("-100.91"); // true
+			// isStandardNumber("100K"); // false
+			// isStandardNumber("0.0000000000091"); // true
+			// isStandardNumber("3.191e10"); // false
+			// isStandardNumber(""); // false
+	function isStandardNumber(&number);
+		ifmatches(%&number%,"^[\d.-]+$");
+			return_boolean = true;
+		endif;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Normalizes any type of input Number into the Type.
+		// Params:
+			// {string} <&number>         	The Number to Format. Can be integer, decimal, negative, positive, metric, e-notation, whatever.
+			// {string} [...&formatting[]]	The Formatting Options to apply. Settings are provided in '<KEY>: <VALUE>' notation. Valid Options:
+			                              	//	['F'|'T'|'S'|'TYPE'|'STYLE'|'FORMAT']:
+			                              	//		- ['I'|'N'|'INT'|'INTEGER'|'NUM'|'NUMBER']       	: Formats the output as an Integer.
+			                              	//		- ['D'|'F'|'L'|'DECIMAL'|'FLOAT'|'LONG'|'DOUBLE']	: Formats the output as a Decimal Number.
+			                              	//		- ['E'|'ENOTE'|'EXP'|'EXPONENT']                 	: Formats the output in Exponentional Notation.
+			                              	//		- ['M'|'METRIC']                                 	: Formats the output as a Metric Suffixed Number.
+			                              	//	['P'|'PLACE'|'PLACES'|'PRECISION'] (Only available if Type is Decimal or Metric or equivalent):
+			                              	//		- ['S'|'SIG'|'SIGFIG'|'SIGNIFICANT']	: Applies the default amount of Decimal Places (the Sig. Figs in the converted value).
+			                              	//		- <NUMBER >= 0>                     	: Applies <NUMBER> amount of Decimal Places (setting this to 0 is the same as using F: INT, R: ROUND).
+			                              	//	['R'|'ROUND'|'ROUNDING'] (Only available if Precision is not 'SIG' or equivalent):
+			                              	//		- ['R'|'ROUND'|'D'|'DEFAULT'|'STD'|'STANDARD'|'NEAR'|'NEAREST'|'INT'|'NUM'|'INTEGER'|'NUMBER']	: Round using 'ROUND' (towards nearest integer).
+			                              	//		- ['F'|'FLOOR'|'DOWN'|'D'|'<'|'LESSER'|'LT']                                                  	: Round using 'FLOOR' (towards negative infinity).
+			                              	//		- ['C'|'CEIL'|'CEILING'|'UP'|'>'|'GREATER'|'GT']                                              	: Round using 'CEIL' (towards positive infinity).
+			                              	//		- ['T'|'TRUNCATE'|'TRUNC']                                                                    	: Rounds up or down towards 0
+			                              	//		- ['N'|'NONE']                                                                                	: Does not round the output.
+			                              	//	['C'|'COMMA'|'COMMAS'|'DELIMIT'|'DELIMITER'|'SPACE'|'SPACER']:
+			                              	//		- <BOOLEAN>      	: Enables (or disables) formatting the output with Commas every 3 sig. figs (e.g. 100000 -> 100,000)
+			                              	//		- <STRING>       	: Enables formatting the output with <STRING> as the delimiter every 3 sig. figs
+			                              	//		- ['N'|'NONE'|'']	: Disables formatting the output with delimiters.
+			                              	//	The Default Values for each Setting are as follows:
+			                              	//		FORMAT   	: FLOAT
+			                              	//		PRECISION	: SIGNIFICANT
+			                              	//		ROUNDING 	: NONE
+			                              	//		DELIMITER	: FALSE
+		// Returns the Number specified formatted according to the Rules specified in [...&formatting[]].
+		// Example:
+			//	&number = number("100,000,000.192");
+			//	log("number: %&number%"); // 'number: 100000000.192' (default formatting rules were applied)
+	function number(&number="0",...&formatting[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6mathNumber&7";
+			exponent_ready     = false;
+			
+			// Parse Formatting Options
+			if(true);
+				// Wrap Formatting Keys, Valid Values and Default Values
+				if(true);
+					if(true); // Wrap '&opt_format' Formatting Option
+						&valid_formatting_vars[]        = "&opt_format";
+						&valid_formatting_keys[]        = "F|T|S|TYPE|STYLE|FORMAT";
+						&valid_formatting_validation[]  = "";
+						valid_formatting_custom_input[] = false;
+						valid_formatting_def_override[] = false;
+						if(%exponent_ready%);
+							&valid_formatting_vals[] = "INTEGER|I|N|INT|NUM|NUMBER~FLOAT|D|F|L|DECIMAL|LONG|DOUBLE~EXPONENT|E|ENOTE|EXP~METRIC|M";
+							&valid_formatting_expr[] = "INTEGER|r$^[\d]+$~FLOAT|r$^[\d]*\.\d+$~EXPONENT|r$(?:e|\^)";
+						else;
+							&valid_formatting_vals[] = "INTEGER|I|N|INT|NUM|NUMBER~FLOAT|D|F|L|DECIMAL|LONG|DOUBLE~METRIC|M";
+							&valid_formatting_expr[] = "INTEGER|r$^[\d]+$~FLOAT|r$^[\d]*\.\d+$";
+						endif;
+						&opt_format = "FLOAT";
+					endif;
+					
+					if(true); // Wrap '&opt_precision' Formatting Option
+						&valid_formatting_vars[]        = "&opt_precision";
+						&valid_formatting_keys[]        = "P|PLACE|PLACES|PRECISION";
+						&valid_formatting_vals[]        = "SIGNIFICANT|SIGFIG|SIG|S";
+						&valid_formatting_expr[]        = "CUSTOM|r$^\d+$";
+						&valid_formatting_validation[]  = ">= 0";
+						valid_formatting_custom_input[] = false;
+						valid_formatting_def_override[] = false;
+						&opt_precision                  = "SIGNIFICANT";
+					endif;
+					
+					if(true); // Wrap '&opt_rounding' Formatting Option
+						&valid_formatting_vars[]        = "&opt_rounding";
+						&valid_formatting_keys[]        = "ROUNDING|ROUND|R";
+						&valid_formatting_vals[]        = "ROUND|INT|NUM|NUMBER|NEAREST|NEAR|STD|STANDARD|DEFAULT|D|INTEGER|R~FLOOR|F|DOWN|D|<|LESSER|LT~CEIL|CEILING|C|UP|>|GREATER|GT~NONE|N~TRUNCATE|TRUNC|T";
+						&valid_formatting_expr[]        = "";
+						&valid_formatting_validation[]  = "";
+						valid_formatting_custom_input[] = false;
+						valid_formatting_def_override[] = false;
+						&opt_rounding                   = "NONE";
+					endif;
+					
+					if(true); // Wrap '&opt_delimiter' Formatting Option
+						&valid_formatting_vars[]        = "&opt_delimiter";
+						&valid_formatting_keys[]        = "DELIMITER|C|COMMA|COMMAS|DELIMIT|SPACE|SPACER|SPACES|SPACERS|DELIMITERS";
+						&valid_formatting_vals[]        = "TRUE|1~FALSE|0~NONE|N"
+						&valid_formatting_expr[]        = "CUSTOM|r$^.+$";
+						&valid_formatting_validation[]  = "";
+						valid_formatting_custom_input[] = false;
+						valid_formatting_def_override[] = false;
+						&opt_delimiter                  = "false";
+					endif;
+				endif;
+				
+				// Parse Options
+				if(true);
+					#formatting_sz = arraysize(&formatting[]);
+					if(%#formatting_sz% >= 1);
+						foreach(&formatting[],&formatting,#f);
+							ifmatches(%&formatting%,"^(.*?):\s*?(.*)$");
+								match(%&formatting%,"^(.*?):\s*?(.*)$",{&custom_key,&custom_val});
+								&check_key_index_for = ucase(%&custom_key%);
+								&check_val_index_for = ucase(%&custom_val%);
+								foreach(&valid_formatting_keys[],&valid_formatting_keys_str,#vfk);
+									if(!%valid_formatting_def_override[%#vfk%]%);
+										&valid_formatting_keys_arr[] = split("|",%&valid_formatting_keys_str%);
+										#check_key_index_for         = indexof(&valid_formatting_keys_arr[],,%&check_key_index_for%);
+										debug_log(%debug%,%&script_debug_name%,"checking key for '&d%&check_key_index_for%&7' index is '&e%#check_key_index_for%&7'.");
+										if(%#check_key_index_for% != -1);
+											&valid_formatting_val_types_arrs[] = split("~",%&valid_formatting_vals[%#vfk%]%);
+											foreach(&valid_formatting_val_types_arrs[],&valid_formatting_val_type_str,#vfvt);
+												&valid_formatting_val_types_arr[] = split("|",%&valid_formatting_val_type_str%);
+												#check_val_index_for              = indexof(&valid_formatting_val_types_arr[],,%&check_val_index_for%);
+												debug_log(%debug%,%&script_debug_name%,"checking val index for '&d%&check_val_index_for%&7' index is '&e%#check_val_index_for%&7'.");
+												if(%#check_val_index_for% != -1);
+													&set_var = %&valid_formatting_vars[%#vfk%]%;
+													&set_val = %&valid_formatting_val_types_arr[0]%;
+													debug_log(%debug%,%&script_debug_name%,"setting value of &%&set_var%='&e%&set_val%&7'");
+													set(%&set_var%,%&set_val%);
+													set(valid_formatting_def_override[%#vfk%],true);
+													break;
+												endif;
+											next;
+											
+											// If we found a match for the Key, but not for the Value, check to see if this Option allows Custom Input.
+											// If it does, check if the provided Value passes the Regular Expression Validation, and then if this Option
+											// also has a further Validation Check, ensure it passes that further Validation Check as well.
+											if((!%valid_formatting_def_override[%#vfk%]%) && (%&valid_formatting_expr[%#vfk%]% != ""));
+												&input_validation_expr_groups[]      = split("~",%&valid_formatting_expr[%#vfk%]%);
+												&input_validation_expr_validations[] = split("~",%&valid_formatting_validation[%#vfk%]%);
+												input_passes_validation              = false;
+												foreach(&input_validation_tests[],&input_validation_test_string,#ivt);
+													ifmatches(%&input_validation_test_string%,"^(.+?)\|r\$(.+)$");
+														match(%&input_validation_test_string%,"^(.+?)\|r\$(.+)$",{&matched_value,&matched_expr});
+														ifmatches(%&custom_val%,%&matched_expr%);
+															input_passes_validation = true;
+															if(%&input_validation_expr_validations[%#ivt%]% != "");
+																&validation_params[]    = split(" ",%&input_validation_expr_validations[%#ivt%]%);
+																&validation_op          = %&validation_params[0]%;
+																&validation_rhs         = %&validation_params[1]%;
+																input_passes_validation = miscComparator(%&custom_val%,%&validation_op%,%&validation_rhs%);
+															endif;
+															
+															if(%input_passes_validation%);
+																&set_var = %&valid_formatting_vars[%#vfk%]%;
+																&set_val = ucase(%&matched_value%);
+																if(%&set_val% == "CUSTOM");
+																	&set_val = %&custom_val%;
+																	set(valid_formatting_custom_input[%#vfk%],true);
+																endif;
+																set(%&set_var%,%&set_val%);
+																set(valid_formatting_def_override[%#vfk%],true);
+																debug_log(%debug%,%&script_debug_name%,"set value of &%&set_var%='&e%&set_val%&7'");
+																break;
+															endif;
+														endif;
+													endif;
+												next;
+											endif;
+											
+											if(%valid_formatting_def_override[%#vfk%]%);
+												break;
+											endif;
+										endif;
+									endif;
+								next;
+							endif;
+							
+							#non_overriden_index = indexof(valid_formatting_def_override[],,false);
+							if(%#non_overriden_index% == -1);
+								break;
+							endif;
+						next;
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		// Parse the Number into Standardized Format.
+		if(true);
+			ifnotmatches(%&number%,"\d");
+				&number = "0";
+			endif;
+			
+			&read_number = replace(&number,",");
+			ifmatches(%&convert_string%,"^(-)?(\d+)\.(\d+)(?:E|e)(-|\+)?(\d+)$");
+				&read_number = convertENote(%&number%);
+			else;
+				&read_number = %&number%;
+			endif;
+			debug_log(%debug%,%&script_debug_name%,"Conversion of &&number (&5'%&number%&7') from Exp. Notation to Decimal returned &&read_number ('&d%&read_number%&7').");
+			
+			is_metric = isMetricString(%&read_number%);
+			if(%is_metric%);
+				&before_metric = %&read_number%;
+				&read_number   = convertMetricString(%&read_number%,"-1");
+				ifmatches(%&read_number%,"^([\d.-]+)\.0*$",&first_portion,1);
+					debug_log(%debug%,%&script_debug_name%,"Conversion of &&read_number ('&5%&before_metric%&7') from Metric returned insignificant digits, cutting off (setting &&read_number to: '&e%&first_portion%&7' from '&d%&read_number%&7').");
+					&read_number = %&first_portion%;
+				endif;
+				debug_log(%debug%,%&script_debug_name%,"Conversion of &&read_number ('&5%&before_metric%&7') from Metric returned '&d%&read_number%&7'.");
+			elseif(%debug%);
+				debug_log(%debug%,%&script_debug_name%,"&&read_number ('&5%&read_number%&7') was not classified as being a Metric String.");
+			endif;
+			
+			if(%debug%);
+				debug_log(%debug%,%&script_debug_name%,"Formatting Input Number '&d%&number%&7' (standardized: '&d%&read_number%&7')...");
+				&vars[] = split(" ","&number &read_number &opt_format &opt_precision &opt_rounding &opt_delimiter");
+				foreach(&vars[],&var,#v);
+					&val	= "%%&var%%";
+					&logvar = regexreplace(&var,"(?<!&)(&[\w])","&$1");
+					&logval = regexreplace(&val,"(?<!&)(&[\w])","&$1");
+					debug_log(%debug%,%&script_debug_name%,"%#v% > %&logvar%: '&d%&logval%&7'.");
+				next;
+			endif;
+			
+			// Apply the specified Rounding Option as defined in '&opt_rounding'
+			if(true);
+				&before_round = %&read_number%;
+				if(%&opt_rounding% == "TRUNCATE");
+					debug_log(%debug%,%&script_debug_name%,"Truncating &&read_number ('&5%&before_round%&7') by cutting off all decimals.");
+					ifmatches(%&read_number%,"^([\d-]+)\.",&truncated_number,1);
+						&read_number = %&truncated_number%;
+						debug_log(%debug%,%&script_debug_name%,"Truncated &&read_number ('&5%&before_round%&7') to: '&d%&read_number%&7'.");
+					else;
+						debug_log(%debug%,%&script_debug_name%,"No decimal points to truncate in &&read_number ('&5%&before_round%&7').");
+					endif;
+				elseif(%&opt_rounding% != "NONE");
+					&read_number = xEval("%&opt_rounding%(%&read_number%)");
+					debug_log(%debug%,%&script_debug_name%,"Rounding &&read_number ('&5%&before_round%&7') with Method: '&e%&opt_rounding%&7' returned: &d'%&read_number%&7'.");
+				else;
+					debug_log(%debug%,%&script_debug_name%,"Not rounding &&read_number ('&5%&before_round%&7') at all, Rounding Method (&&opt_rounding: '&e%&opt_rounding%&7') is set to 'NONE'.");
+				endif;
+			endif;
+			
+			// Apply the specified Formatting Option as defined in '&opt_format'
+			if(true);
+				&before_formatting = %&read_number%;
+				
+				// Figure out the Formatting Rules to pass to xFormatNumber
+				if(true);
+					// Figure out the Decimal Places to include in the Result (if any)
+					if(true);
+						&format_precision = "0";
+						if(%&opt_format% != "INTEGER");
+							&format_precision = "";
+							#precision_index  = indexof(&valid_formatting_vars[],,"&opt_precision");
+							custom_precision  = %valid_formatting_custom_input[%#precision_index%]%;
+							if(%custom_precision%);
+								&format_precision = %&opt_precision%;
+							endif;
+						endif;
+					endif;
+					
+					// Figure out the Delimiter to Use in the Result (if any)
+					if(true);
+						if((%&opt_format% != "EXPONENT") && (&opt_format% != "METRIC"));
+							opt_delimiter    := %&opt_delimiter%;
+							#delimiter_index  = indexof(&valid_formatting_vars[],,"&opt_delimiter");
+							custom_delimiter  = %valid_formatting_custom_input[%#delimiter_index%]%;
+							use_delimiter     = ((%custom_delimiter%) || (%opt_delimiter%));
+						endif;
+						exclude_commas = !%use_delimiter%;
+					endif;
+					
+					// Format the Number using xFormatNumber
+					if(true);
+						&before_xformat      = %&read_number%;
+						&formatted_number    = xFormatNumber(%&read_number%,%&format_precision%,false);
+						&pure_number         = replace(&formatted_number,",");
+						debug_log(%debug%,%&script_debug_name%,"Calling &bxFormatNumber&7 on &&read_number ('&5%&before_xformat%&7') returned '&d%&formatted_number%&7' (called &bxFormatNumber&7 with args: precision: '&e%&format_precision%&7', exclude_commas: '&cfalse&7'). Comma Stripped version is '&e%&pure_number%&7'.");
+						if(%&opt_format% == "METRIC");
+							&read_number = convertToMetric(%&pure_number%,-1);
+							debug_log(%debug%,%&script_debug_name%,"Calling &bconvertToMetric&7 on &&pure_number ('&5%&pure_number%&7') returned '&d%&read_number%&7' (called &bconvertToMetric&7 with args: precision: '&e-1&7').");
+						elseif(%use_delimiter%);
+							&read_number = %&formatted_number%;
+							&delim_char  = ",";
+							if(%custom_delimiter%);
+								&delim_char  = %&opt_delimiter%;
+								&read_number = replace(&read_number,",",%&delim_char%);
+							endif;
+							debug_log(%debug%,%&script_debug_name%,"Set &&read_number ('&5%&pure_number%&7') to be formatted using delimiter character (&&delim_char: '&e%&delim_char%&7'): '&d%&read_number%&7'.");
+						else;
+							&read_number = %&pure_number%;
+							debug_log(%debug%,%&script_debug_name%,"Set &&read_number ('&5%&read_number%&7') to be stripped of Delimiter Characters.");
+						endif;
+					endif;
+					
+					// If we are only returning sig. figs, do that.
+					if(%&opt_precision% == "SIGNIFICANT");
+						ifmatches(%&read_number%,"^(.*?)\.0*$",&first_portion,1);
+							&read_number = %&first_portion%;
+						endif;
+					endif;
+				endif;
+			endif;
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"Returning '&d%&read_number%&7' from input number '&5%&number%&7' (applied opts: format='&e%&opt_format%&7', precision='&e%&opt_precision%&7', rounding='&e%&opt_rounding%&7', delimiter='&e%&opt_delimiter%&7').");
+		return(%&read_number%);
+	endfunction;
+	
+	// Given a Base Number, finds the Number that is nearest to the Base Number and returns it. Formats any Numbers out of whatever
+	// Format they are in into Decimal Form before iterating over the Array. The Element that is returned will always be the 'unedited'
+	// version of the Element (so indexof will return a valid index).
+		// Params:
+			// {string} <&base_number>         	The Base Number to compare the other Numbers against.
+			// {string} <...&compare_numbers[]>	The Numbers to Compare against the Base Number.
+		// Returns the String Number from <...&compare_numbers[]> that is closest to the <&base_number> Parameter. If invalid Number
+		// Parameters are passed to this Function (or no Values for ...&compare_numbers[] are passed/no value for <&base_number> is passed),
+		// an Empty String will be returned.
+		// Example:
+			//	&compare_numbers[] = split(", ","1000, -500");
+			//	&nearest_number    = getNearestNumber("100",...&compare_numbers[]);
+			//	log("nearest number to 100 of 1000 and -500 is: %&nearest_number%"); // 'nearest number to 100 of 1000 and -500 is: -500'
+	function getNearestNumber(&base_number,...&compare_numbers[]);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&5mathGetNearestNumber&7";
+		endif;
+		
+		#nearest_index = -1;
+		&nearest_diff  = "";
+		&base_number   = replace(&base_number,",");
+		&base_number   = convertENote(%&base_number%);
+		base_is_metric = isMetricString(%&base_number%);
+		if(%base_is_metric%);
+			&base_number = convertMetricString(%&base_number%,-1,false);
+		endif;
+		
+		#compare_numbers_sz = arraysize(&compare_numbers[]);
+		if(%#compare_numbers_sz% > 1);
+			foreach(&compare_numbers[],&compare_number,#cn);
+				&comparison_value = replace(&compare_number,",");
+				ifmatches(%&comparison_value%,"[^\d.-]");
+					&comparison_value = convertENote(%&comparison_value%);
+					ifmatches(%&comparison_value%,"[^\d.-]");
+						comparison_metric = isMetricString(%&comparison_value%);
+						if(%comparison_metric%);
+							&comparison_value = convertMetricString(%&comparison_value%,-1,false);
+						endif;
+					endif;
+				endif;
+				
+				&comparison_diff = xEval("sqrt((%&base_number% - %&comparison_value%)^2)");
+				if(%#cn% == 0);
+					#nearest_index = %#cn%;
+					&nearest_diff  = %&comparison_diff%;
+				else;
+					// If comparison_diff - nearest_diff < 0, comparison_diff is less than nearest_diff.
+					&comparison_eval = xEval("%&comparison_diff% - %&nearest_diff%");
+					ifmatches(%&comparison_eval%,"^-");
+						#nearest_index = %#cn%;
+						&nearest_diff  = %&comparison_diff%;
+					endif;
+				endif;
+			next;
+		elseif(%#compare_numbers_sz% == 1);
+			#nearest_index = 0;
+		else;
+			debug_error(%debug%,%&script_debug_name%,"No valid Number Arguments passed! Returning empty string.");
+		endif;
+		
+		if(%#nearest_index% != -1);
+			&return_string = %&compare_numbers[%#nearest_index%]%;
+		endif;
+		
+		&compare_numbers = join("&7', '&5",&compare_numbers[]);
+		debug_log(%debug%,%&script_debug_name%,"Number '&d%&return_string%&7' is nearest to Base Number '&e%&base_number%&7' of Numbers: ['&5%&compare_numbers%&7'].");
+		return(%&return_string%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for equality.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	equal = eq("1M","1000000");
+	function _eq(&a,&b);
+		&a_converted   = number(%&a%,"F:FLOAT","P:SIGNIFICANT");
+		&b_converted   = number(%&b%,"F:FLOAT","P:SIGNIFICANT");
+		return_boolean = %&a_converted% == %&b_converted%;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for inequality.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	not_equal = neq("1M","1000000");
+	function _neq(&a,&b);
+		equal          = _eq(%&a%,%&b%);
+		return_boolean = !%equal%;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for A being > B.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	greater_than = gt("1M","1000000");
+	function _gt(&a,&b);
+		equal          = _lte(%&a%,%&b%);
+		return_boolean = !%equal%;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for A being < B.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	less_than = lt("1M","1000000");
+	function _lt(&a,&b);
+		equal          = _gte(%&a%,%&b%);
+		return_boolean = !%equal%;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for A being >= B.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	greater_than_or_equal_to = gt("1M","1000000");
+	function _gte(&a,&b);
+		&a_converted = number(%&a%,"F:FLOAT","P:SIGNIFICANT");
+		&b_converted = number(%&b%,"F:FLOAT","P:SIGNIFICANT");
+		&diff        = eval("%&a_converted% - %&b_converted%");
+		ifnotmatches(%&diff%,"^-");
+			return_boolean = true;
+		endif;
+		return(%return_boolean%);
+	endfunction;
+	
+	// Wrapper that converts A and B to Numbers, then checks for A being <= B.
+		// Params:
+			// {string} <&a>	First Number to Parse and Compare.
+			// {string} <&b>	Second Number to Parse and Compare.
+		// Returns a Boolean
+		// Example:
+			//	less_than_or_equal_to = lte("1M","1000000");
+	function _lte(&a,&b);
+		&a_converted = number(%&a%,"F:FLOAT","P:SIGNIFICANT");
+		&b_converted = number(%&b%,"F:FLOAT","P:SIGNIFICANT");
+		&diff        = eval("%&a_converted% - %&b_converted%");
+		ifmatches(%&diff%,"^-");
+			return_boolean = true;
+		elseifmatches(%&diff%,"^[0e.]+$");
+			return_boolean = true;
+		endif;
+		return(%return_boolean%);
+	endfunction;

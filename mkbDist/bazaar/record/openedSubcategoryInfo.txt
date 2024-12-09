@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // bazaar/record/openedSubcategoryInfo
+        // Gets information about the currently opened Subcategory.
+            // Params:
+                //        None
+                //
+            // Returns an Array:
+                //    0    {string} &gui - The GUI value inside this GUI.
+                //    1    {string} &name - The CONTAINERNAME value inside this GUI.
+                //    2    {number} #slots - The CONTAINERSLOTS value inside this GUI.
+        function openedSubcategoryInfo();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/record.txt:200
+            &return_array[] = split(", ","%GUI%, %CONTAINERNAME%, %CONTAINERSLOTS%");
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

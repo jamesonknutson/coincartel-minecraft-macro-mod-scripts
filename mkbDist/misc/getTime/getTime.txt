@@ -1,0 +1,33 @@
+//! @mkb-import-begin
+    // misc/getTime/getTime
+        // Gets the current Timestamp in Milliseconds, correcting for errors in the `unix`
+        // function where the Milliseconds component is not padded with the appropriate amount of zeros.
+            // Params:
+                // {boolean} [decimal=false]    If set to TRUE, will use a decimal separator between the seconds
+                //                              and milliseconds components.
+            // Returns the String Milliseconds Timestamp (ala Date.now() from JavaScript)
+        function getTime(decimal=false);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/misc/getTime.txt:7
+            #sum_chars  = 13;
+            
+            unix(&out_sec,&out_msec);
+            #out_msec_len = strlen(%&out_msec%);
+            if(%#out_msec_len% != 3);
+                if(%#out_msec_len% == 1);
+                    // add 2 zeroes
+                    &out_msec = "00%&out_msec%";
+                elseif(%#out_msec_len% == 2);
+                    // add 1 zero
+                    &out_msec = "0%&out_msec%";
+                endif;
+            endif;
+            
+            if(%decimal%);
+                &return_string = "%&out_sec%.%&out_msec%";
+            else;
+                &return_string = "%&out_sec%%&out_msec%";
+            endif;
+            
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

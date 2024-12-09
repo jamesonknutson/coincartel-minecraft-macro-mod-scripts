@@ -1,0 +1,16 @@
+//! @mkb-import-begin
+    // bazaar/index/getPartsPath
+        // Gets the Path corresponding to an Array of Parts.
+            // Params:
+                // {string} <&parts[]>    The Parts of the Path to join together.
+                //
+            // Returns the Path String.
+        function getPartsPath(&parts[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1001
+            #parts = arraysize(&parts[]);
+            if((%#parts% >= 1) && (%&parts[0]% != ""));
+                &path = join(".",&parts[]);
+            endif;
+            return(%&path%);
+        endfunction;
+//! @mkb-import-end

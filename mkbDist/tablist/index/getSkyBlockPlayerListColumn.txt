@@ -1,0 +1,119 @@
+//! @mkb-import-begin
+    // tablist/index/getSkyBlockPlayerListColumn
+        // tablist/index.txt
+        // Reads the Tab List to find whether or not the Player has a Booster Cookie effect enabled. If so,
+        // returns the Seconds Timestamp of when that Booster Cookie will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getCookieExpiryTimestamp();
+            &time_expression = "(?:(\d+)d\s*)?(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,"Cookie Buff\n(.+)",&cookie_buff_time,1);
+                    match(%&cookie_buff_time%,%&time_expression%,{#days,#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+        
+        // Reads the Tab List to find whether or not the Player has a God Potion effect enabled. If so,
+        // returns the Seconds Timestamp of when that God Potion will expire. If not, returns -1.
+            // Params:
+            //      None
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getGodPotionExpiryTimestamp();
+            &time_expression = "You have a God Potion active! (?:(\d+):)?(?:(\d+):)?(?:(\d+))";
+            #expiry_ts       = -1;
+            foreach("tablist");
+                ifmatches(%CLEANLINE%,%&time_expression%);
+                    match(%CLEANLINE%,%&time_expression%,{#hours,#minutes,#seconds});
+                    #expiry_ts = %TIMESTAMP% + ((#days * 86400) + (#hours * 3600) + (#minutes * 60) + #seconds);
+                    log("%#hours% hours, %#minutes% minutes, %#seconds% seconds")
+                    break;
+                endif;
+            next;
+            return(#expiry_ts);
+        endfunction;
+        
+        // Checks if the Booster Cookie effect is currently enabled.
+            // Params:
+            //      {number} [#expiry_offset_sec=0] An offset in seconds to apply to the real expiry timestamp used
+            //                                      to report whether the effect should be considered 'active' or not.
+            //                                      For example, if set to 300, if the cookie expires within 300 seconds / 5 min,
+            //                                      will return false (when otherwise, it would return true.)
+            //
+            // Returns a Boolean that is true if Cookie is enabled, false otherwise.
+        function isCookieEnabled(#expiry_offset_sec=0);
+            #cookie_exp_ts = getCookieExpiryTimestamp();
+            cookie_enabled = %TIMESTAMP% < (#cookie_exp_ts - #expiry_offset_sec);
+            return(%cookie_enabled%);
+        endfunction;
+        
+        // Checks if the God Potion Effect is currently enabled.
+            // Params:
+            //      {number} [#expiry_offset_sec=0] An offset in seconds to apply to the real expiry timestamp used
+            //                                      to report whether the effect should be considered 'active' or not.
+            //                                      For example, if set to 300, if the cookie expires within 300 seconds / 5 min,
+            //                                      will return false (when otherwise, it would return true.)
+            //
+            // Returns a Boolean that is true if God Potion Effect is enabled, false otherwise.
+        function isGodPotionEnabled(#expiry_offset_sec=0);
+            #godpot_exp_ts = getGodPotionExpiryTimestamp();
+            godpot_enabled = %TIMESTAMP% < (#godpot_exp_ts - #expiry_offset_sec);
+            return(%godpot_enabled%);
+        endfunction;
+        
+        // Wrapper that dynamically calls getCookieExpiryTimestamp or getGodPotionExpiryTimestamp based on input.
+            // Params:
+            //      {string} [&type="COOKIE"]   The Effect Type to get the Expiry Timestamp of. One of: 'COOKIE', 'GODPOT'.
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function getEffectExpiryTimestamp(&type="COOKIE");
+            &type      = miscValidate(%&type%,0,"COOKIE","GODPOT");
+            #expiry_ts = -1;
+            if(%&type% == "COOKIE");
+                #expiry_ts = getCookieExpiryTimestamp();
+            elseif(%&type% == "GODPOT");
+                #expiry_ts = getGodPotionExpiryTimestamp();
+            endif;
+            return(%#expiry_ts%);
+        endfunction;
+        
+        // Wrapper that dynamically calls isCookieEnabled or isGodPotionEnabled based on input.
+            // Params:
+            //      {string} [&type="COOKIE"]       The Effect Type to get the Expiry Timestamp of. One of: 'COOKIE', 'GODPOT'.
+            //      {number} [#expiry_offset_sec=0] An offset in seconds to apply to the real expiry timestamp used
+            //                                      to report whether the effect should be considered 'active' or not.
+            //                                      For example, if set to 300, if the cookie expires within 300 seconds / 5 min,
+            //                                      will return false (when otherwise, it would return true.)
+            //
+            // Returns the Seconds Timestamp of when the Effect expires, or -1 if the Effect is not active.
+        function isEffectEnabled(&type="COOKIE",#expiry_offset_sec=0);
+            #effect_expiry_ts = getEffectExpiryTimestamp(%&type%);
+            effect_enabled    = %TIMESTAMP% < (#effect_expiry_ts - #expiry_offset_sec);
+            return(%effect_enabled%);
+        endfunction;
+        
+        function getSkyBlockPlayerListColumn(&column_char="A");
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/tablist/index.txt:99
+            matched = false;
+            foreach("players");
+                ifmatches(%PLAYERNAME%,"^!%&column_char%");
+                    matched         = true;
+                    &out_string     = strip(%PLAYERDISPLAYNAME%);
+                    &out_string     = trim(%&out_string%);
+                    if(%&out_string% != "");
+                        &return_array[] = %&out_string%;
+                    endif;
+                elseif(%matched%);
+                    break;
+                endif;
+            next;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

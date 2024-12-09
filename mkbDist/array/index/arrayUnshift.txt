@@ -1,0 +1,15 @@
+//! @mkb-import-begin
+    // array/index/arrayUnshift
+        // Prepends the Source Array with the provided Element (index 0 = <&element>).
+            // Params:
+            //        {array} <&array[]>     The Source Array to prepend with the specified <&element>.
+            //        {string} <&element>    The Element to prepend to the Source Array.
+            //
+            // Returns the Array with the provided Element prepended at index 0.
+        function arrayUnshift(&array[],&element);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:282
+            &new_array[] = %&element%;
+            push(&new_array[],&array[*]);
+            return(&new_array[]);
+        endfunction;
+//! @mkb-import-end

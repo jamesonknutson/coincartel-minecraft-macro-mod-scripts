@@ -1,0 +1,74 @@
+// gui/containerLog.txt
+	// Logs every single slot in the Container, Inventory, and Mouse Slot to the specified Log Path.
+		// Params:
+			// {string} [&log_path]            	The Path to log the Data to. If omitted, will default to TIMESTAMP-containerNbt.txt
+			// {boolean} [append=false]        	Whether or not to append the Data to the specified file.
+			// {string} [...&context_strings[]]	Optional strings that will prepend the Container Data in the logged file.
+			//
+		// Returns the Path to the File where the Data was logged to.
+	function containerLog(&log_path,append=false,...&context_strings[]);
+		if(!%&log_path%);
+			&log_path = "~liteconfig/common/macros/logs/%TIMESTAMP%-containerNbt.txt";
+		endif;
+		
+		&log_strings[] = "--- Begin Metadata ---";
+		&log_strings[] = "";
+		&log_strings[] = "Generation Time: %DATETIME%";
+		&log_strings[] = "GUI: %GUI%";
+		&log_strings[] = "CONTAINERSLOTS: %CONTAINERSLOTS%";
+		&log_strings[] = "CONTAINERNAME: %CONTAINERNAME%";
+		&log_strings[] = "";
+		
+		#context_strings_sz = arraysize(&context_strings[]);
+		if(%#context_strings_sz%);
+			&log_strings[] = "--- Begin Context Strings ---";
+			&log_strings[] = "";
+			push(&log_strings[],&context_strings[*]);
+			&log_strings[] = "";
+		endif;
+		
+		// Iterate over Static Inventory Slots
+		if(true);
+			&log_strings[] = "--- Begin Inventory ---";
+			&log_strings[] = "";
+			#r_start       = 9;
+			#r_end         = 44;
+			for(#f_slot,%#r_start%,%#r_end%);
+				&f_item        = getslotiteminv(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+				&f_nbt         = strip(%&f_nbt%);
+				&f_name        = getItemName(%&f_nbt%,%&f_item%);
+				&f_sbid        = getItemSBID(%&f_nbt%);
+				#c_slot        = invslot_to_conslot(%#f_slot%);
+				&log_strings[] = "Container Slot: %#c_slot% | Static Inventory Slot: %#f_slot%";
+				&log_strings[] = "MCID: %&f_item%:%#f_data%";
+				&log_strings[] = "Stack: %#f_stack%";
+				&log_strings[] = "Name: %&f_name%";
+				&log_strings[] = "SBID: %&f_sbid%";
+				&log_strings[] = "NBT: %&f_nbt%";
+				&log_strings[] = "";
+			next;
+		endif;
+		
+		// Iterate over Dynamic Container Slots
+		if(%CONTAINERSLOTS%);
+			&log_strings[] = "--- Begin Container ---";
+			&log_strings[] = "";
+			#r_start  = 0;
+			#r_end    = %CONTAINERSLOTS% - 37;
+			for(#f_slot,%#r_start%,%#r_end%);
+				&f_item   = getslotitemnbt(%#f_slot%,,#f_stack,#f_data,&f_nbt);
+				&f_nbt    = strip(%&f_nbt%);
+				&f_name   = getItemName(%&f_nbt%,%&f_item%);
+				&f_sbid   = getItemSBID(%&f_nbt%);
+				&log_strings[] = "Container Slot: %#c_slot% | Static Inventory Slot: %#f_slot%";
+				&log_strings[] = "MCID: %&f_item%:%#f_data%";
+				&log_strings[] = "Stack: %#f_stack%";
+				&log_strings[] = "Name: %&f_name%";
+				&log_strings[] = "SBID: %&f_sbid%";
+				&log_strings[] = "NBT: %&f_nbt%";
+				&log_strings[] = "";
+			next;
+		endif;
+		
+		&file_path = writefile(%&log_path%,&log_strings[],%append%);
+	endfunction;

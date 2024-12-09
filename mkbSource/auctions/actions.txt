@@ -1,0 +1,845 @@
+// auctions/actions.txt
+	// Opens up an Auction Listing GUI given the Auction Listing ID.
+		// Params:
+			// {string} <&auction_id>    	The ID of the Auction Listing to open.
+			// {string} [&listing_info[]]	The Array returned by auctionsGetListingInfo, if already called externally. If omitted, will call auctionsGetListingInfo
+			//                           	with the specified Auction ID.
+			// {number} [#tick_wait=20]  	Ticks to wait between Interactions.
+			// {number} [#timeout_sec=30]	Maximum amount of Seconds the Function can run for before Timing Out. Set to <= 0 to disable timeouts.
+		// Returns a String ENUM:
+			// SUCCESS          	Successfully entered the Auction Listing GUI.
+			// ERROR_TIMEOUT    	The Function exited early due to a timeout.
+			// ERROR_UNAVAILABLE	The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_NOT_FOUND  	The Function exited due to not being able to find the Auction (can occur if the Auction ID
+			//                  	is invalid, or the Function was called with the Auction ID Parameter omitted without a Listing GUI open).
+			// ERROR_EXPIRED    	The function exited due to the Auction being expired by the time we went to go place the Bid for it.
+			// ERROR_UNKNOWN    	The function exited due to an unknown Error.
+			// ERROR_SERVER     	The function exited due to not being able to get onto SkyBlock.
+		// Example
+		//	&listing_opened = auctionsOpenListing(%&auction_id%,&listing_info[],%#tick_wait%,%#timeout_sec%);
+		//	if(%&listing_opened% != "SUCCESS");
+		//		if(%&listing_opened% == "ERROR_TIMEOUT");
+		//		elseif(%&listing_opened% == "ERROR_UNAVAILABLE");
+		//		elseif(%&listing_opened% == "ERROR_NOT_FOUND");
+		//		elseif(%&listing_opened% == "ERROR_EXPIRED");
+		//		elseif(%&listing_opened% == "ERROR_UNKNOWN");
+		//		elseif(%&listing_opened% == "ERROR_SERVER");
+		//		endif;
+		//	endif;
+	function auctionsOpenListing(&auction_id,&listing_info[],#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&6auctionsOpenListing&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+			&enum_success      = "SUCCESS";
+			&enum_timeout      = "ERROR_TIMEOUT";
+			&enum_unavailable  = "ERROR_UNAVAILABLE";
+			&enum_not_found    = "ERROR_NOT_FOUND";
+			&enum_expired      = "ERROR_EXPIRED";
+			&enum_unknown      = "ERROR_UNKNOWN";
+			&enum_server       = "ERROR_SERVER";
+			
+			// Check if the Auction House is closed
+			if(%TIMESTAMP% < %@#ah_closed_timestamp%);
+				debug_error(%debug%,%&script_debug_name%,"Auction House is currently closed, cannot place bids!");
+				&return_string = %&enum_unavailable%;
+				break;
+			endif;
+			
+			// Get Auction Listing Info
+			if(true);
+				#listing_info_sz = arraysize(&listing_info[]);
+				if(%#listing_info_sz% == 0);
+					&listing_info[] = auctionsGetListingInfo(%&auction_id%);
+				endif;
+				listing_hit      := %&listing_info[0]%;
+				&listing_id       = %&listing_info[1]%;
+				&listing_type     = %&listing_info[2]%;
+				#listing_price   := %&listing_info[3]%;
+				#listing_bids    := %&listing_info[4]%;
+				listing_ended    := %&listing_info[5]%;
+				listing_claimed  := %&listing_info[6]%;
+				&listing_owner    = %&listing_info[7]%;
+				&listing_profile  = %&listing_info[8]%;
+				&listing_sbid     = %&listing_info[9]%;
+				&listing_name     = %&listing_info[10]%;
+				&listing_mcid     = %&listing_info[11]%;
+				#listing_data    := %&listing_info[12]%;
+				#listing_stack   := %&listing_info[13]%;
+				&listing_buyers   = %&listing_info[14]%;
+				
+				if(!%listing_hit%);
+					debug_error(%debug%,%&script_debug_name%,"Failed to get Listing Info for ID: &d%&auction_id%&7.");
+					return(%&enum_not_found%);
+				endif;
+				
+				&listing_gui = "Auction View";
+				if(%&listing_type% == "BIN");
+					&listing_gui = "BIN Auction View";
+				endif;
+			endif;
+		endif;
+		
+		// Loop Actions until we are in the Auctions GUI.
+		if(true);
+			&init_unset_pointers[] = split(", ","@cannot_use_ah, @auction_house_error, @ah_failure, @&ah_failure_string");
+			&fail_pointers[]       = split(", ","@ah_failure, @cannot_use_ah, @auction_house_error");
+			foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+				unset(%&init_unset_pointer%);
+			next;
+			
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function has timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if we are in the correct GUI.
+				if(true);
+					if((%GUI% == "GUICHEST") && (%CONTAINERNAME% == %&listing_gui%));
+						// 2a. Get the Listing GUI Data and compare to Initial Listing Variables.
+						if(true);
+							&current_info[]  = auctionsGetListingInfo();
+							current_hit     := %&current_info[0]%;
+							&current_id      = %&current_info[1]%;
+							if((%current_hit%) && (%&current_id% == %&auction_id%));
+								debug_log(%debug%,%&script_debug_name%,"Got into correct Listing GUI.");
+								&return_string = %&enum_success%;
+								break;
+							endif;
+						endif;
+					endif;
+					
+					// 2b. If we haven't already broken above, we are in an invalid GUI. Exit any GUIs we might be in and try to get into the correct one.
+					can_do_action = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+					if(%can_do_action%);
+						if(%GUI% != "NONE");
+							localGUI("NONE");
+						endif;
+						
+						// 2c.	Get onto SkyBlock. If we have a Booster Cookie active, then we can use the /viewauction command regardless of where we are on SB.
+						//    	If we do not have the Booster Cookie active, we need to make sure that we are on a SKYBLOCK_HUB server in order to use the /viewauction command.
+						if(true);
+							#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+							on_skyblock        = gotoServer("SKYBLOCK",%#tick_wait%,%#recursive_timeout%);
+							if(!%on_skyblock%);
+								debug_error(%debug%,%&script_debug_name%,"Not on a SkyBlock Server!");
+								&return_string = %&enum_server%;
+								break;
+							endif;
+							
+							cookie_active = isEffectEnabled("COOKIE",%#timeout_sec%);
+							if(!%cookie_active%);
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								on_skyblock        = gotoServer("SKYBLOCK_HUB",%#tick_wait%,%#recursive_timeout%);
+								if(!%on_skyblock%);
+									debug_error(%debug%,%&script_debug_name%,"Failed to get onto a SkyBlock Hub Server.");
+									&return_string = %&enum_server%;
+									break;
+								endif;
+							endif;
+						endif;
+						
+						// 2d.	If we made it to this point, we are on a SkyBlock Server and we can use the /viewauction <auction_id> command. Do so.
+						echo("/viewauction %&auction_id%");
+					endif;
+				endif;
+				
+				// 3. Check if Chat Filter has returned a Failure
+				if(true);
+					for(action_loop,0,1);
+						if(!%action_loop%);
+							// 3b. Check if the Auction House is now closed
+							if(%TIMESTAMP% < %@#ah_closed_timestamp%);
+								debug_error(%debug%,%&script_debug_name%,"Auction House is currently closed, cannot place bids!");
+								&return_string = %&enum_unavailable%;
+								break;
+							endif;
+							
+							unset(&failed_pointers[]);
+							unset(&string_pointers[]);
+							failed_pointer  = false;
+							&failure_string = %@&ah_failure_string%;
+							
+							foreach(&fail_pointers[],&fail_pointer,#fp);
+								fail_value    := "%%&fail_pointer%%";
+								&safe_pointer  = regexreplace(&fail_pointer,"(?<!&)&\w","&$1");
+								&push_string   = "&7%&safe_pointer%&7: '&8false&7'";
+								if(%fail_value%);
+									failed_pointer     = true;
+									&failed_pointers[] = %&fail_if_set_pointer%;
+									&push_string       = "&7%&safe_pointer%&7: '&4true&7'";
+								endif;
+								
+								&string_pointers[] = %&push_string%;
+							next;
+						elseif(%failed_pointer%);
+							&error_type                = "UNKNOWN";	// UNKNOWN, INVALID_AUCTION, INVALID_BID
+							&error_action              = "RETRY";  	// CANCEL, RETRY
+							&string_pointers           = join(", ",&string_pointers[]);
+							#cannot_use_ah_index       = indexof(&failed_pointers[],,"@cannot_use_ah");
+							#auction_house_error_index = indexof(&failed_pointers[],,"@auction_house_error");
+							#ah_failure_index          = indexof(&failed_pointers[],,"@ah_failure");
+							debug_error(%debug%,%&script_debug_name%,"a failure pointer is set! Pointer values: %&string_pointers%");
+							
+							if(%#ah_failure_index% != -1);
+								// ifmatches(%&failure_string%,"There was an error with the auction house!.*(?:Error: |\()(?<auctionErrorCode>\w+)(?:\.|\))$",&failure_code,1);
+								ifmatches(%&failure_string%,"(?:Failed to claim bid!|There was an error with the auction house!).*?(?:Error: |\()(\w+)(?:\.|\))",&failure_code,1);
+									if((%&failure_code% == "NOT_FOUND_OR_ALREADY_CLAIMED") || (%&failure_code% == "AUCTION_EXPIRED_OR_NOT_FOUND"));
+										// Auction is no longer valid
+										&error_type   = "INVALID_AUCTION";
+										&error_action = "CANCEL";
+										debug_log(%debug%,%&script_debug_name%,"failure_code is '&4%&failure_code%&7', Auction is invalid. Will cancel.");
+									else;
+										debug_error(%debug%,%&script_debug_name%,"Unknown Error Code: '&4%&failure_code%&c'! Will do recursive call to self.");
+										logto("ah_unknown_error_codes.txt","[%DATETIME%]: Error Code '%&failure_code%', Error String %&failure_string%");
+										&error_type   = "UNKNOWN";
+										&error_action = "RETRY";
+									endif;
+								elseifmatches(%&failure_string%,"There was an error with the auction house!");
+									// Generic Error, cannot know what went wrong.
+									&error_action = "RETRY";
+									&error_type   = "UNKNOWN";
+									debug_error(%debug%,%&script_debug_name%,"Generic Error: '&4%&failure_string%&c'! Will do recursive call to self.");
+								elseifmatches(%&failure_string%,"You didn't participate in this auction!");
+									// Auction is no longer valid.
+									&error_type   = "INVALID_AUCTION";
+									&error_action = "CANCEL";
+									debug_log(%debug%,%&script_debug_name%,"Failure string is '&4%&failure_string%&7', Auction is Invalid. Will cancel.");
+								elseifmatches(%&failure_string%,"(?:Invalid auction ID!|This auction wasn't found!|This player doesn't have any active auctions!)");
+									// Auction is invalid
+									&error_type   = "INVALID_AUCTION";
+									&error_action = "CANCEL";
+								endif;
+							elseif(%#cannot_use_ah_index% != -1);
+								debug_error(%debug%,%&script_debug_name%,"Error type is '&4@cannot_use_ah&c', will try to change Servers and if successful, will do recursive call to self.");
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								&swap_result       = swapServers(%#tick_wait%,%#recursive_timeout%);
+								
+								if(%&swap_result% != "SUCCESS");
+									debug_error(%debug%,%&script_debug_name%,"swapServers returned error '&4%&swap_result%&c', will return this error code.");
+									&return_string = %&swap_result%;
+									&error_action  = "CANCEL";
+								else;
+									&error_action  = "RETRY";
+									debug_log(%debug%,%&script_debug_name%,"swapServers completed successfully. Will do recursive call to self.");
+								endif;
+							elseif(%#auction_house_error_index% != -1);
+								// Might just have to try again
+								debug_error(%debug%,%&script_debug_name%,"An auction house error occurred. Will do recursive call to self.");
+							endif;
+							
+							debug_error(%debug%,%&script_debug_name%,"Error Action: '&e%&error_action%&c'. Error Type: '&4%&error_type%&c'. Error String: '&4%&failure_string%&c'.");
+							if((%&return_string% == "") && (%&error_action% == "CANCEL"));
+								&error_enum_map_terms[]    = split(", ","UNKNOWN, INVALID_AUCTION");
+								&error_enum_map_enums[]    = split(", ","%&enum_unknown%, %&enum_expired%");
+								#error_enum_map_term_index = indexof(&error_enum_map_terms[],,%&error_type%);
+								&return_string             = %&error_enum_map_terms[%#error_enum_map_term_index%]%;
+								debug_log(%debug%,%&script_debug_name%,"will return error_enum '&4%&return_string%&7' due to encountering error_type '&4%&error_type%&7' with CANCEL action");
+							elseif(%&error_action% == "RETRY");
+								debug_log(%debug%,%&script_debug_name%,"running self-recursion call, error_action is RETRY, type is '&4%&error_type%&7'.");
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								&return_string     = call("auctionsOpenListing",%&auction_id%,&listing_info[],%#tick_wait%,%#recursive_timeout%);
+								debug_log(%debug%,%&script_debug_name%,"got return_string '&e%&return_string%&7' from recursion call, breaking");
+							endif;
+						endif;
+					next;
+					
+					if(%&return_string% != "");
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+				inc(#waited_ticks);
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning '&e%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;
+			
+	// Places a bid on an Auction Listing.
+		// Params:
+			// {string} [&auction_id]        	The ID of the Auction to bid on. If omitted, will take it as to place a bid on whatever
+			//                               	Listing is currently opened (so long as an Auction Listing GUI is open).
+			// {number} [#bid_amount]        	The amount of Coins to spend on the bid. If omitted, will take it as meaning the minimum
+			//                               	price needed to place the Bid on the Listing specified.
+			// {boolean} [refill_coins=true] 	Whether or not to allow the automatic refilling of Coins should we not have enough to
+			//                               	place the bid.
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /ah Command, so long as a Booster Cookie is
+			//                               	enabled, and/or the current SkyBlock Server Type is HUB.
+			// {number} [#tick_wait=20]      	The amount of Ticks to wait in between click interactions.
+			// {number} [#timeout_sec=30]    	The maximum amount of seconds this Function can run for before timing out and returning
+			//                               	an Error. Set to <= 0 to disable timeouts.
+		// Returns a String ENUM:
+			// SUCCESS          	The Function executed as expected and was successful.
+			// ERROR_TIMEOUT    	The Function exited early due to a timeout.
+			// ERROR_UNAVAILABLE	The Function exited due to the Auction House being closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_NOT_FOUND  	The Function exited due to not being able to find the Auction (can occur if the Auction ID
+			//                  	is invalid, or the Function was called with the Auction ID Parameter omitted without a Listing GUI open).
+			// ERROR_COINS      	The function exited due to not having enough Coins to place the bid for the Auction.
+			// ERROR_EXPIRED    	The function exited due to the Auction being expired by the time we went to go place the Bid for it.
+			// ERROR_UNKNOWN    	The function exited due to an unknown Error.
+			// ERROR_SERVER     	The function exited due to not being able to get onto SkyBlock.
+			// ERROR_BID_AMOUNT 	The function exited due to the Bid Amount being invalid.
+		// Example:
+			//	&auction_bid_placed = auctionsPlaceBid(%&auction_id%,%#bid_amount%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+			//	if(%&auction_bid_placed% == "SUCCESS");
+			//	else;
+			//		if(%&auction_bid_placed% == "ERROR_TIMEOUT");
+			//		elseif(%&auction_bid_placed% == "ERROR_UNAVAILABLE");
+			//		elseif(%&auction_bid_placed% == "ERROR_NOT_FOUND");
+			//		elseif(%&auction_bid_placed% == "ERROR_COINS");
+			//		elseif(%&auction_bid_placed% == "ERROR_EXPIRED");
+			//		elseif(%&auction_bid_placed% == "ERROR_UNKNOWN");
+			//		elseif(%&auction_bid_placed% == "ERROR_BID_AMOUNT");
+			//		elseif(%&auction_bid_placed% == "ERROR_SERVER");
+			//		endif;
+			//	endif;
+	function auctionsPlaceBid(&auction_id,#bid_amount,refill_coins=true,allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			if(true);
+				debug              = true;
+				&script_debug_name = "&6auctionsPlaceBid&7";
+				#start_time        = %TIMESTAMP%;
+				do_timeout         = %#timeout_sec% > 0;
+				do_id_lookup       = %&auction_id% != "";
+				do_custom_bid      = %#bid_amount% > 0;
+				&enum_success      = "SUCCESS";
+				&enum_timeout      = "ERROR_TIMEOUT";
+				&enum_unavailable  = "ERROR_UNAVAILABLE";
+				&enum_not_found    = "ERROR_NOT_FOUND";
+				&enum_coins        = "ERROR_COINS";
+				&enum_expired      = "ERROR_EXPIRED";
+				&enum_unknown      = "ERROR_UNKNOWN";
+				&enum_bid_amount   = "ERROR_BID_AMOUNT";
+				&enum_server       = "ERROR_SERVER";
+				
+				if(%TIMESTAMP% < %@#ah_closed_timestamp%);
+					debug_error(%debug%,%&script_debug_name%,"Auction House is currently closed, cannot place bids!");
+					return(%&enum_unavailable%);
+				endif;
+			endif;
+			
+			// Make sure we are on a SkyBlock Server to begin with.
+			if(true);
+				#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+				on_skyblock        = gotoServer("SKYBLOCK",%#tick_wait%,%#recursive_timeout%);
+				if(!%on_skyblock%);
+					debug_error(%debug%,%&script_debug_name%,"Not on a SkyBlock Server!");
+					return(%&enum_server%);
+				endif;
+			endif;
+			
+			// If we are doing a custom bid, check to make sure that we can afford it.
+			if(%do_custom_bid%);
+				#purse_coins = getPurseCoins();
+				if(%#purse_coins% < %#bid_amount%);
+					if(%refill_coins%);
+						#refill_coins  = %#bid_amount% - %#purse_coins%;
+						coins_refilled = refillCoins(%#refill_coins%);
+					endif;
+					
+					if(!%coins_refilled%);
+						debug_error(%debug%,%&script_debug_name%,"Cannot afford CUSTOM_BID &4%#bid_amount%&c (purse holds: &6%#purse_coins% coins&7).");
+						return(%&enum_coins%);
+					endif;
+				endif;
+			endif;
+			
+			// Do a lookup on the Auction ID so we know what to expect once we get into the Auction Listing GUI.
+			if(true);
+				&listing_info[]  = auctionsGetListingInfo(%&auction_id%);
+				listing_hit     := %&listing_info[0]%;
+				if(!%listing_hit%);
+					debug_error(%debug%,%&script_debug_name%,"Failed to get Listing Info for ID: &d%&auction_id%&7.");
+					return(%&enum_not_found%);
+				endif;
+				&listing_id      = %&listing_info[1]%;
+				&listing_type    = %&listing_info[2]%;
+				#listing_price  := %&listing_info[3]%;
+				#listing_bids   := %&listing_info[4]%;
+				listing_ended   := %&listing_info[5]%;
+				listing_claimed := %&listing_info[6]%;
+				if((%listing_ended%) || (%listing_claimed%));
+					debug_error(%debug%,%&script_debug_name%,"Listing ID &d%&auction_id%&c has already ended (listing_ended: %listing_ended%) or been claimed (listing_claimed: %listing_claimed%).");
+					return(%&enum_expired%);
+				endif;
+				
+				do_custom_bid = ((%do_custom_bid%) && (%&listing_type% == "AUCTION"));
+				#purse_coins  = getPurseCoins();
+				if(((%&listing_type% == "BIN") || (%#listing_bids% == 0)) && (%#purse_coins% < %#listing_price%));
+					if(%refill_coins%);
+						#refill_coins  = %#listing_price% - %#purse_coins%;
+						coins_refilled = refillCoins(%#refill_coins%);
+					endif;
+					
+					if(!%coins_refilled%);
+						debug_error(%debug%,%&script_debug_name%,"Cannot afford Listing Price &4%#listing_price%&c (purse holds: &6%#purse_coins% coins&7).");
+						return(%&enum_coins%);
+					endif;
+				endif;
+				
+				&listing_owner    = %&listing_info[7]%;
+				&listing_profile  = %&listing_info[8]%;
+				&listing_sbid     = %&listing_info[9]%;
+				&listing_name     = %&listing_info[10]%;
+				&listing_mcid     = %&listing_info[11]%;
+				#listing_data    := %&listing_info[12]%;
+				#listing_stack   := %&listing_info[13]%;
+				&listing_buyers   = %&listing_info[14]%;
+				
+				if(%&listing_type% == "BIN");
+					#listing_confirm_bid_slot = 31;
+				elseif(%&listing_type% == "AUCTION");
+					#listing_confirm_bid_slot = 29;
+					#listing_edit_bid_slot    = 31;
+				endif;
+				
+				if(%&auction_id% == "");
+					&auction_id = %&listing_id%;
+				endif;
+			endif;
+			
+			// Unset CHATFILTER Global Variables that will be used to gauge whether our Operation(s) have been successful or not.
+			if(true);
+				&init_unset_pointers[]  = split(", ","@auction_house_error, @cannot_use_ah, @ah_failure, @ah_confirm, @&ah_failure_string");
+				&okay_if_set_pointers[] = split(", ","@ah_confirm");
+				&fail_if_set_pointers[] = split(", ","@auction_house_error, @cannot_use_ah, @ah_failure");
+				
+				foreach(&init_unset_pointers[],&init_unset_pointer,#iupi);
+					unset(%&init_unset_pointer%);
+				next;
+			endif;
+		endif;
+		
+		// Loop actions until we have successfully placed the Bid for this Auction or an incorrectable Error is encountered.
+		if(true);
+			// chatfilter
+				// both
+					// server is too laggy: /^This server is too laggy to use the Auction House, sorry!$/
+						// fix by switching servers somehow
+				// auction type
+					// bid amount is not sufficient: /^Your bid must be at least (?<minimumBidPrice>[\d,]+) gold!$/
+					//
+			// confirm_bid_slot
+				// both
+					// cannot afford bid: /Cannot afford bid!/
+				// auction type
+					// current price of bid to be placed: /New bid: (?<currentBidPrice>[\d,]+) coins/
+					// current minimum price of bid: /Minimum bid: (?<minimumBidPrice>[\d,]+) coins/
+					// can afford bid: /Click to bid!/
+				// bin type
+					// current price of item: /Price: (?<currentBidPrice>[\d,]+) coins/
+					// can afford bid: /Click to purchase!/
+					
+			// &expr_current_price = "(?:New bid|Price): (?<currentPrice>[\d,]+) coins";
+			// &expr_minimum_bid   = "Minimum bid: (?<minimumPrice>[\d,]+) coins";
+			&expr_current_price    = "(?:New bid|Price): ([\d,]+) coins";
+			&expr_minimum_bid      = "Minimum bid: ([\d,]+) coins";
+			&expr_cannot_afford    = "Cannot afford bid!";
+			&expr_can_afford       = "Click to (?:bid|purchase)!";
+			&expr_already_bought   = "(?:Someone else purchased the|Click to pick up) item!";
+			#item_var_slot         = 13;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function has timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. Check if we can place the bid.
+				if(true);
+					if(%check_pointers%);
+						#elapsed_sec   = %TIMESTAMP% - %#check_pointer_time%;
+						check_pointers = %#elapsed_sec% <= 3;
+					else;
+						// 2a. Get into the Listing GUI.
+						if(true);
+							open_listing_gui = ((%GUI% != "GUICHEST") || (!%item_vars_set%));
+							if(!%open_listing_gui%);
+								&updated_item_var_item = getslotitemnbt(%#item_var_slot%,,#updated_item_var_stack,#updated_item_var_data,&updated_item_var_nbt);
+								&updated_item_var_nbt  = strip(%&updated_item_var_nbt%);
+								if(%&updated_item_var_item% != "air");
+									&updated_item_var_nbt = encode(%&updated_item_var_nbt%);
+									open_listing_gui      = %&updated_item_var_nbt% != %&item_var_nbt%;
+								else;
+									&updated_var_cstring = getContainerString();
+									open_listing_gui     = %&updated_var_cstring% != %&item_var_cstring%;
+								endif;
+							endif;
+							
+							if(%open_listing_gui%);
+								// Save the state of our Pointers so we can restore them afterwards.
+								foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+									&saved_state[%#iup%] = "%%&init_unset_pointer%%";
+								next;
+								
+								// Get into the Listing GUI.
+								if(true);
+									#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+									&opened_listing_gui = auctionsOpenListing(%&auction_id%,&listing_info[],%#tick_wait%,%#recursive_timeout%);
+									if(%&opened_listing_gui% != "SUCCESS");
+										debug_error(%debug%,%&script_debug_name%,"Failed to enter Auction Listing GUI: '&4%&opened_listing_gui%&c'.");
+										&return_string = %&opened_listing_gui%;
+										break;
+									endif;
+								
+									// Update the item variables so we can skip auctionsOpenListing calls if we are in the correct GUI going forward.
+									if(true);
+										&item_var_cstring = getContainerString();
+										&item_var_item    = getslotitemnbt(%#item_var_slot%,,#item_var_stack,#item_var_data,&item_var_nbt);
+										&item_var_nbt     = strip(%&item_var_nbt%);
+										if(%&item_var_item% != "air");
+											&item_var_nbt = encode(%&item_var_nbt%);
+											item_vars_set = true;
+										endif;
+									endif;
+								endif;
+								
+								// Restore the state of our Pointers.
+								foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+									&saved_state = %&saved_state[%#iup%]%;
+									set(%&init_unset_pointer%,%&saved_state%);
+								next;
+							endif;
+						endif;
+						
+						// 2b. Handle bid place / correction logic
+						if(true);
+							&listing_confirm_bid_item = getslotitemnbt(%#listing_confirm_bid_slot%,,,,&listing_confirm_bid_nbt);
+							&listing_confirm_bid_nbt  = strip(%&listing_confirm_bid_nbt%);
+							should_click              = false;
+							
+							// If the confirm bid item is not air (if it is air, then we probably already have it in our Mouse), then we should do some checks.
+							if(%&listing_confirm_bid_item% != "air");
+								
+								&current_price    = _matchExpressionNBT(%&listing_confirm_bid_nbt%,%&expr_current_price%);
+								#current_price   := regexreplace(&current_price,",");
+								can_place_bid     = regexTest(%&listing_confirm_bid_nbt%,%&expr_can_afford%);
+								cannot_afford_bid = regexTest(%&listing_confirm_bid_nbt%,%&expr_cannot_afford%);
+								already_purchased = regexTest(%&listing_confirm_bid_nbt%,%&expr_already_bought%);
+								should_place_bid  = (((%can_place_bid%) && (!%already_purchased%)) && ((!%do_custom_bid%) || (%#current_price% == %#bid_amount%)));
+								if(%should_place_bid%);
+									// Can place Bid, go ahead and do so.
+									debug_log(%debug%,%&script_debug_name%,"Can place Bid, going ahead and doing so.");
+									
+									#click_slot = %#listing_confirm_bid_slot%;
+									for(confirm_bid_loop,0,1);
+										if(%confirm_bid_loop%);
+											#click_slot = findItemContainer(false,"MCID: stained_hardened_clay","NAME: Confirm");
+											if(%#click_slot% == -1);
+												debug_error(%debug%,%&script_debug_name%,"Could not find Confirm Click slot!");
+												break;
+											endif;
+										endif;
+										
+										&init_gui       = getContainerString();
+										#waited_ticks   = 0;
+										entered_new_gui = false;
+										debug_log(%debug%,%&script_debug_name%,"Will attempt to click &d%#click_slot%&7 until GUI updates.");
+										do;
+											// 1. Check for Function Timeout
+											if(%do_timeout%);
+												func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+												if(%func_timeout%);
+													debug_error(%debug%,%&script_debug_name%,"Function has timed out");
+													&return_string = %&enum_timeout%;
+													break;
+												endif;
+											endif;
+											
+											// 2. Check if we have entered a new GUI
+											entered_new_gui = enteredNewGUI(%&init_gui%);
+											if(%entered_new_gui%);
+												break;
+											endif;
+											
+											// 3. Check if we can/should click
+											can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+											if(%can_click%);
+												slotclick(%#click_slot%);
+											endif;
+											
+											inc(#waited_ticks);
+											wait("1t");
+										until((%&return_string% != "") || (%entered_new_gui%));
+										
+										if(%&return_string% != "");
+											break;
+										elseif((%entered_new_gui%) && (%confirm_bid_loop%));
+											check_pointers      = true;
+											#check_pointer_time = %TIMESTAMP%;
+										endif;
+									next;
+								elseif((%do_custom_bid%) && (%#current_price% != %#bid_amount%));
+									// Cannot place Bid because the Current Price is not equal to the Bid Amount we are trying to set.
+									debug_log(%debug%,%&script_debug_name%,"Cannot place Bid because the Current Price of the Auction (&6%#current_price% coins&7) is not equal to the Custom Bid Amount we are trying to set it to (&6%#bid_amount% coins&7).");
+									&listing_edit_bid_item = getslotitemnbt(%#listing_edit_bid_slot%,,,,&listing_edit_bid_nbt);
+									&listing_edit_bid_nbt  = strip(%&listing_edit_bid_nbt%);
+									if(%&listing_edit_bid_item% == "gold_ingot");
+										#click_slot     = %#listing_edit_bid_slot%;
+										&init_gui       = getContainerString();
+										#waited_ticks   = 0;
+										entered_new_gui = false;
+										
+										// Click until the GUI Updates.
+										if(true);
+											debug_log(%debug%,%&script_debug_name%,"Will edit Bid amount. Clicking slot &d%#click_slot%&7 until GUI updates.");
+											do;
+												// 1. Check for Function Timeout
+												if(%do_timeout%);
+													func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+													if(%func_timeout%);
+														debug_error(%debug%,%&script_debug_name%,"Function has timed out");
+														&return_string = %&enum_timeout%;
+														break;
+													endif;
+												endif;
+												
+												// 2. Check if we have entered a new GUI
+												entered_new_gui = enteredNewGUI(%&init_gui%);
+												if(%entered_new_gui%);
+													break;
+												endif;
+												
+												// 3. Check if we can/should click
+												can_click = canDoInteraction(%#waited_ticks%,%#tick_wait%);
+												if(%can_click%);
+													slotclick(%#click_slot%);
+												endif;
+												
+												inc(#waited_ticks);
+												wait("1t");
+											until((%&return_string% != "") || (%entered_new_gui%));
+											
+											if(%&return_string% != "");
+												break;
+											endif;
+											
+											if(%GUI% == "GUIEDITSIGN");
+												debug_log(%debug%,%&script_debug_name%,"Got into Bid Amount GUI. Typing: '&d%#bid_amount%&7'.");
+												wait("2t");
+												type(%#bid_amount%);
+												wait("2t");
+												press("escape");
+												debug_log(%debug%,%&script_debug_name%,"Waiting to re-enter Chest GUI...");
+												do;
+													// 1. Check for Function Timeout
+													if(%do_timeout%);
+														func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+														if(%func_timeout%);
+															debug_error(%debug%,%&script_debug_name%,"Function has timed out");
+															&return_string = %&enum_timeout%;
+															break;
+														endif;
+													endif;
+													
+													wait("1t");
+												until((%&return_string% != "") || (%GUI% == "GUICHEST"));
+												if(%&return_string% != "");
+													break;
+												endif;
+											else;
+												debug_error(%debug%,%&script_debug_name%,"Did not enter the Bid Amount GUI? GUI: &4%GUI%&7, CONTAINERNAME: &4%CONTAINERNAME%&7, CONTAINERSLOTS: &4%CONTAINERSLOTS%&7.");
+											endif;
+										endif;
+									else;
+										debug_log(%debug%,%&script_debug_name%,"Cannot edit Bid because Edit Bid Item (&&listing_edit_bid_item: '&e%&listing_edit_bid_item%&7') is not 'gold_ingot'.");
+									endif;
+								elseif(%cannot_afford_bid%);
+									// Cannot place Bid because we cannot afford the cost of the Auction.
+									debug_error(%debug%,%&script_debug_name%,"Cannot place Bid because we cannot afford it.");
+									if(%refill_coins%);
+										#purse_coins   = getPurseCoins();
+										#refill_coins  = %#current_price% - %#purse_coins%;
+										coins_refilled = refillCoins(%#refill_coins%);
+									endif;
+									
+									if(!%coins_refilled%);
+										debug_error(%debug%,%&script_debug_name%,"Could not refill enough Coins to afford to cover the cost of the Bid.");
+										&return_string = %&enum_coins%;
+										break;
+									endif;
+									debug_log(%debug%,%&script_debug_name%,"Successfully refilled enough Coins to afford to cover the cost of the Bid: &6%#current_price% coins&7.");
+								elseif(%already_purchased%);
+									// Cannot place Bid because someone has already Purchased it.
+									&return_string = %&enum_expired%;
+									debug_error(%debug%,%&script_debug_name%,"Someone has already purchased this Auction. Cannot place Bid.");
+									break;
+								else;
+									// Cannot place Bid because of some other reason, i.e. the Server is closing soon.
+									&return_string = %&enum_unknown%;
+									setclipboard(%&listing_confirm_bid_nbt%);
+									debug_breakpoint(%debug%,%&script_debug_name%,"Cannot place Bid for an unknown reason, maybe the Server is closing soon? NBT: &d%&listing_confirm_bid_nbt%");
+									break;
+								endif;
+							endif;
+						endif;
+					endif;
+				endif;
+				
+				// 3. Check if any of our okay/fail pointers have been set
+				if(true);
+					// 3a. Check if any okay pointer has been set
+					if(true);
+						foreach(&okay_if_set_pointers[],&okay_if_set_pointer,#opi);
+							okay_if_set_value := "%%&okay_if_set_pointer%%";
+							if(%okay_if_set_value%);
+								&return_string = %&enum_success%;
+								debug_log(%debug%,%&script_debug_name%,"success pointer &d%&okay_if_set_pointer%&7 set!");
+								break;
+							endif;
+						next;
+						
+						if(%&return_string% != "");
+							break;
+						endif;
+					endif;
+					
+					// 3b. Check if the Auction House is now closed
+					if(%TIMESTAMP% < %@#ah_closed_timestamp%);
+						debug_error(%debug%,%&script_debug_name%,"Auction House is currently closed, cannot place bids!");
+						&return_string = %&enum_unavailable%;
+						break;
+					endif;
+					
+					// 3c. Check if any fail pointer has been set
+					if(true);
+						for(do_break,0,1);
+							if(!%do_break%);
+								found_failure = false;
+								unset(&failed_pointers[]);
+								unset(&string_pointers[]);
+								foreach(&fail_if_set_pointers[],&fail_if_set_pointer,#fpi);
+									fail_if_set_value := "%%&fail_if_set_pointer%%";
+									&safe_pointer      = regexreplace(&fail_if_set_pointer,"(?<!&)&\w","&$1");
+									if(%fail_if_set_value%);
+										found_failure      = true;
+										&failed_pointers[] = %&fail_if_set_pointer%;
+										&string_pointers[] = "&7%&safe_pointer%&7: '&4true&7'";
+									else;
+										&string_pointers[] = "&7%&safe_pointer%&7: '&8false&7'";
+									endif;
+								next;
+							else;
+								if(!%found_failure%);
+									break;
+								endif;
+								
+								&string_pointers           = join(", ",&string_pointers[]);
+								#cannot_use_ah_index       = indexof(&failed_pointers[],,"@cannot_use_ah");
+								#auction_house_error_index = indexof(&failed_pointers[],,"@auction_house_error");
+								#ah_failure_index          = indexof(&failed_pointers[],,"@ah_failure");
+								&failure_string            = %@&ah_failure_string%;
+								debug_error(%debug%,%&script_debug_name%,"a failure pointer is set! Pointer values: %&string_pointers%");
+								
+								&error_type   = "UNKNOWN";	// UNKNOWN, INVALID_AUCTION, INVALID_BID
+								&error_action = "RETRY";  	// CANCEL, RETRY
+								
+								if(%#ah_failure_index% != -1);
+									debug_log(%debug%,%&script_debug_name%,"Failure string is '&4%&failure_string%&7'.");
+									// ifmatches(%&failure_string%,"There was an error with the auction house!.*(?:Error: |\()(?<auctionErrorCode>\w+)(?:\.|\))$",&failure_code,1);
+									ifmatches(%&failure_string%,"(?:Failed to claim bid!|There was an error with the auction house!).*?(?:Error: |\()(\w+)(?:\.|\))",&failure_code,1);
+										if(%&failure_code% == "INVALID_BID");
+											// Bid price changed mid-bid
+											&error_type   = "INVALID_BID";
+											&error_action = "RETRY";
+											debug_log(%debug%,%&script_debug_name%,"failure_code is '&4%&failure_code%&7', Bid Amount is invalid. Will retry.");
+										elseif((%&failure_code% == "NOT_FOUND_OR_ALREADY_CLAIMED") || (%&failure_code% == "AUCTION_EXPIRED_OR_NOT_FOUND"));
+											// Auction is no longer valid
+											&error_type   = "INVALID_AUCTION";
+											&error_action = "CANCEL";
+											debug_log(%debug%,%&script_debug_name%,"failure_code is '&4%&failure_code%&7', Auction is invalid. Will cancel.");
+										else;
+											debug_error(%debug%,%&script_debug_name%,"Unknown Error Code: '&4%&failure_code%&c'! Will do recursive call to self.");
+											logto("ah_unknown_error_codes.txt","[%DATETIME%]: Error Code '%&failure_code%', Error String %&failure_string%");
+											&error_type   = "UNKNOWN";
+											&error_action = "RETRY";
+										endif;
+									elseifmatches(%&failure_string%,"There was an error with the auction house!");
+										// Generic Error, cannot know what went wrong.
+										&error_action = "RETRY";
+										&error_type   = "UNKNOWN";
+										debug_error(%debug%,%&script_debug_name%,"Generic Error: '&4%&failure_string%&c'! Will do recursive call to self.");
+									//elseifmatches(%&failure_string%,"Your bid must be at least (?<listingMinPrice>[\d,.]+) gold!",&listing_min_price,1);
+									elseifmatches(%&failure_string%,"Your bid must be at least ([\d,.]+) gold!",&listing_min_price,1);
+										// Bid Price is too low.
+										&error_type         = "INVALID_BID";
+										&error_action       = "CANCEL";
+										#listing_min_price := regexreplace(&listing_min_price,",","");
+										debug_error(%debug%,%&script_debug_name%,"Minimum bid price is '&4%#listing_min_price%&c' coins. Will cancel.");
+									elseifmatches(%&failure_string%,"Couldn't read this number!");
+										// Invalid input.
+										&error_type   = "INVALID_BID";
+										&error_action = "RETRY";
+										debug_log(%debug%,%&script_debug_name%,"Failure string is '&4%&failure_string%&7', Bid Amount is Invalid. Will do recursive call to self.");
+									elseifmatches(%&failure_string%,"You didn't participate in this auction!");
+										// Auction is no longer valid.
+										&error_type   = "INVALID_AUCTION";
+										&error_action = "CANCEL";
+										debug_log(%debug%,%&script_debug_name%,"Failure string is '&4%&failure_string%&7', Auction is Invalid. Will cancel.");
+									endif;
+								elseif(%#cannot_use_ah_index% != -1);
+									// Might just have to change Servers
+									debug_error(%debug%,%&script_debug_name%,"Error type is '&4@cannot_use_ah&c', will try to change Servers and if successful, will do recursive call to self.");
+									#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+									&swap_result       = swapServers(%#tick_wait%,%#recursive_timeout%);
+									
+									if(%&swap_result% != "SUCCESS");
+										debug_error(%debug%,%&script_debug_name%,"swapServers returned error '&4%&swap_result%&c', will return this error code.");
+										&return_string = %&swap_result%;
+										&error_action  = "CANCEL";
+									else;
+										&error_action  = "RETRY";
+										debug_log(%debug%,%&script_debug_name%,"swapServers completed successfully. Will do recursive call to self.");
+									endif;
+								elseif(%#auction_house_error_index% != -1);
+									// Might just have to try again
+									debug_error(%debug%,%&script_debug_name%,"An auction house error occurred. Will do recursive call to self.");
+								endif;
+								
+								debug_error(%debug%,%&script_debug_name%,"Error Action: '&e%&error_action%&c'. Error Type: '&4%&error_type%&c'. Error String: '&4%&failure_string%&c'.");
+								if((%&return_string% == "") && (%&error_action% == "CANCEL"));
+									&error_enum_map_terms[]    = split(", ","UNKNOWN, INVALID_BID, INVALID_AUCTION");
+									&error_enum_map_enums[]    = split(", ","%&enum_unknown%, %&enum_bid_amount%, %&enum_expired%");
+									#error_enum_map_term_index = indexof(&error_enum_map_terms[],,%&error_type%);
+									&return_string             = %&error_enum_map_terms[%#error_enum_map_term_index%]%;
+									debug_log(%debug%,%&script_debug_name%,"will return error_enum '&4%&return_string%&7' due to encountering error_type '&4%&error_type%&7' with CANCEL action");
+								elseif(%&error_action% == "RETRY");
+									debug_log(%debug%,%&script_debug_name%,"running self-recursion call, error_action is RETRY, type is '&4%&error_type%&7'.");
+									#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+									&return_string     = call("auctionsPlaceBid",%&listing_id%,%#bid_amount%,%refill_coins%,%allow_command%,%#tick_wait%,%#recursive_timeout%);
+									debug_log(%debug%,%&script_debug_name%,"got return_string '&e%&return_string%&7' from recursion call, breaking");
+								endif;
+								break;
+							endif;
+						next;
+						
+						if(%&return_string% != "");
+							break;
+						endif;
+					endif;
+				endif;
+				
+				wait("1t");
+				inc(#total_ticks);
+			until(%&return_string% != "");
+		endif;
+		
+		debug_log(%debug%,%&script_debug_name%,"returning '&e%&return_string%&7'.");
+		return(%&return_string%);
+	endfunction;

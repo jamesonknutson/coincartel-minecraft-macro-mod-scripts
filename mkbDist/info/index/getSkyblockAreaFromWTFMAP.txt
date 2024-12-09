@@ -1,0 +1,75 @@
+//! @mkb-import-begin
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // info/index/hasTimeExceeded
+        // Used to determine whether to timeout a function.
+            // Params:
+                // {number} <#start_time>        The start timestamp to subtract from current timestamp
+                // {number} <#timeout_sec>       The amount of seconds to check if difference between now & start is >=.
+                // {number} [do_timeout=true]    If false, will always return false (used as shorthand for functions that
+                //                               use this function to determine whether or not they have timed out).
+            // Returns a boolean indicating whether or not <#start_timestamp> was >= <#seconds> ago.
+            // Example:
+                //    func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function hasTimeExceeded(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:10
+            #elapsed_sec   = %TIMESTAMP% - #start_time;
+            return_boolean = ((%do_timeout%) && (#elapsed_sec >= #timeout_sec));
+            return(%return_boolean%);
+        endfunction;
+    // info/index/getSkyblockAreaFromWTFMAP
+        // Attempts to read the SkyBlock Area from the /wtfmap command + chatfilter.
+            // Params:
+            //      {number} [#timeout_sec=30]  Max amount of seconds to wait for Chat Filter to read the wtfmap output.
+            //                                  Set to -1 to disable timeout.
+            //      {number} [#wait_ticks=60]   Amount of ticks to wait between attempts to issue the command.
+            //
+            // Returns the String returned from the Command (i.e. "SkyBlock Dynamic"), or "-1" if cannot be found/timed out.
+        function getSkyblockAreaFromWTFMAP(#timeout_sec=30,#wait_ticks=30);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:422
+            debug              = true;
+            &script_debug_name = "&3getSkyBlockAreaFromWTFMAP&7";
+            
+            @cannot_use_wtfmap = false;
+            @&wtfmap           = "";
+            #start_time        = %TIMESTAMP%;
+            do_timeout         = #timeout_sec != -1;
+            &return_string     = "-1";
+            do;
+                func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+                if(%func_timeout%);
+                    break;
+                endif;
+                    
+                debug_log(%debug%,%&script_debug_name%,"echoing '/wtfmap'...");
+                echo("/wtfmap");
+                do(%#wait_ticks%);
+                    wait("1t");
+                    got_response   = ((%@&wtfmap% != "") || (%@cannot_use_wtfmap%));
+                until(%got_response%);
+                if((%got_response%) && (%@&wtfmap% != ""));
+                    &return_string = %@&wtfmap%;
+                    break;
+                endif;
+            until((%got_response%) || (%func_timeout%));
+            return(%&return_string%);
+        endfunction;
+//! @mkb-import-end

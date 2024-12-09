@@ -1,0 +1,15 @@
+//! @mkb-import-begin
+    // bazaar/index/getPathParts
+        // Returns an Array of the 'parts' of a given Path.
+            // Params:
+                // {string} <&path>    The Path to get the 'parts' of.
+                //
+            // Returns a String Array.
+        function getPathParts(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:989
+            if(%&path% != "");
+                &parts[] = split(".",%&path%);
+            endif;
+            return(&parts[]);
+        endfunction;
+//! @mkb-import-end

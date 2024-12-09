@@ -1,0 +1,477 @@
+unsafe(0);
+	function nertRegressionOnly();
+		// Setup EVENT_TYPE ENUMs and Priorities. A Greater Priority indicates the Priority to which we should respond
+		// to the Event.
+		if(true);
+			#nert_event_priority[] = 1;
+			&nert_event_types[]    = "NEW_INSTRUCTION_REGRESSION";
+			
+			#nert_event_priority[] = 0;
+			&nert_event_types[]    = "LISTING_EXPIRED_COLLECT_ITEM
+			";
+			#nert_event_priority[] = 0;
+			&nert_event_types[]    = "LISTING_SOLD_COLLECT_COINS";
+			
+			#nert_event_priority[] = 0;
+			&nert_event_types[]    = "LISTING_BOUGHT_COLLECT_ITEM";
+			
+			#nert_event_priority[] = 0;
+			&nert_event_types[]    = "LISTING_EXPIRED_COLLECT_COINS";
+		endif;
+
+		&action_type = ucase($$[1]);
+		ifmatches(%&action_type%,"\$");
+			exec("nertRegressionOnly.txt","NERT_MAIN %UNIQUEID%","MAIN");
+		elseif(%&action_type% == "EVENT_HANDLER");
+			// Event Handler for Nert Flipping Script.
+				// Params:
+					// {string} &event_type       	String ENUM of EVENT_TYPE. Can be any of the ENUMs defined below.
+					// {string} &event_instruction	The original Instruction that was associated with this Event.
+					// {string} &event_details    	Optional extra details to pass along into the Event.
+				// Returns: Nothing
+				// Example:
+					//	&event_handler_keyname = "NERT_EVENT_HANDLER %UNIQUEID%";
+					//	exec("nertRegressionOnly.txt",%&event_handler_keyname%,"EVENT_HANDLER",%&event_type%,%&event_instruction%,%&event_details%);
+					//	do;
+					//		wait("1t");
+					//		handler_alive = isrunning(%&event_handler_keyname%);
+					//	while(%handler_alive%);
+				// Valid ENUMs for &event_type:
+				// NEW_INSTRUCTION_REGRESSION  	Execute an Instruction of type REGRESSION.
+				// LISTING_EXPIRED_COLLECT_ITEM	Collect an expired listing Item from the Auction House.
+				// LISTING_SOLD_COLLECT_COINS  	Collect a sold listing Coins from the Auction House.
+				// LISTING_BOUGHT_COLLECT_ITEM 	Collect a purchased listing Item from the Auction House.
+			
+			if(true);
+				if(true);
+					debug              = true;
+					&script_debug_name = "&6NERT_EVENT_HANDLER&7";
+					#start_time        = %TIMESTAMP%;
+					#tick_wait         = 20;
+					#timeout_sec       = 30;
+					&event_type        = ucase($$[2]);
+					&event_instruction = $$[3];
+					&event_details     = $$[4];
+				endif;
+				
+				// 1. Extract the Variables from this Listing.
+				if(true);
+					&standard_vars[]  = nertExtractStandardVariables(%&event_instruction%);
+					&flip_sbid        = %&standard_vars[0]%;
+					&flip_type        = %&standard_vars[2]%;
+					#flip_profit     := %&standard_vars[3]%;
+					#flip_newprice   := %&standard_vars[4]%;
+					&flip_uuid        = %&standard_vars[5]%;
+					
+					&listing_info[]   = auctionsGetListingInfo(%&flip_uuid%);
+					listing_hit      := %&listing_info[0]%;
+					&listing_id       = %&listing_info[1]%;
+					&listing_type     = %&listing_info[2]%;
+					#listing_price   := %&listing_info[3]%;
+					#listing_bids    := %&listing_info[4]%;
+					listing_ended    := %&listing_info[5]%;
+					listing_claimed  := %&listing_info[6]%;
+					&listing_owner    = %&listing_info[7]%;
+					&listing_profile  = %&listing_info[8]%;
+					&listing_sbid     = %&listing_info[9]%;
+					&listing_name     = %&listing_info[10]%;
+					&listing_mcid     = %&listing_info[11]%;
+					#listing_data    := %&listing_info[12]%;
+					#listing_stack   := %&listing_info[13]%;
+					&listing_buyers   = %&listing_info[14]%;
+				endif;
+				
+				if(%&event_type% == "NEW_INSTRUCTION_REGRESSION");
+					// 2. Attempt to Purchase the Listing.
+					if(true);
+						#max_price       = jsonget("lowestPrice",%&event_instruction%);
+						&nert_placed_bid = nertPlaceBid(%&flip_uuid%,%#max_price%,&listing_info[],%#timeout_sec%,%#tick_wait%);
+						if(%&nert_placed_bid% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Failed to purchase Listing: &4%&nert_placed_bid%&c.");
+						endif;
+					endif;
+					
+					// 3. If we successfully Purchased the Listing, collect it from the Auction House.
+					if(%&nert_placed_bid% == "SUCCESS");
+						&collected_listing = auctionsCollectListing(%#tick_wait%,%#timeout_sec%,"ID: %&flip_uuid%","SBID: %&flip_sbid%","MCID: %&listing_mcid%","NAME: %&listing_name%","STACK: %#listing_stack%");
+						if(%&collected_listing% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Failed to collect Listing: &4%&collected_listing%&c.");
+						endif;
+					endif;
+					
+					// 4. If we successfully Collected the Listing, create a new Listing at the Target Price.
+					if(%&collected_listing% == "SUCCESS");
+						#inventory_slot  = findItemInv(false,"SBID: %&flip_sbid%","MCID: %&listing_mcid%","NAME: %&listing_name%","STACK: %#listing_stack%");
+						if(%#inventory_slot% == -1);
+							debug_error(%debug%,%&script_debug_name%,"Failed to find Item in Inventory with SBID %&flip_sbid% MCID %&listing_mcid% NAME %&listing_name% STACK %#listing_stack%.");
+						endif;
+					endif;
+					
+					// 5. If we found an Item in our Inventory matching the descriptors for this Listing, create a new Listing.
+					if(%#inventory_slot% != -1);
+						#starting_bid     = jsonget("targetPrice",%&event_instruction%);
+						#duration_minutes = 60;
+						refill_coins      = true;
+						allow_command     = true;
+						&auction_created  = auctionsCreateListing(%#inventory_slot%,%#starting_bid%,%#duration_minutes%,%&auction_type%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+						if(%&auction_created% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Failed to create Auction for Listing: &4%&auction_created%&c.");
+						endif;
+					endif;
+					
+					// 6. If we successfully created an Auction for this Item, get the Auction ID.
+					if(%&auction_created% == "SUCCESS");
+						&created_listing_id = nertGetPersonalListingID(%&listing_name%,%#starting_bid%);
+						ifmatches(%&created_listing_id%,"^ERROR_");
+							debug_error(%debug%,%&script_debug_name%,"Failed to get Auction Listing ID: &4%&created_listing_id%&c.");
+						endif;
+					endif;
+					
+					// 7. If we got the created listing ID, create a new expiry handler for it.
+					ifnotmatches(%&created_listing_id%,"^ERROR_");
+						@&nert_expiry_ids[]          = %&created_listing_id%;
+						@&nert_expiry_instructions[] = %&event_instruction%;
+						@#nert_expiry_timestamps[]   = %TIMESTAMP% + (%#duration_minutes% * 60);
+						@nert_expiry_active[]        = true;
+					endif;
+				elseifmatches(%&event_type%,"^LISTING_");
+					// In this case, we can be certain that whatever Auction we are looking into has ended or
+					// is expired in some way, so we can disable any handlers for it.
+					if(true);
+						#expiry_index = indexof(@&nert_expiry_ids[],,%&flip_uuid%);
+						if(%#expiry_index% != -1);
+							@nert_expiry_active[%#expiry_index%] = false;
+						endif;
+					endif;
+					
+					// 2. Collect the Listing.
+					if(true);
+						&collected_listing = auctionsCollectListing(%#tick_wait%,%#timeout_sec%,"ID: %&flip_uuid%","SBID: %&flip_sbid%","MCID: %&listing_mcid%","NAME: %&listing_name%","STACK: %#listing_stack%");
+						if(%&collected_listing% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Failed to Collect Listing: &4%&collected_listing%&c.");
+						endif;
+					endif;
+					
+					// 3. If we managed to Collect the Listing, execute any post-collection stuff that we might need to do.
+					if(%&collected_listing% == "SUCCESS");
+						if(%&event_type% == "LISTING_EXPIRED_COLLECT_ITEM");
+							// We can re-list the Listing now.
+							
+							// 4. If we successfully Collected the Listing, create a new Listing at the Target Price.
+							#inventory_slot  = findItemInv(false,"SBID: %&flip_sbid%","MCID: %&listing_mcid%","NAME: %&listing_name%","STACK: %#listing_stack%");
+							if(%#inventory_slot% == -1);
+								debug_error(%debug%,%&script_debug_name%,"Failed to find Item in Inventory with SBID %&flip_sbid% MCID %&listing_mcid% NAME %&listing_name% STACK %#listing_stack%.");
+							endif;
+							
+							// 5. If we found an Item in our Inventory matching the descriptors for this Listing, create a new Listing.
+							if(%#inventory_slot% != -1);
+								#starting_bid     = jsonget("targetPrice",%&event_instruction%);
+								#duration_minutes = 60;
+								refill_coins      = true;
+								allow_command     = true;
+								&auction_created  = auctionsCreateListing(%#inventory_slot%,%#starting_bid%,%#duration_minutes%,%&auction_type%,%refill_coins%,%allow_command%,%#tick_wait%,%#timeout_sec%);
+								if(%&auction_created% != "SUCCESS");
+									debug_error(%debug%,%&script_debug_name%,"Failed to create Auction for Listing: &4%&auction_created%&c.");
+								endif;
+							endif;
+							
+							// 6. If we successfully created an Auction for this Item, get the Auction ID.
+							if(%&auction_created% == "SUCCESS");
+								&created_listing_id = nertGetPersonalListingID(%&listing_name%,%#starting_bid%);
+								ifmatches(%&created_listing_id%,"^ERROR_");
+									debug_error(%debug%,%&script_debug_name%,"Failed to get Auction Listing ID: &4%&created_listing_id%&c.");
+								endif;
+							endif;
+							
+							// 7. If we got the created listing ID, create a new expiry handler for it.
+							ifnotmatches(%&created_listing_id%,"^ERROR_");
+								@&nert_expiry_ids[]          = %&created_listing_id%;
+								@&nert_expiry_instructions[] = %&event_instruction%;
+								@#nert_expiry_timestamps[]   = %TIMESTAMP% + (%#duration_minutes% * 60);
+								@nert_expiry_active[]        = true;
+							endif;
+						endif;
+					endif;
+				endif;
+			endif;
+		elseif(%&action_type% == "EVENT_LOOP");
+			// Event Loop for Nert Flipping Script.
+				// Params:
+					// {string} &parent_taskname	The Task Name of the Parent of this Script. This Script will Exit once
+					//                          	it's Parent is dead.
+				// Returns: Nothing
+				// Example:
+					// exec("nertRegressionOnly.txt","NERT_EVENT_LOOP %UNIQUEID%","EVENT_LOOP",%KEYNAME%);
+			
+			if(true);
+				if(true);
+					debug              = true;
+					&script_debug_name = "&9NERT_EVENT_LOOP&7";
+					#start_time        = %TIMESTAMP%;
+					#tick_wait         = 20;
+					#timeout_sec       = 30;
+					&parent_taskname   = $$[2];
+				endif;
+				
+				do;
+					parent_alive = isrunning(%&parent_taskname%);
+					if(!%parent_alive%);
+						break;
+					endif;
+					
+					if(true);
+						// @&nert_event_types[] 	- String ENUM of EVENT_TYPE.
+						// @&nert_event_datas[] 	- Data to pass along to NERT_EVENT_HANDLER.
+						// @nert_event_handled[]	- Whether or not the Event has been handled.
+						
+						#false_index = indexof(@nert_event_handled[],,false);
+						if(%#false_index% != -1);
+							// Loop over the Handled Array repeatedly, just in case it updates while we are searching for the
+							// Event we want to execute. If it does update while we are mid-search, we can break out and restart
+							// the search, starting from the greatest Index we found a possible Event at (since any additions to
+							// the Array will be appended to it, we can skip iterating over Events we have already effectively
+							// disqualified in earlier iterations, thus saving computation time).
+							
+							do;
+								#total_length            = arraysize(@nert_event_handled[]);
+								#final_index             = %#total_length% - 1;
+								#greatest_event_priority = -1;
+								greatest_event_found     = true;
+								
+								for(#i,%#false_index%,%#final_index%);
+									nert_event_loop_queue_handled = %@nert_event_handled[%#i%]%;
+									if(!%nert_event_loop_queue_handled%);
+										&event_type       = %@&nert_event_types[%#i%]%;
+										#event_type_index = indexof(&nert_event_types[],,%&event_type%);
+										#event_priority   = %#nert_event_priority[%#event_type_index%]%;
+										
+										// Since we only ever add to the event_loop_queue Arrays by adding new Elements,
+										// the Element at the greatest index in the Array will be the latest one added to the
+										// queue. So, since we want to react to events temporally (first in first out), we should
+										// only override the event we are going to be executing if the found event's priority exceeds
+										// the current greatest priority event we have found.
+										
+										if(%#event_priority% > %#greatest_event_priority%);
+											#greatest_event_priority = %#event_priority%;
+											&greatest_event_type     = %&event_type%;
+											&greatest_event_data     = %@&nert_event_datas[%#i%]%;
+											#greatest_event_index    = %#i%;
+										endif;
+									endif;
+									
+									#new_total_length = arraysize(@nert_event_handled[]);
+									if(%#new_total_length% != %#total_length%);
+										greatest_event_found = false;
+										break;
+									endif;
+								next;
+								
+								if((!%greatest_event_found%) && (%#greatest_event_index% >= 0));
+									// We broke out of the Array due to finding that the Array updated mid-search, so we can update the '#false_index'
+									// (a.k.a. the start index of our for loop) accordingly so as to not re-iterate over already disqualified events.
+									debug_log(%debug%,%&script_debug_name%,"Broke out of Array search due to the Array updating mid-search. Will update the start index from &c%#false_index%&7 to &a%#greatest_event_index%&7 and re-iterate over the Array to try and find a potentially higher-priority Event to handle.");
+									#false_index = %#greatest_event_index%;
+								endif;
+							until(%greatest_event_found%);
+							
+							debug_log(%debug%,%&script_debug_name%,"Found event type &d%&greatest_event_type%&7 with priority &d%#greatest_event_priority%&7 at index &d%#greatest_event_index%&7. Executing EVENT_HANDLER for this Event.");
+							
+							&last_event_macroname = "NERT_EVENT_HANDLER %UNIQUEID%";
+							unset(@&nert_event_handler);
+							exec("nertRegressionOnly.txt",%&last_event_macroname%,"EVENT_HANDLER",@&nert_event_handler,%&greatest_event_type%,%&greatest_event_data%);
+							do;
+								wait("1t");
+								handler_alive = isrunning(%&last_event_macroname%);
+								if(!%handler_alive%);
+									break;
+								endif;
+								
+								wait("1t");
+								parent_alive = isrunning(%&parent_taskname%);
+								if(!%parent_alive%);
+									break;
+								endif;
+							while((%parent_alive%) && (%handler_alive%) && (%@&nert_event_handler% == ""));
+						endif;
+					endif;
+					
+					wait("1t");
+				while(%parent_alive%);
+			endif;
+		elseif(%&action_type% == "EXPIRY_LOOP");
+			// Expiry Looper for Nert Flipping Script.
+				// Params:
+					// {string} &parent_taskname	The Task Name of the Parent of this Script. This Script will Exit once
+					//                          	it's Parent is dead.
+				// Returns: Nothing
+				// Example:
+					// exec("nertRegressionOnly.txt","NERT_EXPIRY_LOOP %UNIQUEID%","EXPIRY_LOOP",%KEYNAME%);
+					
+			if(true);
+				if(true);
+					debug              = true;
+					&script_debug_name = "&9NERT_EXPIRY_LOOP&7";
+					#start_time        = %TIMESTAMP%;
+					#tick_wait         = 20;
+					#timeout_sec       = 30;
+				endif;
+				
+				do;
+					parent_alive = isrunning(%&parent_taskname%);
+					if(!%parent_alive%);
+						break;
+					endif;
+					
+					// Iterate over all of the Expiry Handlers and check which ones should be checked on.
+					if(true);
+						// @&nert_expiry_ids[]
+						// @&nert_expiry_instructions[]
+						// @#nert_expiry_timestamps[]
+						// @nert_expiry_active[]
+						
+						#true_index = indexof(@nert_expiry_active[],,true);
+						if(%#true_index% != -1);
+							#final_index = arraylength(@nert_expiry_active[]);
+							for(#i,%#true_index%,%#final_index%);
+								nert_expiry_active = %@nert_expiry_active[%#i%]%;
+								if(%nert_expiry_active%);
+									#nert_expiry_timestamp = %@#nert_expiry_timestamps[%#i%]%;
+									if(%TIMESTAMP% >= %#nert_expiry_timestamp%);
+										// We want to add instructions to check the Expiry Times of any Auctions that we have passed the
+										// noted 'expiry timestamp' for, while also not spamming a ton of repeat instructions. So, we can
+										// keep track of the Index for each Instruction that we add, and track that parallel to the Auction
+										// IDs. Once the Event Loop has finished checking an Expiry Time for an Auction, we can make that Instruction
+										// available for re-evaluation again.
+										
+										&nert_expiry_auction_id = %@&nert_expiry_ids[%#i%]%;
+										#queued_expiry_index    = indexof(&queued_expiry_ids[],,%&nert_expiry_auction_id%);
+										push_event              = %#queued_expiry_index% == -1;
+										
+										if(%#queued_expiry_index% != -1);
+											#event_loop_index  = %#queued_expiry_indexes[%#queued_expiry_index%]%
+											event_loop_handled = %@nert_event_loop_queue_handled[%#event_loop_index%]%;
+											if(%event_loop_handled%);
+												// Make the Instruction available for re-evaluation again.
+												&queued_expiry_ids[%#queued_expiry_index%] = "NULL";
+											endif;
+										else;
+											// Remove the Instruction from the set of IDs available for re-evaluation.
+											&queued_expiry_ids[]     = %&nert_expiry_auction_id%;
+											#queued_expiry_indexes[] = -1;
+											#queued_expiry_index     = indexof(&queued_expiry_ids[],,%&nert_expiry_auction_id%);
+										endif;
+										
+										if(%push_event%);
+											&nert_expiry_instruction             = %@&nert_expiry_instructions[%#i%]%;
+											&expiry_unique_id                    = %UNIQUEID%;
+											@&nert_event_ids[]                   = %&expiry_unique_id%;
+											
+											#unique_index                        = indexof(@&nert_event_loop_queue_ids[],,%&expiry_unique_id%);
+											@&nert_event_types[%#unique_index%]  = ucase("UPDATE_EXPIRY");
+											@&nert_event_datas[%#unique_index%]  = %&nert_expiry_instruction%;
+											@nert_event_handled[%#unique_index%] = false;
+											
+											// Map the Index of the Instruction that we just added to the Event Loop to the Auction ID
+											// (queued_expiry_indexes[] is parallel to queued_expiry_ids[]).
+											#queued_expiry_indexes[%#queued_expiry_index%]  = %#unique_index%;
+										endif;
+									endif;
+								endif;
+							next;
+						endif;
+					endif;
+					
+					wait("20t");
+				while(%parent_alive%);
+			endif;
+		elseif(%&action_type% == "MAIN");
+			// Main Entry Point for Nert Flipping Script.
+				// Params: None
+				// Returns: Nothing
+				// Example:
+					// exec("nertRegressionOnly.txt","NERT_MAIN %UNIQUEID%","MAIN");
+			
+			if(true);
+				if(true);
+					debug              = true;
+					&script_debug_name = "&9NERT_MAIN&7";
+					#start_time        = %TIMESTAMP%;
+					#tick_wait         = 20;
+					#timeout_sec       = 30;
+				endif;
+				
+				// Check if we are exiting or entering the Script.
+				if(true);
+					@nert_state = true;
+					foreach("running");
+						if(%MACRONAME% != %KEYNAME%);
+							ifmatches(%MACRONAME%,"NERT_MAIN");
+								@nert_state = false;
+								break;
+							endif;
+						endif;
+					next;
+					
+					if(%@nert_state%);
+						log("%@&p%Flipper script &aenabled&7.");
+					else;
+						log("%@&p%Flipper script &cdisabled&7.");
+						stop("all");
+						stop();
+					endif;
+				endif;
+				
+				// Start the EVENT_LOOP and EXPIRY_HANDLER Scripts.
+				exec("nertRegressionOnly.txt","NERT_EVENT_LOOP %UNIQUEID%","EVENT_LOOP",%KEYNAME%);
+				exec("nertRegressionOnly.txt","NERT_EXPIRY_HANDLER %UNIQUEID%","EXPIRY_HANDLER",%KEYNAME%);
+				
+				// Loop getting new Instructions.
+				do;
+					// 1. Check if we should request new instructions from the API.
+					if(%TIMESTAMP% >= %#next_api_update%);
+						&api_instructions[] = nertGetInstructions();
+						#api_response_code := %&api_instructions[0]%;
+						if(%#api_response_code% == 200);
+							#next_api_update  := %&api_instructions[2]%;
+							#api_instructions := %&api_instructions[3]%;
+							#till_next_sec     = %#next_api_update% - %TIMESTAMP%;
+							debug_log(%debug%,%&script_debug_name%,"Got &d%#api_instructions%&7 new Instructions from the API. Set next Update Timestamp to be &d%#next_api_update%&7 (in: &d%#till_next_sec% sec&7).");
+							if(%#api_instructions% >= 1);
+								debug_log(%debug%,%&script_debug_name%,"Got some API Flip Instructions. Adding them to the EVENT_LOOP.");
+								#range_inst_start         = 4;
+								#range_inst_end           = arraysize(&api_instructions[]);
+								#range_inst_end           = %#range_inst_end% - 1;
+								@nert_event_loop_updating = true;
+								for(#range_index,%#range_inst_start%,%#range_inst_end%);
+									&flip_instruction                    = %&api_instructions[%#range_index%]%;
+									&flip_type                           = jsonget("type",%&flip_instruction%);
+									&flip_unique_id                      = %UNIQUEID%;
+									@&nert_event_ids[]                   = %&flip_unique_id%;
+									#unique_index                        = indexof(@&nert_event_ids[],,%&flip_unique_id%);
+									@&nert_event_types[%#unique_index%]  = ucase("NEW_INSTRUCTION_%&flip_type%");
+									@&nert_event_datas[%#unique_index%]  = %&flip_instruction%;
+									@nert_event_handled[%#unique_index%] = false;
+									debug_log(%debug%,%&script_debug_name%,"Added '&d%@&nert_event_types[%#unique_index%]%&7' Instruction Type at Index &d%#unique_index%&7.");
+								next;
+								@nert_event_loop_updating = false;
+							else;
+								debug_log(%debug%,%&script_debug_name%,"The API reported no new Instructions.");
+							endif;
+							debug_log(%debug%,%&script_debug_name%,"Will sleep for &d%#till_next_sec% seconds&7 before hitting the API again for updated instructions.");
+							wait("%#till_next_sec%000ms")
+						else;
+							&api_response_body = %&api_instructions[1]%;
+							debug_error(%debug%,%&script_debug_name%,"An error occured while requesting new Instructions from the API?");
+							debug_error(%debug%,%&script_debug_name%,"Response Code: &4%#api_response_code%&c.");
+							debug_error(%debug%,%&script_debug_name%,"Response Body: &4%&api_response_body%&c.");
+							wait("19t");
+						endif;
+					endif;
+					
+					wait("1t");
+				loop;
+			endif;
+		endif;
+		
+	endfunction;
+endunsafe;

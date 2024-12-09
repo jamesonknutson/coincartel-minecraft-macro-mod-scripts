@@ -1,0 +1,12 @@
+//! @mkb-import-begin
+    // nert/index/nertAuctionEvent
+        // Handles an onChat '/viewauction <...>' event.
+        // Params:
+            // {string} <&auction_id>    The Auction ID that this Event is regarding (hyphens stripped).
+            // {string} <&event_type>    String ENUM representing the type of Event this is regarding, one of:
+            //                           AUCTION_OUTBID, AUCTION_SOLD, AUCTION_PURCHASED, AUCTION_EXPIRED.
+        function nertAuctionEvent(&auction_id,&event_type);
+        // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/nert/index.txt:5
+        
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,21 @@
+//! @mkb-import-begin
+    // math/index/isStandardNumber
+        // Checks if <&number> is a Standard (Integer or Float, no Commas, can be Decimal) Number.
+            // Params:
+                // {string} <&number>    The Number to check if Standardized.
+                //
+            // Returns a Boolean.
+            // Example:
+                // isStandardNumber("-100.91"); // true
+                // isStandardNumber("100K"); // false
+                // isStandardNumber("0.0000000000091"); // true
+                // isStandardNumber("3.191e10"); // false
+                // isStandardNumber(""); // false
+        function isStandardNumber(&number);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/math/index.txt:160
+            ifmatches(%&number%,"^[\d.-]+$");
+                return_boolean = true;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

@@ -1,0 +1,221 @@
+//! @mkb-import-begin
+    // autosetup/index/inHazardousRange
+        // Checks if the specified X/Y/Z position is found within a known Hazardous Range and/or is a Hazardous Position.
+            // Params:
+                // {number} <#x>                     The X position to check if found within a Hazardous Range
+                // {number} <#y>                     The Y position to check if found within a Hazardous Range
+                // {number} <#z>                     The Z position to check if found within a Hazardous Range
+                // {string} [&hazard_positions[]]    An Array of X|Y|Z coordinate strings that hold Hazardous Positions. If
+                //                                   not provided will only check against known Hazardous Ranges.
+                // {boolean} [check_blocks=true]     Whether or not to check if the position has an interactive block (i.e. chest) on it.
+                //                                   If the block is interactive, will return true. Set this to false if we are doing a
+                //                                   left click interaction.
+                // {boolean} [check_ranges=true]     Whether or not to check if the position is within a known Hazardous Range,
+                //                                   or just the [&hazard_positions[]] Array.
+            // Returns a Boolean indicating whether or not the Position was found within a Hazardous Range.
+        function inHazardousRange(#x,#y,#z,&hazard_positions[],check_blocks=true,check_ranges=true,&allow_blocks[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:350
+            // Hazardous Area Ranges -- right or left clicking while the cursor is against any position within a range's
+            // minimum and maximum coordinate bounds will result in entering a bad GUI.
+            if(%check_ranges%);
+                // Auction House Walls
+                if(true);
+                    // South - min: -39|72|-87, max: -29|78|-84
+                    #hazard_min_x[] = -39;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -87;
+                    #hazard_max_x[] = -29;
+                    #hazard_max_y[] = 78;
+                    #hazard_max_z[] = -84
+                    
+                    // North - min: -39|72|-98, max: -29|77|-95
+                    #hazard_min_x[] = -39;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -98;
+                    #hazard_max_x[] = -29;
+                    #hazard_max_y[] = 77;
+                    #hazard_max_z[] = -95;
+                    
+                    // West - min: -48|72|-93, max: -46|73|-89
+                    #hazard_min_x[] = -48;
+                    #hazard_min_y[] = 72;
+                    #hazard_min_z[] = -93;
+                    #hazard_max_x[] = -46;
+                    #hazard_max_y[] = 73;
+                    #hazard_max_z[] = -89;
+                endif;
+                
+                // Community Building Walls
+                if(true);
+                    // West - min: -5|73|-111, max: -3|75|-107
+                    #hazard_min_x[] = -5;
+                    #hazard_min_y[] = 73;
+                    #hazard_min_z[] = -111;
+                    #hazard_max_x[] = -3;
+                    #hazard_max_y[] = 75;
+                    #hazard_max_z[] = -107;
+                endif;
+                
+                // Bank Vault Walls
+                if(true);
+                    // West - min: -30|71|-64, max: -28|74|-60
+                    #hazard_min_x[] = -30;
+                    #hazard_min_y[] = 71;
+                    #hazard_min_z[] = -64;
+                    #hazard_max_x[] = -28;
+                    #hazard_max_y[] = 74;
+                    #hazard_max_z[] = -60;
+                endif;
+                
+                foreach(#hazard_min_x[],#min_x,#i);
+                    #min_y = %#hazard_min_y[%#i%]%;
+                    #min_z = %#hazard_min_z[%#i%]%;
+                    #max_x = %#hazard_max_x[%#i%]%;
+                    #max_y = %#hazard_max_y[%#i%]%;
+                    #max_z = %#hazard_max_z[%#i%]%;
+                    
+                    if((%#x% >= %#min_x%) && (%#x% <= %#max_x%) && (%#y% >= %#min_y%) && (%#y% <= %#max_y%) && (%#z% >= %#min_z%) && (%#z% <= %#max_z%));
+                        in_hazardous_range = true;
+                        break;
+                    else;
+                        log("%#i% > Not in hazardous range")
+                    endif;
+                next;
+                
+                if(%in_hazardous_range%);
+                    return(%in_hazardous_range%);
+                endif;
+            endif;
+            
+            // Check if the block at x, y, z is hazardous, if we need to.
+            if(%check_blocks%);
+                &interactive_blocks[] = split(", ","anvil, beacon, bed, brewing_stand, chest, crafting_table, enchanting_table, ender_chest, furnace, item_frame, jukebox, sign");
+                &found_block          = xgetid(%#x%,%#y%,%#z%);
+                #interactive_index    = indexof(&interactive_blocks[],,%&found_block%);
+                in_hazardous_range    = %#interactive_index% != -1;
+                if(%in_hazardous_range%);
+                    return(%in_hazardous_range%);
+                endif;
+            endif;
+            
+            &check_string      = "%#x%|%#y%|%#z%";
+            #check_index       = indexof(&hazard_positions[],,%&check_string%);
+            in_hazardous_range = #check_index != -1;
+            return(%in_hazardous_range%);
+        endfunction;
+    // autosetup/index/getEntityHazards
+        // Gets all the potentially hazardous entities (other players, armour stands) within a 6 block radius. Returns an array of
+        // coordinate strings (X|Y|Z), where each coordinate string is the position of a hazardous entity.
+            // Params: None
+            // Returns: Array of Coordinate Strings
+        function getEntityHazards();
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:444
+            foreach("entities(range:6)");
+                if((%ENTITYTYPE% == "OtherPlayerMP") || (%ENTITYTYPE% == "ArmorStand"));
+                    &return_array[] = "%ENTITYXPOS%|%ENTITYYPOS%|%ENTITYZPOS%";
+                endif;
+            next;
+            return(&return_array[]);
+        endfunction;
+    // autosetup/index/adjustLookToAvoidHazards
+        // Checks if the current cursor position is hazardous (within any hazardous range, intersects with a hazardous entity, or
+        // intersects with a hazardous block && [check_blocks] is True). If it is, adjusts the cursor position until it is not hazardous.
+            // Params:
+                // {string[]} [&accept_blocks[]]    An optional Array of Block IDs to check against the result of TRACE operations. If the TRACE
+                //                                  operation is not a Block, and/or the Trace Operation's Block ID is not found in this Array,
+                //                                  will not accept that position as non-hazardous. For use with Rancher Boots setup to look in the Air.
+                // {boolean} [check_blocks=true]    Whether or not to check for hazardous (interactive) blocks, i.e. chest, crafting bench, etc.
+                //                                  If the interaction type we are executing is a left click, we can set this to false.
+                // {boolean} [check_ranges=true]    Whether or not to check for hazardous (interactive) block ranges found in the Hub, such as the
+                //                                  walls surrounding the Auction Agents, the Bank Vault, etc. This can be set to false if the interaction
+                //                                  is not taking place in the Hub.
+            // Returns a boolean indicating whether or not the operation was successful.
+        function adjustLookToAvoidHazards(&accept_blocks[],check_blocks=true,check_ranges=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/autosetup/index.txt:465
+            &entity_hazards[] = getEntityHazards();
+            #multipliers[]    = split(", ","1, -1");
+            #start_x          = 0;
+            #start_y          = 1;
+            #start_z          = 0;
+            init_set          = false;
+            do;
+                &trace_type = trace(6,true);
+                if(%&trace_type% == "NONE");
+                    cursor_hazard = false;
+                else;
+                    if(!%init_set%);
+                        #init_x  = %XPOS%;
+                        #init_y  = %YPOS%;
+                        #init_z  = %ZPOS%;
+                        init_set = true;
+                    endif;
+                    cursor_hazard = inHazardousRange(%TRACEX%,%TRACEY%,%TRACEZ%,&entity_hazards[],%check_blocks%,%check_ranges%);
+                endif;
+                if(%cursor_hazard%);
+                    if((%#start_x% == 50) && (%#start_y% == 50) && (%#start_z% == 50));
+                        // Ran out of spots to check, just break and accept failure.
+                        break;
+                    endif;
+                    
+                    recalc_trace = false;
+                    for(#y,%#start_y%,50);
+                        for(#x,%#start_x%,50);
+                            for(#z,%#start_z%,50);
+                                foreach(#multipliers[],#multiplier);
+                                    #calc_x      = %#init_x% + (%#x% * %#multiplier%);
+                                    #calc_y      = %#init_y% + (%#y% * %#multiplier%);
+                                    #calc_z      = %#init_z% + (%#z% * %#multiplier%);
+                                    block_hazard = inHazardousRange(%#calc_x%,%#calc_y%,%#calc_z%,&entity_hazards[],%check_blocks%,%check_ranges%);
+                                    if(!%block_hazard%);
+                                        recalc_trace = true;
+                                        #new_start_x = %#x%;
+                                        #new_start_y = %#y%;
+                                        #new_start_z = %#z% + 1;
+                                        
+                                        // Exit the current GUI.
+                                        if(true);
+                                            do;
+                                                if(%GUI% == "NONE");
+                                                    break;
+                                                else;
+                                                    press("escape");
+                                                    wait("1t");
+                                                endif;
+                                            until(%GUI% == "NONE");
+                                        endif;
+                                        
+                                        // Adjust the cursor position to the found position and break out to check if we are safe yet
+                                        if(true);
+                                            calcyawpitch(%#calc_x%,%#calc_y%,%#calc_z%,#calc_yaw,#calc_dist,#calc_pitch);
+                                            #calc_ticks = random(4,10);
+                                            #calc_ms    = %#calc_ticks% * 50;
+                                            log("looking to %#calc_yaw%, %#calc_pitch% in 0.%#calc_ms% milliseconds from %YAW%, %PITCH%.")
+                                            looks(%#calc_yaw%,%#calc_pitch%,"0.%#calc_ms%");
+                                            break;
+                                        endif;
+                                    endif;
+                                next;
+                                if(%recalc_trace%);
+                                    break;
+                                endif;
+                            next;
+                            if(%recalc_trace%);
+                                break;
+                            endif;
+                        next;
+                        if(%recalc_trace%);
+                            break;
+                        endif;
+                    next;
+                    
+                    #start_x = %#new_start_x%;
+                    #start_y = %#new_start_y%;
+                    #start_z = %#new_start_z%;
+                    
+                    wait("1t");
+                endif;
+            until(!%cursor_hazard%);
+            return_boolean = !%cursor_hazard%;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

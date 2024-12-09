@@ -1,0 +1,14 @@
+//! @mkb-import-begin
+    // array/index/arrayConcat
+        // Appends one array to the end of another.
+            // Params:
+            //        {array} <&array[]>     The Source Array to append Elements from the Target Array to.
+            //        {array} <&append[]>    The Target Array to append to the Source Array
+            //
+            // Returns a new Array with all the Elements from <&append[]> appended to <&array[]>.
+        function arrayConcat(&array[],&append[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:72
+            push(&array[],&append[*]);
+            return(&array[]);
+        endfunction;
+//! @mkb-import-end

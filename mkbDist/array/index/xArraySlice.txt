@@ -1,0 +1,65 @@
+//! @mkb-import-begin
+    // array/index/xArraySlice
+        // Gets a shallow copy of a portion of an Array into a new Array selected from [&start] to [&end] ([&end] not included)
+        // where [&start] and [&end] represent the index of items in that Array. The Original Array will not be modified.
+            // Params:
+                // {string} [&start]    Zero based index at which to start extraction. A negative index can be used, indicating
+                //                      an offset from the end of the sequence. `xArraySlice(&parent_array[],-2);` extracts the
+                //                      last 2 elements in the sequence. If [&start] is omitted, `xArraySlice` will start from Index
+                //                      0. If [&start] is greater than the index range of the sequence, an empty Array is returned.
+                // {string} [&end]      Zero-based index `before` which to end extraction. `xArraySlice` extracts up to `but not including`
+                //                      [&end]. For example, `xArraySlice(&parent_array[],1,4);` extracts the second element through the
+                //                      fourth element (elements indexed 1, 2, and 3). A negative index can be used, indicating an offset
+                //                      from the end of the sequence. `xArraySlice(&parent_array[],2,-1);` extracts the third element through
+                //                      the second-to-last element in the sequence. If [&end] is omitted, `xArraySlice` extracts through the
+                //                      end of the sequence (`#sz = arraysize(&parent_array[]);`). If [&end] is greater than the length of the
+                //                      sequence, `xArraySlice` extracts through to the end of the sequence (`#sz = arraysize(&parent_array[]);`).
+            // Returns a shallow-copied Array of the Parent Array.
+            // Example:
+                //    Copying all but the last index of an Array:
+                    //    &last_omitted[] = xArraySlice(&parent_array[],0,-1);
+                //    Copying all but the first and last index of an Array:
+                    //    &ends_omitted[] = xArraySlice(&parent_array[],1,-1);
+                //    Copying all Elements at Index >= 3:
+                    //    &gte_index_3[]  = xArraySlice(&parent_array[],2);
+                //    Copying all Elements at Index <= 5:
+                    //    &lte_index_5[]  = xArraySlice(&parent_array[],0,5);
+        function xArraySlice(&parent_array[],&start,&end);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/array/index.txt:354
+            #parent_length        = arraysize(&parent_array[]);
+            #parent_index_length  = %#parent_length% - 1;
+            #start_index         := %&start%;
+            if(%#start_index% < 0);
+                #offset_start_index = %#parent_length% + %#start_index%;
+                if(%#offset_start_index% < 0);
+                    #start_index = 0;
+                else;
+                    #start_index = %#offset_start_index%;
+                endif;
+            elseif(%#start_index% >= %#parent_length%);
+                return(&empty_array[]);
+            endif;
+            ifnotmatches(%&end%,"^[\d-]+$");
+                #stop_before_index  = %#parent_length%;
+            else;
+                #stop_before_index := %&end%;
+                if(%#stop_before_index% < 0);
+                    #offset_stop_before_index = %#parent_length% + %#stop_before_index%;
+                    if(%#offset_stop_before_index% < 0);
+                        return(&empty_array[]);
+                    else;
+                        #stop_before_index = %#offset_stop_before_index%;
+                    endif;
+                endif;
+            endif;
+            
+            for(#index,%#start_index%,%#stop_before_index%);
+                if((%#index% >= %#stop_before_index%) || (%#index% > %#parent_index_length%));
+                    break;
+                endif;
+                
+                &return_array[] = %&parent_array[%#index%]%;
+            next;
+            return(&return_array[]);
+        endfunction;
+//! @mkb-import-end

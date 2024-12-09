@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // info/index/hasTimeExceeded
+        // Used to determine whether to timeout a function.
+            // Params:
+                // {number} <#start_time>        The start timestamp to subtract from current timestamp
+                // {number} <#timeout_sec>       The amount of seconds to check if difference between now & start is >=.
+                // {number} [do_timeout=true]    If false, will always return false (used as shorthand for functions that
+                //                               use this function to determine whether or not they have timed out).
+            // Returns a boolean indicating whether or not <#start_timestamp> was >= <#seconds> ago.
+            // Example:
+                //    func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+        function hasTimeExceeded(#start_time,#timeout_sec,do_timeout=true);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/info/index.txt:10
+            #elapsed_sec   = %TIMESTAMP% - #start_time;
+            return_boolean = ((%do_timeout%) && (#elapsed_sec >= #timeout_sec));
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end

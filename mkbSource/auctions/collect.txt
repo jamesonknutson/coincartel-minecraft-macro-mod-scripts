@@ -1,0 +1,308 @@
+// auctions/collect.txt
+	// Given any number of an Auction's Identifiers, finds an Auction that matches the specified Identifiers and collects it.
+		// Params:
+			// {number} [#tick_wait=20]            	Amount of Ticks to wait between repeated Actions. Passed along to called Functions.
+			// {number} [#timeout_sec=30]          	Amount of Seconds Function can run for before timing out and returning an Error.
+			// {string} <...&auction_identifiers[]>	An Array of Auction Identifiers in format: '<ID_TYPE>: <ID_DATA>'. If multiple instances of a given
+			//                                     	ID_TYPE are encountered, the one that appears latest in the Array is used. Valid ID_TYPE Prefixes are
+			//                                     	at the end of this Comment.
+		// Valid ID_TYPE Prefixes:
+			// {string} ID      	The Listing ID
+			// {string} TYPE    	The Listing Type (one of: BIN, AUCTION)
+			// {number} PRICE   	The Current Listing Price
+			// {number} BIDS    	The amount of Bids on the Listing
+			// {boolean} ENDED  	Whether or not the Listing has Ended
+			// {boolean} CLAIMED	Whether or not the Listing has been claimed
+			// {string} OWNER   	The UUID of the Player that created this Listing
+			// {string} PROFILE 	The Profile ID the Owner of this Listing was using to create this Listing
+			// {string} SBID    	The SkyBlock ID of the Item that this Listing represents
+			// {string} NAME    	The Display Name of the Item that this Listing represents
+			// {string} MCID    	The Minecraft Item ID that this Listing represents
+			// {number} DATA    	The Data Value of the Item that this Listing represents
+			// {number} STACK   	The Stack Size of the Item that this Listing represents
+			// {string} BUYER   	A UUID(s) of a Player who purchased/claimed this Listing. If giving multiple, join them with ~.
+		// Returns a String ENUM:
+			// SUCCESS            	The Function executed as expected and was successful.
+			// ERROR_TIMEOUT      	Exited early due to a timeout.
+			// ERROR_UNAVAILABLE  	Auction House was closed for some reason (i.e. Derpy is Mayor).
+			// ERROR_NOT_FOUND    	Exited due to not being able to find a Listing that matched the specified Identifiers
+			// ERROR_NOT_FOUND_GUI	Exited due to having found the Listing in Cache / API, but not being able to find the Auction in the GUI
+			// ERROR_UNKNOWN      	Exited due to an unknown Error.
+			// ERROR_SERVER       	Exited due to not being able to get onto SkyBlock.
+			// ERROR_INVENTORY    	Not enough space in the Inventory to successfully collect the Auction.
+		// Example:
+			//	&collected_listing = auctionsCollectListing(%#tick_wait%,%#timeout_sec%,...&auction_identifiers[]);
+			//	if(%&collected_listing% != "SUCCESS");
+			//		if(%&collected_listing% == "ERROR_TIMEOUT");
+			//		elseif(%&collected_listing% == "ERROR_UNAVAILABLE");
+			//		elseif(%&collected_listing% == "ERROR_NOT_FOUND");
+			//		elseif(%&collected_listing% == "ERROR_NOT_FOUND_GUI");
+			//		elseif(%&collected_listing% == "ERROR_UNKNOWN");
+			//		elseif(%&collected_listing% == "ERROR_SERVER");
+			//		elseif(%&collected_listing% == "ERROR_INVENTORY");
+			//		endif;
+			//	endif;
+	function auctionsCollectListing(#tick_wait=20,#timeout_sec=30,...&auction_identifiers[]);
+		// Setup Function Variables
+		if(true);
+			debug               = true;
+			&script_debug_name  = "&9auctionsCollectListing&7";
+			do_timeout          = %#timeout_sec% > 0;
+			#start_time         = %TIMESTAMP%;
+			&enum_success       = "SUCCESS";
+			&enum_timeout       = "ERROR_TIMEOUT";
+			&enum_not_found     = "ERROR_NOT_FOUND";
+			&enum_not_found_gui = "ERROR_NOT_FOUND_GUI";
+			&enum_unknown       = "ERROR_UNKNOWN";
+			&enum_server        = "ERROR_SERVER";
+			&enum_inventory     = "ERROR_INVENTORY";
+			
+			if(%#tick_wait% < 100);
+				#collect_wait = 100;
+			else;
+				#collect_wait = %#tick_wait%;
+			endif;
+		endif;
+		
+		// Find the specified Auction
+		if(true);
+			// 1. Check if the Auction is Cached
+			if(true);
+				&cache_data[]   = auctionsCheckCache(...&auction_identifiers[]);
+				cache_hit      := %&cache_data[0]%;
+				&cache_id       = %&cache_data[1]%;
+				&cache_type     = %&cache_data[2]%;
+				#cache_price   := %&cache_data[3]%;
+				#cache_bids    := %&cache_data[4]%;
+				cache_ended    := %&cache_data[5]%;
+				cache_claimed  := %&cache_data[6]%;
+				&cache_owner    = %&cache_data[7]%;
+				&cache_profile  = %&cache_data[8]%;
+				&cache_sbid     = %&cache_data[9]%;
+				&cache_name     = %&cache_data[10]%;
+				&cache_mcid     = %&cache_data[11]%;
+				#cache_data    := %&cache_data[12]%;
+				#cache_stack   := %&cache_data[13]%;
+				&cache_buyers   = %&cache_data[14]%;
+			endif;
+			
+			if(!%cache_hit%);
+				&identifers = join("&c,&4 ");
+				debug_error(%debug%,%&script_debug_name%,"Could not find Auction with Identifiers: &4%&identifers%&c. Returning '&4%&enum_not_found%&c'.");
+				return(%&enum_not_found%);
+			endif;
+		endif;
+		
+		// Loop actions until we have completed the Action, or an un-correctable Error is encountered.
+		if(true);
+			// Setup Auction State Terms
+			if(true);
+				//	PURCHASED_ITEM
+				  	&auction_state_terms[] = "PURCHASED_ITEM";
+				  	&auction_state_mcids[] = "gold_block";
+				  	&auction_state_names[] = "Collect Auction";
+				  	&auction_state_regex[] = "Click to pick up item!";
+				//	PURCHASED_COINS
+				  	&auction_state_terms[] = "PURCHASED_COINS";
+				  	&auction_state_mcids[] = "gold_block";
+				  	&auction_state_names[] = "Collect Auction";
+				  	&auction_state_regex[] = "Click to collect coins!";
+				//	EXPIRED_COINS
+				  	&auction_state_terms[] = "EXPIRED_COINS";
+				  	&auction_state_mcids[] = "gold_nugget";
+				  	&auction_state_names[] = "Collect Auction";
+				  	&auction_state_regex[] = "Click to collect bid coins!";
+				//	EXPIRED_ITEM
+				  	&auction_state_terms[] = "EXPIRED_ITEM";
+				  	&auction_state_mcids[] = "stained_hardened_clay";
+				  	&auction_state_names[] = "Cancel Auction";
+				  	&auction_state_regex[] = "Click to cancel auction!";
+			endif;
+			#waited_ticks = 0;
+			
+			&init_unset_pointers[] = split(", ","@ah_failure, @ah_confirm, @&ah_failure_string, @&ah_confirm_string");
+			&fail_ifset_pointers[] = split(", ","@ah_failure");
+			&okay_ifset_pointers[] = split(", ","@ah_confirm");
+			&check_bool_pointers[] = split(", ","@ah_confirm, @ah_failure");
+			
+			foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+				unset(%&init_unset_pointer%);
+			next;
+			
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out");
+						&return_string = %&enum_timeout%;
+						break;
+					endif;
+				endif;
+				
+				// 2. If we have already clicked on the item, check to see whether or not we have any Pointers set.
+				if(%check_pointers%);
+					foreach(&check_bool_pointers[],&check_bool_pointer,#cbp);
+						check_bool_state := "%%&check_bool_pointer%%";
+						if(%check_bool_state%);
+							if(%&check_bool_pointer% == "@ah_failure");
+								// debug_breakpoint(%debug%,%&script_debug_name%,"Error Pointer @ah_failure is set!");
+								debug_error(%debug%,%&script_debug_name%,"Error Pointer @ah_failure is set!");
+								&return_string = %&enum_unknown%;
+								break;
+							elseif(%&check_bool_pointer% == "@ah_confirm");
+								// debug_breakpoint(%debug%,%&script_debug_name%,"Success Pointer @ah_confirm is set!");
+								debug_log(%debug%,%&script_debug_name%,"Success Pointer @ah_confirm is set!");
+								&return_string = %&enum_success%;
+								break;
+							endif;
+						endif;
+					next;
+					
+					if(%&return_string% != "");
+						// debug_breakpoint(%debug%,%&script_debug_name%,"About to exit with return_string: '&d%&return_string%&7'...");
+						debug_log(%debug%,%&script_debug_name%,"About to exit with return_string: '&d%&return_string%&7'...");
+						break;
+					elseif((%TIMESTAMP% - %#check_pointer_timestamp%) >= 3);
+						debug_breakpoint(%debug%,%&script_debug_name%,"About to disable pointer check...");
+						check_pointers = false;
+					endif;
+					wait("1t");
+				else;
+					// 2. Open the Auction GUI, if we are not already in it.
+					if(true);
+						// 2a. Save the state of all our Pointers before we run the Function.
+						foreach(&init_unset_pointers[],&init_unset_pointer,#iup);
+							&saved_states[%#iup%] = %%&init_unset_pointer%%;
+						next;
+						
+						#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+						&listing_opened    = auctionsOpenListing(%&cache_id%,&cache_data[],%#tick_wait%,%#recursive_timeout%);
+						if(%&listing_opened% != "SUCCESS");
+							debug_error(%debug%,%&script_debug_name%,"Received an Error Code from auctionsOpenListing: '&4%&listing_opened%&c'. Will return this Error Code.");
+							&return_string = %&listing_opened%;
+							break;
+						endif;
+						
+						// 2b. Revert the state of all our Pointers to their former State.
+						foreach(&saved_states[],&saved_state,#ss);
+							set(%&init_unset_pointers[%#ss%]%,%&saved_state%);
+						next;
+					endif;
+					
+					// 3. Check if we can collect the Auction Listing.
+					if(true);
+						// 3a. Find the Auction Listing Type (PURCHASED_ITEM, PURCHASED_COINS, EXPIRED_COINS, EXPIRED_ITEM).
+						if(true);
+							&found_state_term = "";
+							foreach(&auction_state_terms[],&auction_state_term,#ast);
+								&auction_state_mcid  = %&auction_state_mcids[%#ast%]%;
+								&auction_state_name  = %&auction_state_names[%#ast%]%;
+								&auction_state_regex = %&auction_state_regex[%#ast%]%;
+								#auction_state_slot  = findItemContainer(false,"MCID: %&auction_state_mcid%","NAME: %&auction_state_name%","NBT: r$%&auction_state_regex%");
+								if(%#auction_state_slot% != -1);
+									&found_state_term = %&auction_state_term%;
+									break;
+								endif;
+							next;
+							
+							// Break and return early after logging the contents of the Inventory, Mouse, and Container to file if we were not able to determine the Auction State.
+							if(%&found_state_term% == "");
+								&log_path = containerLog("~/liteconfig/common/macros/logs/auctionFailures/%TIMESTAMP%-auctionNBT.txt",false,"Caller: %&script_debug_name%");
+								debug_error(%debug%,%&script_debug_name%,"Could not determine the Auction State Type! This may be because the auction is not owned by us, it has expired, and we did not bid on it, or the server is shutting down soon, or something else that is yet to be accounted for. Full GUI Data has been logged to '&d%&log_path%&c'.");
+								&return_string = %&enum_unknown%;
+								break;
+							endif;
+						endif;
+						
+						// 3b. If we found the Auction Listing Type, determine whether or not we will be able to collect it.
+						if(true);
+							auction_collectable = ((%&found_state_term% == "PURCHASED_ITEM") || (%&found_state_term% == "PURCHASED_COINS"));
+							if(!%auction_collectable%);
+								#auction_placeholder_slot     = 13;
+								&auction_placeholder_item     = getslotitemnbt(%#auction_placeholder_slot%,,#auction_placeholder_stack,#auction_placeholder_data,&auction_placeholder_nbt);
+								&auction_placeholder_nbt      = strip(%&auction_placeholder_nbt%);
+								&auction_placeholder_name     = getItemName(%&auction_placeholder_nbt%,%&auction_placeholder_item%);
+								&auction_placeholder_sbid     = getItemSBID(%&auction_placeholder_nbt%);
+								#sum_available_inventory_room = getStackRoomInventory(%&auction_placeholder_sbid%);
+								auction_collectable           = %#sum_available_inventory_room% >= %#auction_placeholder_stack%;
+								if(!%auction_collectable%);
+									debug_error(%debug%,%&script_debug_name%,"Auction Listing is not collectable. Minimum required room in Inventory is &4%#auction_placeholder_stack%&c, but we only have &4%#sum_available_inventory_room%&c room available. Will return '&4%&enum_inventory%&c'.");
+									&return_string = %&enum_inventory%;
+									break;
+								endif;
+							endif;
+						endif;
+						
+						// 3c. If the Auction is Collectable, attempt to Collect the Auction.
+						if(%auction_collectable%);
+							#waited_ticks   = 0;
+							entered_new_gui = false;
+							&init_gui       = getContainerString(false);
+							item_clicked    = false;
+							do;
+								// 1. Check for Function Timeout
+								if(%do_timeout%);
+									func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+									if(%func_timeout%);
+										debug_error(%debug%,%&script_debug_name%,"Function timed out");
+										&return_string = %&enum_timeout%;
+										break;
+									endif;
+								endif;
+								
+								// 2. Check if we are still in the same GUI
+								if(true);
+									entered_new_gui = enteredNewGUI(%&init_gui%,false);
+									if(%entered_new_gui%);
+										if(%item_clicked%);
+											// debug_breakpoint(%debug%,%&script_debug_name%,"Entered new GUI, clicked new Item, about to enter Pointer Check mode.");
+											debug_log(%debug%,%&script_debug_name%,"Entered new GUI, clicked new Item, about to enter Pointer Check mode.");
+											#check_pointer_timestamp = %TIMESTAMP%;
+											check_pointers           = true;
+										else;
+											// debug_breakpoint(%debug%,%&script_debug_name%,"Entered new GUI, but have not yet clicked new Item. &cWill not be entering Pointer Check mode.");
+											debug_error(%debug%,%&script_debug_name%,"Entered new GUI, but have not yet clicked new Item. &4Will not be entering Pointer Check mode.");
+										endif;
+										break;
+									endif;
+								endif;
+								
+								// 3. Check if we can click the Item
+								if(true);
+									can_click = canDoInteraction(%#waited_ticks%,%#collect_wait%);
+									if(%can_click%);
+										slotclick(%#auction_state_slot%,"right");
+										item_clicked = true;
+									endif;
+								endif;
+								
+								// 4. Check if any of our pointers are set
+								if(true);
+									foreach(&check_bool_pointers[],&check_bool_pointer,#cbp);
+										check_bool_state := "%%&check_bool_pointer%%";
+										if(%check_bool_state%);
+											if(%&check_bool_pointer% == "@ah_failure");
+												debug_error(%debug%,%&script_debug_name%,"Error Pointer @ah_failure is set!");
+												&return_string = %&enum_unknown%;
+												break;
+											elseif(%&check_bool_pointer% == "@ah_confirm");
+												debug_log(%debug%,%&script_debug_name%,"Success Pointer @ah_confirm is set!");
+												&return_string = %&enum_success%;
+												break;
+											endif;
+										endif;
+									next;
+								endif;
+								
+								wait("1t");
+								inc(#waited_ticks);
+							until((%&return_string% != "") || (%entered_new_gui%));
+						endif;
+					endif;
+				endif;
+			until(%&return_string% != "");
+		endif;
+		
+		return(%&return_string%);
+	endfunction;

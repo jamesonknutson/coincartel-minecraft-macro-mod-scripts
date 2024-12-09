@@ -1,0 +1,385 @@
+// auctions/indexAuctions.txt
+	// Indexes the Data from the Auction found at the specified Slot.
+		// Params:
+			// {number} [#listing_item_slot=13]	The Slot to Query for Auction Data (defaults to the Slot where it is found in AUCTION_VIEW GUIs)
+			// {boolean} [force=false]         	Whether or not to force an update of the Data that is returned from the API.
+		// Throws Errors:
+		    // ERROR_API_LIMIT    Hit an API Limit.
+		    // ERROR_NOT_FOUND    Auction ID was not found, and/or was not in a valid Auction Listing GUI at time of Function Call.
+		// Returns an Array:
+		    // 0  {boolean} listing_hit          Whether or not an Item from the api was found that matches the specified Auction Identifiers.
+		    // 1  {string}  &listing_id          The Listing ID
+		    // 2  {string}  &listing_type        The Listing Type (one of: BIN, AUCTION)
+		    // 3  {number}  #listing_price       The Current Listing Price
+		    // 4  {number}  #listing_bids        The amount of Bids on the Listing
+		    // 5  {boolean} listing_ended        Whether or not the Listing has Ended
+		    // 6  {boolean} listing_claimed      Whether or not the Listing has been claimed
+		    // 7  {string}  &listing_owner       The UUID of the Player that created this Listing
+		    // 8  {string}  &listing_profile     The Profile ID the Owner of this Listing was using to create this Listing
+		    // 9  {string}  &listing_sbid        The SkyBlock ID of the Item that this Listing represents
+		    // 10 {string}  &listing_name        The Display Name of the Item that this Listing represents
+		    // 11 {string}  &listing_mcid        The Minecraft Item ID that this Listing represents
+		    // 12 {number}  #listing_data        The Data Value of the Item that this Listing represents
+		    // 13 {number}  #listing_stack       The Stack Size of the Item that this Listing represents
+		    // 14 {number}  &listing_buyers      The UUID(s) of the Player that purchased this Listing, tilde (~) separated, or 'NULL' if no buyers.
+		    // 15 {number}  #listing_end_time    The Timestamp of when this Auction will end.
+		// Example:
+		    //    &listing_info[]    = auctionsIndexSlotData(%#listing_item_slot%);
+		    //    listing_hit       := %&listing_info[0]%;
+		    //    &listing_id        = %&listing_info[1]%;
+		    //    &listing_type      = %&listing_info[2]%;
+		    //    #listing_price    := %&listing_info[3]%;
+		    //    #listing_bids     := %&listing_info[4]%;
+		    //    listing_ended     := %&listing_info[5]%;
+		    //    listing_claimed   := %&listing_info[6]%;
+		    //    &listing_owner     = %&listing_info[7]%;
+		    //    &listing_profile   = %&listing_info[8]%;
+		    //    &listing_sbid      = %&listing_info[9]%;
+		    //    &listing_name      = %&listing_info[10]%;
+		    //    &listing_mcid      = %&listing_info[11]%;
+		    //    #listing_data     := %&listing_info[12]%;
+		    //    #listing_stack    := %&listing_info[13]%;
+		    //    &listing_buyers    = %&listing_info[14]%;
+		    //    #listing_end_time := %&listing_info[15]%;
+	function auctionsIndexSlotData(#listing_item_slot=13,force=false);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&eauctionsIndexSlotData&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+		endif;
+		
+		&listing_username_expr = "(?:\[.*?\] )?(\w{3,16})";
+		&coins_expr            = "([\d,]+) coins";
+		
+		do;
+			listing_loading = false;
+			&listing_item   = getslotitemnbt(%#listing_item_slot%,,#listing_stack,#listing_data,&listing_nbt);
+			&listing_nbt    = strip(%&listing_nbt%);
+			if(%&listing_item% != "air");
+				ifnotmatches(%&listing_nbt%,"Seller: Refreshing");
+					debug_log(%debug%,%&script_debug_name%,"Trying to get Listing Data from current GUI");
+					if(%CONTAINERNAME% == "Auction View");
+						&auction_identifiers[] = "TYPE: AUCTION";
+					elseif(%CONTAINERNAME% == "BIN Auction View");
+						&auction_identifiers[] = "TYPE: BIN";
+					else;
+						get_type = true;
+					endif;
+					
+					&listing_name = getItemName(%&listing_nbt%,%&listing_item%);
+					&listing_sbid = getItemSBID(%&listing_nbt%);
+					
+					ifmatches(%&listing_nbt%,"Seller: %&listing_username_expr%",&seller_username,1);
+						if(%&seller_username% == "Refreshing");
+							listing_loading = true;
+							setclipboard(%&listing_nbt%);
+							debug_breakpoint(%debug%,%&script_debug_name%,"Breakpoint (seller == 'refreshing') hit!");
+						endif;
+						&auction_identifiers[] = "OWNER: %&seller_username%";
+					endif;
+					
+					&auction_identifiers[] = "MCID: %&listing_item%";
+					&auction_identifiers[] = "STACK: %#listing_stack%";
+					&auction_identifiers[] = "DATA: %#listing_data%";
+					&auction_identifiers[] = "NAME: %&listing_name%";
+					&auction_identifiers[] = "SBID: %&listing_sbid%";
+					
+					ifmatches(%&listing_nbt%,"(?:Top bid|Sold for): %&coins_expr%",&auction_price,1);
+						#auction_price         := regexreplace(&auction_price,",","");
+						&auction_identifiers[]  = "PRICE: %#auction_price%";
+						if(%get_type%);
+							ifmatches(%&listing_nbt%,"Top bid");
+								get_type               = false;
+								&auction_identifiers[] = "TYPE: AUCTION";
+							endif;
+						endif;
+					endif;
+					
+					ifmatches(%&listing_nbt%,"Bids: ([\d,]+) bids",&auction_bids,1);
+						#auction_bids          := regexreplace(&auction_bids,",","");
+						&auction_identifiers[]  = "BIDS: %#auction_bids%";
+						if(%get_type%);
+							get_type               = false;
+							&auction_identifiers[] = "TYPE: AUCTION";
+						endif;
+					endif;
+					
+					ifmatches(%&listing_nbt%,"Status: (?:Sold|Ended)!");
+						&auction_identifiers[] = "ENDED: true";
+					else;
+						&auction_identifiers[] = "ENDED: false";
+					endif;
+					
+					if(!%force%);
+						&cache_data[]  = auctionsCheckCache(...&auction_identifiers[]);
+						cache_hit     := %&cache_data[0]%;
+						if(%cache_hit%);
+							return_hit        = true;
+							&return_id        = %&cache_data[1]%;
+							&return_type      = %&cache_data[2]%;
+							#return_price    := %&cache_data[3]%;
+							#return_bids     := %&cache_data[4]%;
+							return_ended     := %&cache_data[5]%;
+							return_claimed   := %&cache_data[6]%;
+							&return_owner     = %&cache_data[7]%;
+							&return_profile   = %&cache_data[8]%;
+							&return_sbid      = %&cache_data[9]%;
+							&return_name      = %&cache_data[10]%;
+							&return_mcid      = %&cache_data[11]%;
+							#return_data     := %&cache_data[12]%;
+							#return_stack    := %&cache_data[13]%;
+							&return_buyers    = %&cache_data[14]%;
+							#return_end_time := %&cache_data[15]%;
+						endif;
+					endif;
+					
+					if(!%cache_hit%);
+						&api_data[]  = auctionsGetListingInfoFromAPI(...&auction_identifiers[]);
+						api_hit     := %&api_data[0]%;
+						if(%api_hit%);
+							return_hit        = true;
+							&return_id        = %&api_data[1]%;
+							&return_type      = %&api_data[2]%;
+							#return_price    := %&api_data[3]%;
+							#return_bids     := %&api_data[4]%;
+							return_ended     := %&api_data[5]%;
+							return_claimed   := %&api_data[6]%;
+							&return_owner     = %&api_data[7]%;
+							&return_profile   = %&api_data[8]%;
+							&return_sbid      = %&api_data[9]%;
+							&return_name      = %&api_data[10]%;
+							&return_mcid      = %&api_data[11]%;
+							#return_data     := %&api_data[12]%;
+							#return_stack    := %&api_data[13]%;
+							&return_buyers    = %&api_data[14]%;
+							#return_end_time := %&api_data[15]%;
+						endif;
+					endif;
+					
+					break;
+				endif;
+			else;
+				break;
+			endif;
+			wait("1t");
+		loop;
+		
+		return(%return_hit%,%&return_id%,%&return_type%,%#return_price%,%#return_bids%,%return_ended%,%return_claimed%,%&return_owner%,%&return_profile%,%&return_sbid%,%&return_name%,%&return_mcid%,%#return_data%,%#return_stack%,%&return_buyers%,%#return_end_time%);
+	endfunction;
+	
+	// Indexes all of the Auctions we have listed for Sale and returns their State.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /bz Command.
+			// {number} [#tick_wait=20]      	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]    	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+	function auctionsIndexPersonalListings(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&eauctionsIndexBids&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+		endif;
+		
+		// Loop until we get a valid return value.
+		if(true);
+			bids_indexed = false;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Get into the Main Auctions GUI
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&auctions_opened   = auctionsOpen(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+					if(%&auctions_opened% == "SUCCESS");
+						#found_slot = findItemContainer(false,"MCID: golden_horse_armor","NAME: Manage Auctions","SLOT: 15");
+						if(%#found_slot% != -1);
+							&found_item = getslotitemnbt(%#found_slot%,,#found_stack,#found_data,&found_nbt);
+							&found_nbt  = strip(%&found_nbt%);
+							ifmatches(%&found_nbt%,"You own (\d+) auctions",#auctions,1);
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								updated_gui        = containerClick(%#found_slot%,%#recursive_timeout%,%#tick_wait%);
+								if(%updated_gui%);
+									#container_start = 0;
+									#container_end   = %CONTAINERSLOTS% - 37;
+									for(#container_slot,%#container_start%,%#container_end%);
+										&container_item = getslotitemnbt(%#container_slot%,,#container_stack,#container_data,&container_nbt);
+										&container_nbt  = strip(%&container_nbt%);
+										if((%&container_item% != "air") && ((%&container_item% != "stained_glass_pane") || (%#container_data% != 15)));
+											&container_name      = getItemName(%&container_nbt%,%&container_item%);
+											&container_sbid      = getItemSBID(%&container_nbt%);
+											&test_container_name = trim(%&container_name%);
+											if((%&test_container_name% != "") && (%&test_container_name% != "Claim All") && (%&test_container_name% != "Go Back") && (%&test_container_name% != "Sort") && (%&test_container_name% != "Create Auction"));
+												&listing_info[]     = auctionsIndexSlotData(%#container_slot%);
+												listing_info_valid := %&listing_info[0]%;
+												if(%listing_info_valid%);
+													&return_array[] = join("|",&listing_info[]);
+												endif;
+											endif;
+										endif;
+									next;
+									bids_indexed = true;
+								endif;
+							elseifnotmatches(%&found_nbt%,"Refreshing");
+								debug_error(%debug%,%&script_debug_name%,"No bids are available to index!");
+								bids_indexed = true;
+								break;
+							endif;
+						endif;
+					elseif(%&auctions_opened% == "ERROR_CLOSED");
+						debug_error(%debug%,%&script_debug_name%,"Auction House is temporarily closed, cannot access it!");
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%bids_indexed%);
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Indexes all of the Auctions we have placed bids for and returns their State.
+		// Params:
+			// {boolean} [allow_command=true]	Whether or not to allow the usage of the /bz Command.
+			// {number} [#tick_wait=20]      	Amount of ticks to wait between clicks.
+			// {number} [#timeout_sec=30]    	Max seconds fn can run for before timing out. <= 0 to infinite loop until success.
+	function auctionsIndexBids(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&eauctionsIndexBids&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+		endif;
+		
+		// Loop until we get a valid return value.
+		if(true);
+			bids_indexed = false;
+			do;
+				// 1. Check for Function Timeout
+				if(%do_timeout%);
+					func_timeout = hasTimeExceeded(%#start_time%,%#timeout_sec%,%do_timeout%);
+					if(%func_timeout%);
+						debug_error(%debug%,%&script_debug_name%,"Function timed out!");
+						break;
+					endif;
+				endif;
+				
+				// 2. Get into the Main Auctions GUI
+				if(true);
+					#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+					&auctions_opened   = auctionsOpen(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+					if(%&auctions_opened% == "SUCCESS");
+						#found_slot = findItemContainer(false,"MCID: golden_carrot","NAME: View Bids","SLOT: 13");
+						if(%#found_slot% != -1);
+							&found_item = getslotitemnbt(%#found_slot%,,#found_stack,#found_data,&found_nbt);
+							&found_nbt  = strip(%&found_nbt%);
+							ifmatches(%&found_nbt%,"You placed (\d+) bids",#bids_placed,1);
+								#recursive_timeout = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+								updated_gui        = containerClick(%#found_slot%,%#recursive_timeout%,%#tick_wait%);
+								if(%updated_gui%);
+									#container_start = 0;
+									#container_end   = %CONTAINERSLOTS% - 37;
+									for(#container_slot,%#container_start%,%#container_end%);
+										&container_item = getslotitemnbt(%#container_slot%,,#container_stack,#container_data,&container_nbt);
+										&container_nbt  = strip(%&container_nbt%);
+										if((%&container_item% != "air") && ((%&container_item% != "stained_glass_pane") || (%#container_data% != 15)));
+											&container_name      = getItemName(%&container_nbt%,%&container_item%);
+											&container_sbid      = getItemSBID(%&container_nbt%);
+											&test_container_name = trim(%&container_name%);
+											if((%&test_container_name% != "") && (%&test_container_name% != "Claim All") && (%&test_container_name% != "Go Back"));
+												&listing_info[]     = auctionsIndexSlotData(%#container_slot%);
+												listing_info_valid := %&listing_info[0]%;
+												if(%listing_info_valid%);
+													&return_array[] = join("|",&listing_info[]);
+												endif;
+											endif;
+										endif;
+									next;
+									bids_indexed = true;
+								endif;
+							elseifnotmatches(%&found_nbt%,"Refreshing");
+								debug_error(%debug%,%&script_debug_name%,"No bids are available to index!");
+								bids_indexed = true;
+								break;
+							endif;
+						endif;
+					elseif(%&auctions_opened% == "ERROR_CLOSED");
+						debug_error(%debug%,%&script_debug_name%,"Auction House is temporarily closed, cannot access it!");
+						break;
+					endif;
+				endif;
+				
+				wait("1t");
+			until(%bids_indexed%);
+		endif;
+		return(&return_array[]);
+	endfunction;
+	
+	// Indexes all of the Auctions we have placed bids for, and/or listed for Sale and returns their State.
+	function auctionsIndexAll(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		// Setup Function Variables
+		if(true);
+			debug              = true;
+			&script_debug_name = "&eauctionsIndexAll&7";
+			#start_time        = %TIMESTAMP%;
+			do_timeout         = %#timeout_sec% > 0;
+		endif;
+		
+		&indexed_bids[]     = auctionsIndexBids(%allow_command%,%#tick_wait%,%#timeout_sec%);
+		#recursive_timeout  = getNewTimeoutSec(%#start_time%,%#timeout_sec%,%do_timeout%);
+		&indexed_listings[] = auctionsIndexPersonalListings(%allow_command%,%#tick_wait%,%#recursive_timeout%);
+		
+		push(&return_array[],&indexed_bids[*],&indexed_listings[*]);
+		return(&return_array[]);
+	endfunction;
+	
+	// Indexes all of the Auctions we have placed bids for and/or listed for Sale that have Coins available for us to Claim.
+	function auctionsIndexCoinsAvailable(allow_command=true,#tick_wait=20,#timeout_sec=30);
+		&indexed_auctions[] = auctionsIndexAll(%allow_command%,%#tick_wait%,%#timeout_sec%);
+		&curr_profile_id    = getActiveProfileID();
+		&curr_uuid          = %UUID%;
+		&curr_uuid          = replace(&curr_uuid,"-");
+		foreach(&indexed_auctions[],&indexed_auction,#ia);
+			&listing_info[]    = split("|",%&indexed_auction%);
+			listing_hit       := %&listing_info[0]%;
+			&listing_id        = %&listing_info[1]%;
+			&listing_type      = %&listing_info[2]%;
+			#listing_price    := %&listing_info[3]%;
+			#listing_bids     := %&listing_info[4]%;
+			listing_ended     := %&listing_info[5]%;
+			listing_claimed   := %&listing_info[6]%;
+			&listing_owner     = %&listing_info[7]%;
+			&listing_profile   = %&listing_info[8]%;
+			&listing_sbid      = %&listing_info[9]%;
+			&listing_name      = %&listing_info[10]%;
+			&listing_mcid      = %&listing_info[11]%;
+			#listing_data     := %&listing_info[12]%;
+			#listing_stack    := %&listing_info[13]%;
+			&listing_buyers    = %&listing_info[14]%;
+			#listing_end_time := %&listing_info[15]%;
+			
+			if((%listing_ended%) || (%listing_claimed%) || (%TIMESTAMP% >= %#listing_end_time%));
+				coins_available = ((%&listing_owner% == %PLAYER%) || (%&listing_owner% == %&curr_uuid%) || (%&listing_owner% == %UUID%) || (%&listing_profile% == %&curr_profile_id%));
+				if(!%coins_available%);
+					ifnotmatches(%&listing_buyers%,%&curr_uuid%);
+						coins_available = true;
+					endif;
+				endif;
+				
+				if(%coins_available%);
+					&return_array[] = %&indexed_auction%;
+				endif;
+			endif;
+		next;
+		return(&return_array[]);
+	endfunction;

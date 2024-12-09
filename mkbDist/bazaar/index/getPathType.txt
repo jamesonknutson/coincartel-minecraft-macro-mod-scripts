@@ -1,0 +1,88 @@
+//! @mkb-import-begin
+    // bazaar/index/getPartsPath
+        // Gets the Path corresponding to an Array of Parts.
+            // Params:
+                // {string} <&parts[]>    The Parts of the Path to join together.
+                //
+            // Returns the Path String.
+        function getPartsPath(&parts[]);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1001
+            #parts = arraysize(&parts[]);
+            if((%#parts% >= 1) && (%&parts[0]% != ""));
+                &path = join(".",&parts[]);
+            endif;
+            return(%&path%);
+        endfunction;
+    // bazaar/index/getPathParts
+        // Returns an Array of the 'parts' of a given Path.
+            // Params:
+                // {string} <&path>    The Path to get the 'parts' of.
+                //
+            // Returns a String Array.
+        function getPathParts(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:989
+            if(%&path% != "");
+                &parts[] = split(".",%&path%);
+            endif;
+            return(&parts[]);
+        endfunction;
+    // debug/index/debug_log
+        // Logs a message to chat if debug is enabled.
+            // Params:
+            //      <boolean> debug_enabled      : The debug condition (if true, will log).
+            //      <string>  &script_debug_name : The prefix for the debug log
+            //      <string>  &string            : The debug message to print to chat
+            //
+            // Returns the printed message.
+            //
+        function debug_log(debug_enabled=true,&script_debug_name="&8DEBUG_LOG&7",&string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/debug/index.txt:30
+            // &matcher     = "(?-i)(?<!&)(&[a-fk-r])(?=[a-z0-9_-]+)";
+            // &replacement = "&$1";
+            // &string      = regexreplace(&string,%&matcher%,%&replacement%);
+            &out_string  = "&7%&script_debug_name%&7: %&string%";
+            if(%debug_enabled%);
+                log(%&out_string%);
+            endif;
+            return(%&out_string%);
+        endfunction;
+    // bazaar/index/getPathJSON
+        // Gets the JSON Object found at the specified Path.
+            // Params:
+                // {string} <&path>    The Path to the JSON Object to retrieve from @&mkb_baz_json.
+                //
+            // Returns the JSON String Object.
+        function getPathJSON(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1039
+            debug              = true;
+            &script_debug_name = "&9getPathJSON";
+            
+            if(%&path% != "");
+                debug_log(%debug%,%&script_debug_name%,"path %&path% not null");
+                &object = jsonget(%&path%,%@&mkb_baz_json%);
+                ifbeginswith(%&object%,"[");
+                    &path_parts[] = getPathParts(%&path%);
+                    pop(&path_parts[]);
+                    &call_path  = getPartsPath(&path_parts[]);
+                    debug_log(%debug%,%&script_debug_name%,"path is array, recursive calling with %&call_path%");
+                    &path_json  = call("getPathJSON",%&call_path%);
+                    return(%&path_json%);
+                endif;
+                return(%&object%);
+            endif;
+            debug_log(%debug%,%&script_debug_name%,"returning root");
+            return(%@&mkb_baz_json%);
+        endfunction;
+    // bazaar/index/getPathType
+        // Gets the Type of the JSON Object found at the specified Path.
+            // Params:
+                // {string} <&path>    The Path to the JSON Object to retrieve from @&mkb_baz_json.
+                //
+            // Returns the JSON Object's Type: ROOT, CATEGORY, SUBCATEGORY, SUBPRODUCT, PRODUCT, BUTTON.
+        function getPathType(&path);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/bazaar/index.txt:1065
+            &path_json = getPathJSON(%&path%);
+            &path_type = jsonget("type",%&path_json%);
+            return(%&path_type%);
+        endfunction;
+//! @mkb-import-end

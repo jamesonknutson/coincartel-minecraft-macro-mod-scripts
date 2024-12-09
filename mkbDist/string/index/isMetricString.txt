@@ -1,0 +1,18 @@
+//! @mkb-import-begin
+    // string/index/isMetricString
+        // Checks if a String is a Metric String
+            // Params:
+                // {string} <&metric_string>    The String to check for a Metric Suffix (and/or Metric Suffixes)
+                //
+            // Returns a Boolean indicating whether or not the String is a Metric String
+            // Example:
+                //    is_metric = isMetricString(%&metric_string%);
+        function isMetricString(&metric_string);
+            // File: G:/G_DRIVE_CODE/mkbFunctionExporterNew/mkbSource/string/index.txt:510
+            &base_expression = "([\d,.-]+)(?:.*?\b|\B)(K|M|B|T)";
+            ifmatches(%&metric_string%,%&base_expression%);
+                return_boolean = true;
+            endif;
+            return(%return_boolean%);
+        endfunction;
+//! @mkb-import-end
